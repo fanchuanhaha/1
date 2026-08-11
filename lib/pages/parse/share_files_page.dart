@@ -14,6 +14,7 @@ class ShareFilesPage extends StatefulWidget {
   final DriveShareSession session;
   final List<DriveShareFile> initialFiles;
   final String initialName;
+  final String cookie;
 
   const ShareFilesPage({
     super.key,
@@ -21,6 +22,7 @@ class ShareFilesPage extends StatefulWidget {
     required this.session,
     required this.initialFiles,
     required this.initialName,
+    this.cookie = '',
   });
 
   @override
@@ -158,6 +160,7 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
         final err = await DownloadService.addDirectUrl(
           url: info.url,
           fileName: info.fileName,
+          cookie: widget.cookie,
           connections: 16,
         );
         if (err == null) added++;
@@ -436,6 +439,7 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
       final err = await DownloadService.addDirectUrl(
         url: info.url,
         fileName: info.fileName.isNotEmpty ? info.fileName : file.fileName,
+        cookie: widget.cookie,
         connections: 16,
       );
       if (err != null) throw Exception(err);

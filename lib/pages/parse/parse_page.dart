@@ -282,6 +282,9 @@ class _ParsePageState extends State<ParsePage> {
           session: session,
           initialFiles: files,
           initialName: _selectedDrive.label,
+          cookie: _selectedDrive == DriveType.quark
+              ? DriveManager.I.quark.downloadCookieSnapshot
+              : '',
         ),
       ));
     } catch (e) {
