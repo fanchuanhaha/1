@@ -6,12 +6,13 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../api/drive_manager.dart';
+import '../api/drive_type.dart';
 import '../api/quark_client.dart';
 import '../api/quark_models.dart';
 
 class AppState extends ChangeNotifier {
   static const _sysChannel = MethodChannel('quarklite.com/system');
-  static const _kCookie = 'quark_cookie';
   static const _kDownloadDir = 'download_dir';
   static const _kConnections = 'connections';
 
@@ -20,30 +21,34 @@ class AppState extends ChangeNotifier {
 
   AppState._();
 
-  final QuarkClient quark = QuarkClient();
+  /// 网盘驱动管理器
+  final DriveManager driveManager = DriveManager.I;
+
+  /// 夸克客户端（兼容旧代码）
+  QuarkClient get quark => driveManager.quark;
+
+  /// 当前活跃的网盘类型
+  DriveType get activeDrive => driveManager.activeDrive;
+  set activeDrive(DriveType t) => driveManager.activeDrive = t;
+
+  /// 用户信息
+  QuarkUserInfo? get user => driveManager.user;
+  String? get loginError => driveManager.loginError;
+  bool get loading => driveManager.loading;
+  bool get isLoggedIn => driveManager.isLoggedIn;
+
   final _secure = const FlutterSecureStorage(
     aOptions: AndroidOptions(encryptedSharedPreferences: true),
   );
-
-  QuarkUserInfo? user;
-  String? loginError;
-  bool loading = false;
 
   String downloadDir = '';
   int connections = 16;
 
   Timer? _sessionTimer;
 
-  bool get isLoggedIn => user != null;
-
   Future<void> init() async {
     _loadSettings();
-    final cookie = await _secure.read(key: _kCookie);
-    if (cookie != null && cookie.isNotEmpty) {
-      quark.setCookie(cookie);
-      quark.startSessionRefresher();
-      await refreshUser();
-    }
+    await driveManager.init();
   }
 
   void _loadSettings() {
@@ -55,42 +60,12 @@ class AppState extends ChangeNotifier {
     });
   }
 
-  Future<void> refreshUser() async {
-    loading = true;
-    notifyListeners();
-    try {
-      user = await quark.getUserInfo();
-      loginError = null;
-    } catch (e) {
-      loginError = e.toString();
-    }
-    loading = false;
-    notifyListeners();
-  }
+  Future<void> refreshUser() => driveManager.refreshUser();
 
   /// 登录：设置 cookie 并验证
-  Future<String?> login(String cookie) async {
-    try {
-      quark.setCookie(cookie);
-      final info = await quark.getUserInfo();
-      user = info;
-      loginError = null;
-      quark.startSessionRefresher();
-      await _secure.write(key: _kCookie, value: quark.cookie);
-      notifyListeners();
-      return null;
-    } catch (e) {
-      quark.setCookie('');
-      return e.toString();
-    }
-  }
+  Future<String?> login(String cookie) => driveManager.login(cookie);
 
-  Future<void> logout() async {
-    quark.setCookie('');
-    user = null;
-    await _secure.delete(key: _kCookie);
-    notifyListeners();
-  }
+  Future<void> logout() => driveManager.logout();
 
   Future<void> setDownloadDir(String dir) async {
     downloadDir = dir;
@@ -130,7 +105,7 @@ class AppState extends ChangeNotifier {
 
   @override
   void dispose() {
-    quark.dispose();
+    driveManager.dispose();
     _sessionTimer?.cancel();
     super.dispose();
   }

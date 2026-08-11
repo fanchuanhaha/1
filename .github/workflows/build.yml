@@ -85,3 +85,23 @@ jobs:
             build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
             build/app/outputs/flutter-apk/app-x86_64-release.apk
           if-no-files-found: error
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        if: github.ref == 'refs/heads/main'
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: "自动构建 #${{ github.run_number }}"
+          body: |
+            自动构建 APK
+            
+            - 支持多网盘: 夸克、阿里云盘、百度网盘、PikPak、天翼云盘、UC网盘、微云、迅雷网盘、123云盘、移动云盘、光丫
+            - 基于 Gopeed 下载引擎
+            - 自动构建时间: ${{ github.event.repository.updated_at }}
+          files: |
+            build/app/outputs/flutter-apk/app-release.apk
+            build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
+            build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+            build/app/outputs/flutter-apk/app-x86_64-release.apk
+          generate_release_notes: false
+          make_latest: true

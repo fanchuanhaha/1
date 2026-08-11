@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../api/base_drive.dart';
+import '../../api/drive_manager.dart';
+import '../../api/drive_type.dart';
 import '../../api/quark_client.dart';
 import '../../state/app_state.dart';
 import '../../state/download_service.dart';
@@ -22,11 +25,23 @@ class _ParsePageState extends State<ParsePage> {
   bool _btMode = false;
   bool _parsing = false;
   List<Map<String, String>> _history = [];
+  DriveType _selectedDrive = DriveType.quark;
 
   @override
   void initState() {
     super.initState();
     _loadHistory();
+    _urlController.addListener(_onUrlChanged);
+  }
+
+  void _onUrlChanged() {
+    final text = _urlController.text.trim();
+    if (text.isNotEmpty) {
+      final detected = DriveType.detectFromUrl(text);
+      if (detected != _selectedDrive) {
+        setState(() => _selectedDrive = detected);
+      }
+    }
   }
 
   Future<void> _loadHistory() async {
@@ -145,8 +160,64 @@ class _ParsePageState extends State<ParsePage> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
+  void _showDriveSelector() {
+    showModalBottomSheet(
+      context: context,
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('选择网盘',
+                  style: TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.w700)),
+            ),
+            const Divider(height: 1),
+            Flexible(
+              child: ListView(
+                shrinkWrap: true,
+                children: DriveType.values.map((drive) {
+                  final isActive = drive == _selectedDrive;
+                  return ListTile(
+                    leading: Image.asset(
+                      drive.iconAsset,
+                      width: 28,
+                      height: 28,
+                      errorBuilder: (_, _, _) => const Icon(
+                          Icons.cloud_rounded,
+                          color: AppColors.textSecondary,
+                          size: 28),
+                    ),
+                    title: Text(drive.label,
+                        style: TextStyle(
+                          color: isActive
+                              ? AppColors.accent
+                              : AppColors.textPrimary,
+                          fontWeight:
+                              isActive ? FontWeight.w600 : FontWeight.normal,
+                        )),
+                    trailing: isActive
+                        ? const Icon(Icons.check_rounded,
+                            color: AppColors.accent, size: 22)
+                        : null,
+                    onTap: () {
+                      setState(() => _selectedDrive = drive);
+                      Navigator.pop(context);
+                    },
+                  );
+                }).toList(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   void dispose() {
+    _urlController.removeListener(_onUrlChanged);
     _urlController.dispose();
     _pwdController.dispose();
     _btController.dispose();
@@ -262,6 +333,40 @@ class _ParsePageState extends State<ParsePage> {
             ],
           ),
           const SizedBox(height: 14),
+          // 网盘选择器
+          GestureDetector(
+            onTap: _showDriveSelector,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: AppColors.bg,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Image.asset(
+                    _selectedDrive.iconAsset,
+                    width: 22,
+                    height: 22,
+                    errorBuilder: (_, _, _) => const Icon(
+                        Icons.cloud_rounded,
+                        color: AppColors.textSecondary,
+                        size: 22),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    _selectedDrive.label,
+                    style: const TextStyle(
+                        color: AppColors.textPrimary, fontSize: 14),
+                  ),
+                  const Spacer(),
+                  const Icon(Icons.keyboard_arrow_down_rounded,
+                      color: AppColors.textSecondary, size: 20),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
           TextField(
             controller: _urlController,
             maxLines: 3,

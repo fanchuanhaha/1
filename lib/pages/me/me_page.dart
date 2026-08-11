@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../api/drive_manager.dart';
+import '../../api/drive_type.dart';
 import '../../state/app_state.dart';
 import '../../theme/app_theme.dart';
 import '../login/login_page.dart';
@@ -10,7 +12,7 @@ class MePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: AppState.I,
+      listenable: Listenable.merge([AppState.I, DriveManager.I]),
       builder: (context, _) {
         final app = AppState.I;
         return SafeArea(
@@ -24,6 +26,8 @@ class MePage extends StatelessWidget {
                         TextStyle(fontSize: 24, fontWeight: FontWeight.w800)),
               ),
               _buildLoginCard(context, app),
+              const SizedBox(height: 16),
+              _buildDriveCard(context),
               const SizedBox(height: 16),
               _buildSettingsCard(context, app),
               const SizedBox(height: 16),
@@ -56,6 +60,7 @@ class MePage extends StatelessWidget {
 
   Widget _buildLoginCard(BuildContext context, AppState app) {
     final user = app.user;
+    final driveType = DriveManager.I.activeDrive;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -136,7 +141,7 @@ class MePage extends StatelessWidget {
                   Text(
                     user == null
                         ? '登录夸克账号，解锁全部功能'
-                        : '夸克网盘已连接',
+                        : '${driveType.label} 已连接',
                     style: const TextStyle(
                         color: AppColors.textSecondary, fontSize: 12),
                   ),
@@ -159,6 +164,89 @@ class MePage extends StatelessWidget {
                   color: AppColors.green, size: 22),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildDriveCard(BuildContext context) {
+    final activeDrive = DriveManager.I.activeDrive;
+    final drives = DriveType.values;
+    final screenWidth = MediaQuery.of(context).size.width;
+    // ListView padding 16*2 + container padding 16*2 + wrap spacing 8*3
+    final itemWidth = (screenWidth - 32 - 32 - 24) / 4;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.cloud_rounded, color: AppColors.accent, size: 20),
+              SizedBox(width: 8),
+              Text('当前网盘',
+                  style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: drives.map((drive) {
+              final isActive = drive == activeDrive;
+              return GestureDetector(
+                onTap: () => DriveManager.I.activeDrive = drive,
+                child: Container(
+                  width: itemWidth,
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+                  decoration: BoxDecoration(
+                    color: isActive ? AppColors.accentDeep : AppColors.cardLight,
+                    borderRadius: BorderRadius.circular(12),
+                    border: isActive
+                        ? Border.all(color: AppColors.accent, width: 1)
+                        : null,
+                  ),
+                  child: Column(
+                    children: [
+                      Image.asset(
+                        drive.iconAsset,
+                        width: 28,
+                        height: 28,
+                        errorBuilder: (_, _, _) => const Icon(
+                            Icons.cloud_rounded,
+                            color: AppColors.textSecondary,
+                            size: 28),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        drive.label,
+                        style: TextStyle(
+                          color: isActive
+                              ? AppColors.accent
+                              : AppColors.textSecondary,
+                          fontSize: 11,
+                          fontWeight:
+                              isActive ? FontWeight.w600 : FontWeight.normal,
+                        ),
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
       ),
     );
   }
@@ -229,7 +317,8 @@ class MePage extends StatelessWidget {
         content: TextField(
           controller: controller,
           style: const TextStyle(color: AppColors.textPrimary),
-          decoration: const InputDecoration(hintText: '/storage/emulated/0/Download/Quarklite'),
+          decoration: const InputDecoration(
+              hintText: '/storage/emulated/0/Download/Quarklite'),
         ),
         actions: [
           TextButton(
