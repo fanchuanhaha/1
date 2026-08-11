@@ -489,7 +489,7 @@ class WeiyunClient extends BaseDrive {
       shareFidToken: json['share_fid_token']?.toString() ??
           json['fid_token']?.toString() ??
           json['stoken']?.toString() ??
-          session.stoken,
+          '',
     );
   }
 

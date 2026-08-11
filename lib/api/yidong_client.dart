@@ -471,7 +471,7 @@ class YiDongClient implements BaseDrive {
 
   // ---------------- 内部请求方法 ----------------
 
-  Future<Map<String, dynamic>> _request(
+  Future<Response<dynamic>> _request(
     String method,
     String url, {
     Map<String, dynamic>? params,
