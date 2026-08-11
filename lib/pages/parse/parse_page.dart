@@ -5,11 +5,13 @@ import '../../api/base_drive.dart';
 import '../../api/drive_manager.dart';
 import '../../api/drive_type.dart';
 import '../../api/quark_client.dart';
+import '../../api/quark_drive_adapter.dart';
 import '../../state/app_state.dart';
 import '../../state/download_service.dart';
 import '../../theme/app_theme.dart';
 import 'share_files_page.dart';
 
+/// 解析页面：自动识别粘贴链接所属的网盘，使用对应客户端解析
 class ParsePage extends StatefulWidget {
   const ParsePage({super.key});
 
@@ -74,13 +76,150 @@ class _ParsePageState extends State<ParsePage> {
     if (mounted) setState(() {});
   }
 
+  /// 解析分享链接，提取 pwdId 和 passcode
+  ({String pwdId, String passcode}) _parseShareUrl(String url, DriveType type) {
+    final u = url.trim();
+    final lower = u.toLowerCase();
+
+    switch (type) {
+      case DriveType.quark:
+        return QuarkClient.parseShareUrl(u);
+
+      case DriveType.ali:
+        // https://www.aliyundrive.com/s/xxxxx 或 https://www.alipan.com/s/xxxxx
+        final uri = Uri.tryParse(u);
+        if (uri != null) {
+          final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
+          if (segments.length >= 2 && segments[0] == 's') {
+            // 提取提取码（通常在 URL 参数中）
+            final passcode = uri.queryParameters['pwd'] ?? uri.queryParameters['passcode'] ?? '';
+            return (pwdId: segments[1], passcode: passcode);
+          }
+        }
+        return (pwdId: '', passcode: '');
+
+      case DriveType.baidu:
+        // https://pan.baidu.com/s/xxxxx?pwd=xxxx
+        final uri = Uri.tryParse(u);
+        if (uri != null) {
+          final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
+          if (segments.length >= 2 && segments[0] == 's') {
+            final passcode = uri.queryParameters['pwd'] ?? '';
+            return (pwdId: segments[1], passcode: passcode);
+          }
+        }
+        return (pwdId: '', passcode: '');
+
+      case DriveType.pikpak:
+        // https://mypikpak.com/s/xxxxx
+        final uri = Uri.tryParse(u);
+        if (uri != null) {
+          final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
+          if (segments.length >= 2 && segments[0] == 's') {
+            final passcode = uri.queryParameters['pwd'] ?? '';
+            return (pwdId: segments[1], passcode: passcode);
+          }
+        }
+        return (pwdId: '', passcode: '');
+
+      case DriveType.tianyi:
+        // https://cloud.189.cn/t/xxxxx (访问码)
+        // https://cloud.189.cn/web/share?code=xxxxx
+        final uri = Uri.tryParse(u);
+        if (uri != null) {
+          final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
+          if (segments.length >= 2 && segments[0] == 't') {
+            // 路径格式：/t/xxxxx
+            final passcode = uri.queryParameters['accessCode'] ?? '';
+            return (pwdId: segments[1], passcode: passcode);
+          }
+          // 参数格式：?code=xxxxx
+          final code = uri.queryParameters['code'] ?? '';
+          if (code.isNotEmpty) {
+            final passcode = uri.queryParameters['accessCode'] ?? '';
+            return (pwdId: code, passcode: passcode);
+          }
+        }
+        return (pwdId: '', passcode: '');
+
+      case DriveType.uc:
+        // https://drive.uc.cn/s/xxxxx
+        final uri = Uri.tryParse(u);
+        if (uri != null) {
+          final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
+          if (segments.length >= 2 && segments[0] == 's') {
+            final passcode = uri.queryParameters['pwd'] ?? '';
+            return (pwdId: segments[1], passcode: passcode);
+          }
+        }
+        return (pwdId: '', passcode: '');
+
+      case DriveType.weiyun:
+        // https://share.weiyun.com/xxxxx
+        final uri = Uri.tryParse(u);
+        if (uri != null) {
+          // 提取路径最后一段作为 shareId
+          final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
+          if (segments.isNotEmpty) {
+            final passcode = uri.queryParameters['pwd'] ?? '';
+            return (pwdId: segments.last, passcode: passcode);
+          }
+        }
+        return (pwdId: '', passcode: '');
+
+      case DriveType.xunlei:
+        // https://pan.xunlei.com/s/xxxxx
+        final uri = Uri.tryParse(u);
+        if (uri != null) {
+          final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
+          if (segments.length >= 2 && segments[0] == 's') {
+            final passcode = uri.queryParameters['pwd'] ?? '';
+            return (pwdId: segments[1], passcode: passcode);
+          }
+        }
+        return (pwdId: '', passcode: '');
+
+      case DriveType.pan123:
+        // https://www.123pan.com/s/xxxxx
+        final uri = Uri.tryParse(u);
+        if (uri != null) {
+          final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
+          if (segments.length >= 2 && segments[0] == 's') {
+            final passcode = uri.queryParameters['pwd'] ?? '';
+            return (pwdId: segments[1], passcode: passcode);
+          }
+        }
+        return (pwdId: '', passcode: '');
+
+      case DriveType.yidong:
+        // https://caiyun.139.com/w/i/?xxxxx
+        final uri = Uri.tryParse(u);
+        if (uri != null) {
+          final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
+          if (segments.isNotEmpty) {
+            final passcode = uri.queryParameters['pwd'] ?? '';
+            return (pwdId: segments.last, passcode: passcode);
+          }
+        }
+        return (pwdId: '', passcode: '');
+
+      case DriveType.guangya:
+        // https://guangyapan.com/s/xxxxx
+        final uri = Uri.tryParse(u);
+        if (uri != null) {
+          final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
+          if (segments.length >= 2 && segments[0] == 's') {
+            final passcode = uri.queryParameters['pwd'] ?? '';
+            return (pwdId: segments[1], passcode: passcode);
+          }
+        }
+        return (pwdId: '', passcode: '');
+    }
+  }
+
   Future<void> _parse() async {
     if (_parsing) return;
-    final app = AppState.I;
-    if (!app.isLoggedIn) {
-      _toast('请先登录夸克账号');
-      return;
-    }
+
     if (_btMode) {
       final magnet = _btController.text.trim();
       if (magnet.isEmpty) {
@@ -108,7 +247,8 @@ class _ParsePageState extends State<ParsePage> {
       return;
     }
 
-    final parsed = QuarkClient.parseShareUrl(url);
+    // 解析链接
+    final parsed = _parseShareUrl(url, _selectedDrive);
     if (parsed.pwdId.isEmpty) {
       _toast('无法识别的分享链接');
       return;
@@ -117,17 +257,31 @@ class _ParsePageState extends State<ParsePage> {
         ? parsed.passcode
         : _pwdController.text.trim();
 
+    // 获取对应网盘客户端
+    final drive = _getDriveForType(_selectedDrive);
+    if (drive == null) {
+      _toast('该网盘暂不支持解析');
+      return;
+    }
+
+    // 检查登录状态
+    if (!drive.hasLogin) {
+      _toast('请先登录${_selectedDrive.label}');
+      return;
+    }
+
     setState(() => _parsing = true);
     try {
-      final session = await app.quark.getShareToken(parsed.pwdId, pwd);
-      final files = await app.quark.listShare(session, '0');
+      final session = await drive.getShareToken(parsed.pwdId, pwd);
+      final files = await drive.listShare(session, '0');
       await _saveHistory(url, pwd);
       if (!mounted) return;
       Navigator.of(context).push(MaterialPageRoute(
         builder: (_) => ShareFilesPage(
+          drive: drive,
           session: session,
           initialFiles: files,
-          initialName: '分享内容',
+          initialName: _selectedDrive.label,
         ),
       ));
     } catch (e) {
@@ -135,6 +289,14 @@ class _ParsePageState extends State<ParsePage> {
     } finally {
       if (mounted) setState(() => _parsing = false);
     }
+  }
+
+  /// 根据网盘类型获取对应的驱动器实例
+  BaseDrive? _getDriveForType(DriveType type) {
+    if (type == DriveType.quark) {
+      return QuarkDriveAdapter(DriveManager.I.quark);
+    }
+    return DriveManager.I.getDrive(type);
   }
 
   Future<void> _addBt(String magnet) async {
@@ -327,9 +489,11 @@ class _ParsePageState extends State<ParsePage> {
                       fontSize: 15,
                       fontWeight: FontWeight.w600)),
               const Spacer(),
-              const Text('等待粘贴链接',
-                  style: TextStyle(
-                      color: AppColors.textSecondary, fontSize: 12)),
+              Text(
+                _selectedDrive.label,
+                style: const TextStyle(
+                    color: AppColors.textSecondary, fontSize: 12),
+              ),
             ],
           ),
           const SizedBox(height: 14),
@@ -372,8 +536,8 @@ class _ParsePageState extends State<ParsePage> {
             maxLines: 3,
             minLines: 2,
             style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
-            decoration: const InputDecoration(
-              hintText: '粘贴夸克分享链接或包含链接的文本',
+            decoration: InputDecoration(
+              hintText: '粘贴${_selectedDrive.label}分享链接或包含链接的文本',
             ),
           ),
           const SizedBox(height: 10),

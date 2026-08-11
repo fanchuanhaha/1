@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'core/gopeed/gopeed_boot.dart';
 import 'pages/downloads/downloads_page.dart';
+import 'pages/drive/drive_list_page.dart';
 import 'pages/drive/drive_page.dart';
 import 'pages/me/me_page.dart';
 import 'pages/parse/parse_page.dart';
@@ -113,7 +114,7 @@ class _RootPageState extends State<RootPage> {
 
   static const _pages = [
     ParsePage(),
-    DrivePage(),
+    DriveListPage(),
     DownloadsPage(),
     MePage(),
   ];

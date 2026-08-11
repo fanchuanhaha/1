@@ -1,93 +1,54 @@
 import 'package:flutter/material.dart';
 
 import '../../api/base_drive.dart';
-import '../../state/download_manager.dart';
-import '../../state/download_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/format.dart';
 import '../../widgets/empty_view.dart';
 import '../../widgets/file_icon.dart';
 
-/// 通用分享文件浏览页面，适用于任何实现了 [BaseDrive] 的网盘
-class ShareFilesPage extends StatefulWidget {
+/// 通用网盘文件浏览页面，可适用于任何实现 [BaseDrive] 的网盘。
+class DriveFilesPage extends StatefulWidget {
   final BaseDrive drive;
-  final DriveShareSession session;
-  final List<DriveShareFile> initialFiles;
-  final String initialName;
+  final String driveName;
+  final String initialDirFid;
 
-  const ShareFilesPage({
+  const DriveFilesPage({
     super.key,
     required this.drive,
-    required this.session,
-    required this.initialFiles,
-    required this.initialName,
+    required this.driveName,
+    this.initialDirFid = '0',
   });
 
   @override
-  State<ShareFilesPage> createState() => _ShareFilesPageState();
+  State<DriveFilesPage> createState() => _DriveFilesPageState();
 }
 
-class _ShareFilesPageState extends State<ShareFilesPage> {
-  late List<DriveShareFile> _files;
-  String _dirFid = '0';
-  final List<String> _stack = [];
+class _DriveFilesPageState extends State<DriveFilesPage> {
+  List<DriveFile> _files = [];
+  late String _pdirFid = widget.initialDirFid;
+  late String _currentName = widget.driveName;
+  final List<(String, String)> _crumbs = [];
   bool _loading = false;
   String? _error;
 
   bool _selectMode = false;
   final Set<String> _selected = {};
-  bool _busy = false;
+  bool _downloading = false;
 
   @override
   void initState() {
     super.initState();
-    _files = widget.initialFiles;
+    _crumbs.add((widget.initialDirFid, widget.driveName));
+    _load();
   }
 
-  Future<void> _openDir(DriveShareFile dir) async {
-    setState(() {
-      _loading = true;
-      _error = null;
-      _stack.add(_dirFid);
-      _dirFid = dir.fid;
-    });
-    try {
-      final files = await widget.drive.listShare(widget.session, _dirFid);
-      if (mounted) {
-        setState(() {
-          _files = files;
-          _loading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _loading = false;
-          _error = e.toString();
-          _stack.removeLast();
-          _dirFid = _stack.isEmpty ? '0' : _stack.last;
-        });
-      }
-    }
-  }
-
-  void _back() {
-    if (_stack.isEmpty) return;
-    setState(() {
-      _dirFid = _stack.removeLast();
-      _files = widget.initialFiles;
-      _error = null;
-    });
-    _reloadCurrent();
-  }
-
-  Future<void> _reloadCurrent() async {
+  Future<void> _load() async {
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      final files = await widget.drive.listShare(widget.session, _dirFid);
+      final files = await widget.drive.listFiles(_pdirFid);
       if (mounted) {
         setState(() {
           _files = files;
@@ -102,18 +63,58 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
         });
       }
     }
+  }
+
+  Future<void> _enterDir(DriveFile dir) async {
+    setState(() {
+      _crumbs.add((_pdirFid, _currentName));
+      _pdirFid = dir.fid;
+      _currentName = dir.fileName;
+      _files = [];
+      _loading = true;
+    });
+    try {
+      final files = await widget.drive.listFiles(_pdirFid);
+      if (mounted) {
+        setState(() {
+          _files = files;
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _error = e.toString();
+        });
+      }
+    }
+  }
+
+  void _toBreadcrumb(int index) {
+    if (index >= _crumbs.length - 1) return;
+    setState(() {
+      _crumbs.removeRange(index + 1, _crumbs.length);
+      _pdirFid = _crumbs.last.$1;
+      _currentName = _crumbs.last.$2;
+      _files = [];
+      _error = null;
+      _selectMode = false;
+      _selected.clear();
+    });
+    _load();
   }
 
   // ---------------- 多选 ----------------
 
-  void _enterSelectMode(DriveShareFile file) {
+  void _enterSelectMode(DriveFile file) {
     setState(() {
       _selectMode = true;
       if (!file.isDir) _selected.add(file.fid);
     });
   }
 
-  void _toggleSelect(DriveShareFile file) {
+  void _toggleSelect(DriveFile file) {
     if (file.isDir) return;
     setState(() {
       if (!_selected.remove(file.fid)) {
@@ -127,10 +128,6 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
       _selectMode = false;
       _selected.clear();
     });
-  }
-
-  List<DriveShareFile> _selectedFiles() {
-    return _files.where((f) => _selected.contains(f.fid)).toList();
   }
 
   void _selectAllFiles() {
@@ -147,42 +144,33 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
   }
 
   Future<void> _batchDownload() async {
-    if (_selected.isEmpty || _busy) return;
-    setState(() => _busy = true);
+    if (_selected.isEmpty || _downloading) return;
+    setState(() => _downloading = true);
     try {
-      final infos = await widget.drive
-          .getShareDownloadInfo(widget.session, _selected.toList());
-      var added = 0;
-      for (final info in infos) {
-        if (info.url.isEmpty) continue;
-        final err = await DownloadService.addDirectUrl(
-          url: info.url,
-          fileName: info.fileName,
-          connections: 16,
-        );
-        if (err == null) added++;
-      }
-      _toast('已添加 $added 个下载任务');
-      DownloadManager.I.startPolling();
+      final infos = await widget.drive.getDownloadInfo(_selected.toList());
+      if (!mounted) return;
+      _toast('获取到 ${infos.length} 个下载链接');
       _exitSelectMode();
     } catch (e) {
+      if (!mounted) return;
       _toast('批量下载失败: $e');
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) setState(() => _downloading = false);
     }
   }
 
-  Future<void> _batchSave() async {
-    if (_selected.isEmpty || _busy) return;
-    setState(() => _busy = true);
+  Future<void> _singleDownload(DriveFile file) async {
     try {
-      await widget.drive.saveShare(widget.session, _selectedFiles(), '0');
-      _toast('已保存 ${_selected.length} 项到网盘根目录');
-      _exitSelectMode();
+      final infos = await widget.drive.getDownloadInfo([file.fid]);
+      if (!mounted) return;
+      if (infos.isEmpty) {
+        _toast('未获取到下载地址');
+      } else {
+        _toast('获取到 ${infos.length} 个下载链接');
+      }
     } catch (e) {
-      _toast('保存失败: $e');
-    } finally {
-      if (mounted) setState(() => _busy = false);
+      if (!mounted) return;
+      _toast('下载失败: $e');
     }
   }
 
@@ -190,20 +178,12 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_selectMode
-            ? '已选 ${_selected.length} 项'
-            : _stack.isEmpty
-                ? widget.initialName
-                : _files.isEmpty
-                    ? '文件夹'
-                    : ''),
+        title: Text(_selectMode ? '已选 ${_selected.length} 项' : widget.driveName),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
           onPressed: () {
             if (_selectMode) {
               _exitSelectMode();
-            } else if (_stack.isNotEmpty) {
-              _back();
             } else {
               Navigator.pop(context);
             }
@@ -219,7 +199,41 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
         ],
       ),
       body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // 面包屑导航
+          if (_crumbs.length > 1)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    for (var i = 0; i < _crumbs.length; i++) ...[
+                      if (i > 0)
+                        const Icon(Icons.chevron_right_rounded,
+                            size: 16, color: AppColors.textSecondary),
+                      InkWell(
+                        onTap: () => _toBreadcrumb(i),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 4, vertical: 4),
+                          child: Text(
+                            _crumbs[i].$2,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: i == _crumbs.length - 1
+                                  ? AppColors.accent
+                                  : AppColors.textSecondary,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
           Expanded(child: _buildBody()),
           if (_selectMode) _buildSelectBar(),
         ],
@@ -243,19 +257,8 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
                 style: const TextStyle(
                     color: AppColors.textPrimary, fontSize: 14)),
             const Spacer(),
-            OutlinedButton(
-              onPressed: _busy || count == 0 ? null : _batchSave,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.green,
-                side: const BorderSide(color: AppColors.green),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-              ),
-              child: const Text('转存'),
-            ),
-            const SizedBox(width: 10),
             FilledButton.icon(
-              onPressed: _busy || count == 0 ? null : _batchDownload,
+              onPressed: _downloading || count == 0 ? null : _batchDownload,
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.accent,
                 foregroundColor: Colors.white,
@@ -263,7 +266,7 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12)),
               ),
-              icon: _busy
+              icon: _downloading
                   ? const SizedBox(
                       width: 16,
                       height: 16,
@@ -280,13 +283,13 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
   }
 
   Widget _buildBody() {
-    if (_error != null) {
+    if (_error != null && _files.isEmpty) {
       return EmptyView(
         icon: Icons.cloud_off_rounded,
         text: '加载失败',
         subText: _error,
         action: OutlinedButton(
-          onPressed: _reloadCurrent,
+          onPressed: _load,
           child: const Text('重试'),
         ),
       );
@@ -295,12 +298,13 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
       return const Center(child: CircularProgressIndicator());
     }
     if (_files.isEmpty) {
-      return const EmptyView(icon: Icons.folder_open_rounded, text: '这个文件夹是空的');
+      return const EmptyView(
+          icon: Icons.folder_open_rounded, text: '这里空空如也');
     }
     return RefreshIndicator(
-      onRefresh: _reloadCurrent,
+      onRefresh: _load,
       child: ListView.separated(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
         itemCount: _files.length,
         separatorBuilder: (_, _) => const SizedBox(height: 10),
         itemBuilder: (_, i) => _buildItem(_files[i]),
@@ -308,14 +312,14 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
     );
   }
 
-  Widget _buildItem(DriveShareFile file) {
+  Widget _buildItem(DriveFile file) {
     final selected = _selected.contains(file.fid);
     return InkWell(
       onTap: () {
         if (_selectMode) {
           _toggleSelect(file);
         } else if (file.isDir) {
-          _openDir(file);
+          _enterDir(file);
         } else {
           _showFileActions(file);
         }
@@ -347,7 +351,9 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    file.isDir ? '文件夹' : formatBytes(file.size),
+                    file.isDir
+                        ? '文件夹'
+                        : '${formatBytes(file.size)}  ·  ${formatDateTime(file.updatedAt)}',
                     style: const TextStyle(
                         color: AppColors.textSecondary, fontSize: 12),
                   ),
@@ -371,7 +377,7 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
     );
   }
 
-  void _showFileActions(DriveShareFile file) {
+  void _showFileActions(DriveFile file) {
     showModalBottomSheet(
       context: context,
       builder: (ctx) => SafeArea(
@@ -400,21 +406,13 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
                     color: AppColors.textSecondary, fontSize: 12)),
             const SizedBox(height: 16),
             ListTile(
-              leading: const Icon(Icons.download_rounded, color: AppColors.accent),
+              leading: const Icon(Icons.download_rounded,
+                  color: AppColors.accent),
               title: const Text('立即下载'),
               subtitle: const Text('提取直链，多线程不限速下载'),
               onTap: () {
                 Navigator.pop(ctx);
-                _downloadFile(file);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.save_alt_rounded, color: AppColors.green),
-              title: const Text('保存到网盘'),
-              subtitle: const Text('转存到自己的网盘'),
-              onTap: () {
-                Navigator.pop(ctx);
-                _saveFile(file);
+                _singleDownload(file);
               },
             ),
             const SizedBox(height: 8),
@@ -422,37 +420,6 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
         ),
       ),
     );
-  }
-
-  Future<void> _downloadFile(DriveShareFile file) async {
-    try {
-      final infos = await widget.drive
-          .getShareDownloadInfo(widget.session, [file.fid]);
-      if (infos.isEmpty) {
-        _toast('未获取到下载地址');
-        return;
-      }
-      final info = infos.first;
-      final err = await DownloadService.addDirectUrl(
-        url: info.url,
-        fileName: info.fileName.isNotEmpty ? info.fileName : file.fileName,
-        connections: 16,
-      );
-      if (err != null) throw Exception(err);
-      _toast('已加入下载队列');
-      DownloadManager.I.startPolling();
-    } catch (e) {
-      _toast('下载失败: $e');
-    }
-  }
-
-  Future<void> _saveFile(DriveShareFile file) async {
-    try {
-      await widget.drive.saveShare(widget.session, [file], '0');
-      _toast('已保存到网盘根目录');
-    } catch (e) {
-      _toast('保存失败: $e');
-    }
   }
 
   void _toast(String msg) {
