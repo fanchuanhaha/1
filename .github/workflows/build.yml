@@ -105,3 +105,4 @@ jobs:
             build/app/outputs/flutter-apk/app-x86_64-release.apk
           generate_release_notes: false
           make_latest: true
+          token: ${{ secrets.RELEASE_TOKEN }}
