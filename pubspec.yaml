@@ -1,0 +1,33 @@
+name: quarklite
+description: "Quarklite - 多网盘不限速下载工具（夸克/阿里云盘/百度网盘/PikPak/天翼云/UC/微云/迅雷/123云盘/移动云盘/光丫）"
+publish_to: 'none'
+
+version: 2.0.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+  dio: ^5.7.0
+  shared_preferences: ^2.3.2
+  flutter_secure_storage: ^9.2.2
+  qr_flutter: ^4.1.0
+  webview_flutter: ^4.10.0
+  path_provider: ^2.1.4
+  cached_network_image: ^3.4.1
+  video_player: ^2.10.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/icons/
