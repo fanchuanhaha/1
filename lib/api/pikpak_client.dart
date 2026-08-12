@@ -26,7 +26,7 @@ class PikPakClient implements BaseDrive {
   static const String _shareFileInfo = 'https://api-drive.mypikpak.com/drive/v1/share/file_info';
   static const String _captchaInit = 'https://user.mypikpak.com/v1/shield/captcha/init';
 
-  static const String defaultUserAgent = 'ANDROID-com.pikcloud.pikpak/1.47.1';
+  static const String defaultUserAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
   // ---- BaseDrive ----
   @override

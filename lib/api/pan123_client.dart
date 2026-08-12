@@ -30,7 +30,7 @@ class Pan123Client implements BaseDrive {
   static const String shareUrl = 'https://share.123pan.cn';
 
   static const String uaPc =
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
   // ---------------- 内部状态 ----------------
 

@@ -29,7 +29,7 @@ class UcClient extends BaseDrive {
 
   static const String _ua =
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      ' (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
+      ' (KHTML, like Gecko) uc-cloud-drive/1.6.1 Chrome/100.0.4896.160 Electron/18.3.5.16-b62cf9c50d Safari/537.36 Channel/ucpan_other_ch';
 
   static const String _uaDesktopClient =
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'

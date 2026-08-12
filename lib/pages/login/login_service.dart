@@ -3,7 +3,14 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 
 import '../../api/drive_type.dart';
-import '../../api/quark_client.dart';
+
+/// 参考APK的 UA 字符串
+const String _uaPc = 
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+const String _uaQuarkPc =
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) quark-cloud-drive/2.5.20 Chrome/100.0.4896.160 Electron/18.3.5.12-a038f7b798 Safari/537.36 Channel/pckk_other_ch';
+const String _uaUcPc =
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) uc-cloud-drive/1.6.1 Chrome/100.0.4896.160 Electron/18.3.5.16-b62cf9c50d Safari/537.36 Channel/ucpan_other_ch';
 
 /// 登录服务：封装各网盘的账号密码/验证码登录 API 调用
 class LoginService {
@@ -12,62 +19,136 @@ class LoginService {
     receiveTimeout: const Duration(seconds: 15),
   ));
 
-  static Map<String, dynamic> _headers() => {
-        'Accept': 'application/json, text/plain, */*',
-        'Content-Type': 'application/json',
-        'User-Agent': QuarkClient.uaPc,
-        'Referer': 'https://pan.quark.cn/',
-      };
+  // ═══════════════════════════════════════════════════════════════
+  // 天翼云盘密码登录（参考APK的 TianyiPasswordLoginDebug）
+  // 使用 open.e.189.cn 的 OAuth2 登录流程
+  // ═══════════════════════════════════════════════════════════════
 
-  /// 夸克账号密码登录
-  static Future<String?> quarkPasswordLogin({
-    required String username,
+  /// 天翼云盘密码登录
+  /// 返回 {cookie, sessionKey, sessionSecret, accessToken} 或抛出异常
+  static Future<Map<String, dynamic>> tianyiPasswordLogin({
+    required String phone,
     required String password,
-    String? captcha,
+    String? captchaToken,
+    String? captchaCode,
   }) async {
+    final headers = {
+      'Accept': 'application/json',
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'User-Agent': _uaPc,
+      'Referer': 'https://cloud.189.cn/',
+    };
+
     try {
-      final resp = await _dio.post(
-        'https://uop.quark.cn/cas/ajax/login',
-        data: {
-          'username': username,
-          'password': password,
-          'captcha': captcha ?? '',
-          'client_id': '532',
-          'v': '1.2',
-        },
-        options: Options(
-          headers: _headers(),
-          validateStatus: (_) => true,
-        ),
+      // 1. 获取 appId 和 returnUrl（参考APK的 appConf.do）
+      final appConfResp = await _dio.get(
+        'https://open.e.189.cn/api/logbox/oauth2/appConf.do',
+        options: Options(headers: {
+          ...headers,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        }, validateStatus: (_) => true),
       );
-      final body = _decode(resp);
-      final status = body['status'];
-      if (status == 2000000) {
-        // 登录成功，获取cookie
-        final setCookies = resp.headers['set-cookie'] ?? [];
+      final appConf = _decode(appConfResp);
+      final appId = appConf['appId']?.toString() ?? '';
+      final returnUrl = appConf['returnUrl']?.toString() ?? '';
+
+      // 2. 检查是否需要验证码（参考APK的 needcaptcha.do）
+      if (captchaToken == null) {
+        final needResp = await _dio.post(
+          'https://open.e.189.cn/api/logbox/oauth2/needcaptcha.do',
+          data: {'accountType': '1', 'account': phone, 'appId': appId},
+          options: Options(headers: headers, validateStatus: (_) => true),
+        );
+        final needBody = _decode(needResp);
+        if (needBody['needCaptcha'] == true || needBody['isNeedCaptcha'] == true) {
+          // 获取验证码 token（参考APK的 getCaptcha.do）
+          final capResp = await _dio.get(
+            'https://open.e.189.cn/api/logbox/oauth2/getCaptcha.do?captchaToken=',
+            options: Options(headers: headers, validateStatus: (_) => true),
+          );
+          final capBody = _decode(capResp);
+          final token = capBody['captchaToken']?.toString() ?? '';
+          if (token.isNotEmpty) {
+            throw CaptchaRequiredException(token);
+          }
+        }
+      }
+
+      // 3. 提交登录（参考APK的 loginSubmit.do）
+      final loginData = {
+        'accountType': '1',
+        'account': phone,
+        'password': password,
+        'validateCode': captchaCode ?? '',
+        'captchaToken': captchaToken ?? '',
+        'appId': appId,
+        'returnUrl': returnUrl,
+      };
+      final loginResp = await _dio.post(
+        'https://open.e.189.cn/api/logbox/oauth2/loginSubmit.do',
+        data: loginData,
+        options: Options(headers: headers, validateStatus: (_) => true),
+      );
+      final loginBody = _decode(loginResp);
+
+      // 4. 处理登录结果
+      if (loginBody['result'] == 0) {
+        // 获取 SSO 会话
+        final toUrl = loginBody['toUrl']?.toString() ?? '';
+        final captchaTokenRet = loginBody['captchaToken']?.toString() ?? '';
+
+        // 获取session（参考APK的 getSessionForPC.action）
+        final sessionResp = await _dio.get(
+          'https://api.cloud.189.cn/getSessionForPC.action',
+          options: Options(headers: {
+            ...headers,
+            'Referer': 'https://cloud.189.cn/',
+          }, validateStatus: (_) => true),
+        );
+        final sessionBody = _decode(sessionResp);
+        final sessionKey = sessionBody['sessionKey']?.toString() ?? '';
+        final sessionSecret = sessionBody['sessionSecret']?.toString() ?? '';
+
+        // 获取accessToken（参考APK的 getAccessTokenBySsKey.action）
+        final tokenResp = await _dio.get(
+          'https://api.cloud.189.cn/open/oauth2/getAccessTokenBySsKey.action',
+          queryParameters: {'ssKey': sessionKey},
+          options: Options(headers: {
+            ...headers,
+            'Referer': 'https://cloud.189.cn/',
+          }, validateStatus: (_) => true),
+        );
+        final tokenBody = _decode(tokenResp);
+        final accessToken = tokenBody['accessToken']?.toString() ?? '';
+
+        // 组装cookie
+        final setCookies = loginResp.headers['set-cookie'] ?? [];
         final entries = <String, String>{};
         for (final raw in setCookies) {
           final seg = raw.split(';').first.trim();
           final eq = seg.indexOf('=');
           if (eq <= 0) continue;
-          final k = seg.substring(0, eq).trim();
-          if (k == 'push_vurl' || k == 'logout_id') continue;
-          entries[k] = seg.substring(eq + 1).trim();
+          entries[seg.substring(0, eq).trim()] = seg.substring(eq + 1).trim();
         }
-        if (entries.isNotEmpty) {
-          return entries.entries.map((e) => '${e.key}=${e.value}').join('; ');
-        }
-        // 尝试从 response body 中获取 token
-        final data = body['data'];
-        if (data is Map) {
-          final token = data['token']?.toString() ?? '';
-          if (token.isNotEmpty) {
-            return 'token=$token';
-          }
-        }
-        return null;
+        // 如果没有cookie，用sessionKey构造
+        final cookie = entries.isNotEmpty
+            ? entries.entries.map((e) => '${e.key}=${e.value}').join('; ')
+            : 'sessionKey=$sessionKey; sessionSecret=$sessionSecret';
+
+        return {
+          'cookie': cookie,
+          'sessionKey': sessionKey,
+          'sessionSecret': sessionSecret,
+          'accessToken': accessToken,
+        };
       }
-      final msg = body['message']?.toString() ?? '登录失败';
+
+      // 需要二次验证（短信验证码）
+      if (loginBody['result'] == 8 || loginBody['result'] == 13) {
+        throw CaptchaRequiredException('需要短信验证码');
+      }
+
+      final msg = loginBody['msg']?.toString() ?? '登录失败';
       if (msg.contains('验证码') || msg.contains('captcha')) {
         throw CaptchaRequiredException(msg);
       }
@@ -79,175 +160,51 @@ class LoginService {
     }
   }
 
-  /// 夸克发送验证码
-  static Future<String?> quarkSendSms(String phone) async {
-    try {
-      final resp = await _dio.post(
-        'https://uop.quark.cn/cas/ajax/sendSmsCode',
-        data: {
-          'phone': phone,
-          'client_id': '532',
-          'v': '1.2',
-        },
-        options: Options(
-          headers: _headers(),
-          validateStatus: (_) => true,
-        ),
-      );
-      final body = _decode(resp);
-      final status = body['status'];
-      if (status == 2000000) {
-        return null;
-      }
-      return body['message']?.toString() ?? '发送验证码失败';
-    } catch (e) {
-      return '发送请求失败: $e';
-    }
-  }
+  // ═══════════════════════════════════════════════════════════════
+  // 123云盘密码登录（参考APK的 Pan123LoginDebug）
+  // 使用 user.123pan.cn 的 API
+  // ═══════════════════════════════════════════════════════════════
 
-  /// 夸克验证码登录
-  static Future<String?> quarkSmsLogin({
-    required String phone,
-    required String code,
-  }) async {
-    try {
-      final resp = await _dio.post(
-        'https://uop.quark.cn/cas/ajax/smsLogin',
-        data: {
-          'phone': phone,
-          'code': code,
-          'client_id': '532',
-          'v': '1.2',
-        },
-        options: Options(
-          headers: _headers(),
-          validateStatus: (_) => true,
-        ),
-      );
-      final body = _decode(resp);
-      final status = body['status'];
-      if (status == 2000000) {
-        final setCookies = resp.headers['set-cookie'] ?? [];
-        final entries = <String, String>{};
-        for (final raw in setCookies) {
-          final seg = raw.split(';').first.trim();
-          final eq = seg.indexOf('=');
-          if (eq <= 0) continue;
-          final k = seg.substring(0, eq).trim();
-          if (k == 'push_vurl' || k == 'logout_id') continue;
-          entries[k] = seg.substring(eq + 1).trim();
-        }
-        if (entries.isNotEmpty) {
-          return entries.entries.map((e) => '${e.key}=${e.value}').join('; ');
-        }
-        return null;
-      }
-      throw Exception(body['message']?.toString() ?? '验证码登录失败');
-    } catch (e) {
-      throw Exception('验证码登录请求失败: $e');
-    }
-  }
-
-  /// 天翼云盘密码登录（参考APK的 TianyiPasswordLoginDebug）
-  /// 返回 {cookie, captchaToken} 或抛出异常
-  static Future<Map<String, dynamic>> tianyiPasswordLogin({
-    required String phone,
-    required String password,
-    String? captchaToken,
-    String? captchaCode,
-  }) async {
-    final headers = {
-      'Accept': 'application/json',
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'User-Agent': QuarkClient.uaPc,
-      'Referer': 'https://cloud.189.cn/',
-    };
-    // 先获取是否需要验证码
-    if (captchaToken == null) {
-      final needResp = await _dio.post(
-        'https://cloud.189.cn/api/portal/v2/needCaptcha.action',
-        data: {'accountType': '1', 'account': phone},
-        options: Options(headers: headers, validateStatus: (_) => true),
-      );
-      final needBody = _decode(needResp);
-      if (needBody['needCaptcha'] == true) {
-        // 获取验证码URL
-        final tokenResp = await _dio.post(
-          'https://cloud.189.cn/api/portal/v2/getCaptchaToken.action',
-          data: {'accountType': '1', 'account': phone},
-          options: Options(headers: headers, validateStatus: (_) => true),
-        );
-        final tokenBody = _decode(tokenResp);
-        final token = tokenBody['captchaToken']?.toString() ?? '';
-        if (token.isNotEmpty) {
-          throw CaptchaRequiredException('需要验证码');
-        }
-      }
-    }
-    // 提交登录
-    final data = {
-      'accountType': '1',
-      'account': phone,
-      'password': password,
-      'validateCode': captchaCode ?? '',
-      'captchaToken': captchaToken ?? '',
-      'returnUrl': 'https://cloud.189.cn/',
-    };
-    final resp = await _dio.post(
-      'https://cloud.189.cn/api/portal/v2/login.action',
-      data: data,
-      options: Options(headers: headers, validateStatus: (_) => true),
-    );
-    final body = _decode(resp);
-    if (body['result'] == 0) {
-      final setCookies = resp.headers['set-cookie'] ?? [];
-      final entries = <String, String>{};
-      for (final raw in setCookies) {
-        final seg = raw.split(';').first.trim();
-        final eq = seg.indexOf('=');
-        if (eq <= 0) continue;
-        entries[seg.substring(0, eq).trim()] = seg.substring(eq + 1).trim();
-      }
-      if (entries.isNotEmpty) {
-        return {'cookie': entries.entries.map((e) => '${e.key}=${e.value}').join('; ')};
-      }
-      throw Exception('登录失败: 未获取到Cookie');
-    }
-    throw Exception(body['msg']?.toString() ?? '登录失败');
-  }
-
-  /// 123云盘密码登录（参考APK的 Pan123LoginDebug）
   static Future<Map<String, dynamic>> pan123PasswordLogin({
     required String username,
     required String password,
     String? captcha,
   }) async {
     final headers = {
-      'Accept': 'application/json',
+      'Accept': 'application/json, text/plain, */*',
       'Content-Type': 'application/json',
-      'User-Agent': QuarkClient.uaPc,
+      'User-Agent': _uaPc,
       'Referer': 'https://www.123pan.com/',
       'Origin': 'https://www.123pan.com',
       'Platform': 'web',
     };
-    final resp = await _dio.post(
-      'https://www.123pan.com/b/api/user/sign_in',
-      data: {
-        'username': username,
-        'password': password,
-        'captcha': captcha ?? '',
-      },
-      options: Options(headers: headers, validateStatus: (_) => true),
-    );
-    final body = _decode(resp);
-    if (body['code'] == 0) {
-      final data = body['data'];
-      if (data is Map) {
+    try {
+      // 参考APK使用 user.123pan.cn 的 API
+      final resp = await _dio.post(
+        'https://user.123pan.cn/api/user/sign_in',
+        data: {
+          'account': username,
+          'password': password,
+          'type': username.contains('@') ? 2 : 1, // 1=手机号, 2=邮箱
+        },
+        options: Options(headers: headers, validateStatus: (_) => true),
+      );
+      final body = _decode(resp);
+      
+      // 参考APK的响应格式
+      if (body['code'] == 0 || body['code'] == 200) {
+        final data = body['data'] is Map ? body['data'] as Map : body;
         final token = data['token']?.toString() ?? '';
         if (token.isNotEmpty) {
           return {'token': token, 'cookie': 'token=$token'};
         }
       }
+
+      // 需要验证码
+      if (body['code'] == 40001 || body['code'] == 40002) {
+        throw CaptchaRequiredException('需要验证码');
+      }
+
       // 从set-cookie获取
       final setCookies = resp.headers['set-cookie'] ?? [];
       if (setCookies.isNotEmpty) {
@@ -262,12 +219,20 @@ class LoginService {
           return {'cookie': entries.entries.map((e) => '${e.key}=${e.value}').join('; ')};
         }
       }
-      throw Exception('登录失败: 未获取到凭证');
+
+      final msg = body['message']?.toString() ?? body['msg']?.toString() ?? '登录失败';
+      throw Exception(msg);
+    } on CaptchaRequiredException {
+      rethrow;
+    } catch (e) {
+      throw Exception('登录请求失败: $e');
     }
-    throw Exception(body['message']?.toString() ?? body['msg']?.toString() ?? '登录失败');
   }
 
-  /// 获取网盘网页登录地址
+  // ═══════════════════════════════════════════════════════════════
+  // 网页登录地址
+  // ═══════════════════════════════════════════════════════════════
+
   static String getLoginUrl(DriveType type) {
     switch (type) {
       case DriveType.quark:
@@ -299,7 +264,11 @@ class LoginService {
     final body = resp.data;
     if (body is String) {
       if (body.isEmpty) return {};
-      return jsonDecode(body) as Map<String, dynamic>;
+      try {
+        return jsonDecode(body) as Map<String, dynamic>;
+      } catch (_) {
+        return {};
+      }
     }
     if (body is Map) return body.cast<String, dynamic>();
     return {};
