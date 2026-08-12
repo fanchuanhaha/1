@@ -1,0 +1,142 @@
+import 'dart:async';
+
+import 'drive_type.dart';
+
+/// 通用文件模型
+class DriveFile {
+  final String fid;
+  final String fileName;
+  final String fileType;
+  final bool isDir;
+  final int size;
+  final String pdirFid;
+  final String fileExt;
+  final int updatedAt;
+  final String thumbnail;
+  final String previewUrl;
+
+  DriveFile({
+    required this.fid,
+    required this.fileName,
+    required this.fileType,
+    required this.isDir,
+    required this.size,
+    required this.pdirFid,
+    required this.fileExt,
+    required this.updatedAt,
+    this.thumbnail = '',
+    this.previewUrl = '',
+  });
+}
+
+/// 分享文件模型
+class DriveShareFile {
+  final String fid;
+  final String fileName;
+  final String fileType;
+  final bool isDir;
+  final int size;
+  final String pdirFid;
+  final String shareFidToken;
+
+  DriveShareFile({
+    required this.fid,
+    required this.fileName,
+    required this.fileType,
+    required this.isDir,
+    required this.size,
+    required this.pdirFid,
+    required this.shareFidToken,
+  });
+}
+
+/// 下载信息
+class DriveDownloadInfo {
+  final String url;
+  final String fileName;
+  final int size;
+  final String fid;
+
+  DriveDownloadInfo({
+    required this.url,
+    required this.fileName,
+    required this.size,
+    required this.fid,
+  });
+}
+
+/// 用户信息
+class DriveUserInfo {
+  final String nickname;
+  final String avatar;
+  final String userId;
+
+  DriveUserInfo({
+    required this.nickname,
+    required this.avatar,
+    required this.userId,
+  });
+}
+
+/// 分享会话
+class DriveShareSession {
+  final String shareId;
+  final String pwdId;
+  final String passcode;
+  String stoken;
+
+  DriveShareSession({
+    required this.shareId,
+    required this.pwdId,
+    required this.passcode,
+    required this.stoken,
+  });
+}
+
+/// 所有网盘驱动器的抽象基类
+abstract class BaseDrive {
+  DriveType get type;
+  String get label;
+
+  bool get hasLogin => false;
+  DriveUserInfo? get userInfo => null;
+
+  /// 初始化（加载持久化的登录凭证）
+  Future<void> init();
+
+  /// 登录
+  Future<String?> login(dynamic credential);
+
+  /// 登出
+  Future<void> logout();
+
+  /// 刷新用户信息
+  Future<void> refreshUser();
+
+  /// 获取文件列表
+  Future<List<DriveFile>> listFiles(String pdirFid, {int page = 1, int size = 100});
+
+  /// 搜索文件
+  Future<List<DriveFile>> searchFiles(String keyword, {int page = 1, int size = 50});
+
+  /// 获取下载链接
+  Future<List<DriveDownloadInfo>> getDownloadInfo(List<String> fids);
+
+  /// 解析分享链接
+  static ({String pwdId, String passcode}) parseShareUrl(String url) => (pwdId: '', passcode: '');
+
+  /// 获取分享 token
+  Future<DriveShareSession> getShareToken(String pwdId, String passcode);
+
+  /// 列出分享文件
+  Future<List<DriveShareFile>> listShare(DriveShareSession session, String pdirFid, {int page = 1, int size = 50});
+
+  /// 获取分享文件下载链接
+  Future<List<DriveDownloadInfo>> getShareDownloadInfo(DriveShareSession session, List<String> fidList);
+
+  /// 转存分享文件
+  Future<void> saveShare(DriveShareSession session, List<DriveShareFile> files, String toPdirFid);
+
+  /// 释放资源
+  void dispose();
+}
