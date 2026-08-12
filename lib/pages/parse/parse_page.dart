@@ -325,61 +325,6 @@ class _ParsePageState extends State<ParsePage> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
-  void _showDriveSelector() {
-    showModalBottomSheet(
-      context: context,
-      builder: (_) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: Text('选择网盘',
-                  style: TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.w700)),
-            ),
-            const Divider(height: 1),
-            Flexible(
-              child: ListView(
-                shrinkWrap: true,
-                children: DriveType.values.map((drive) {
-                  final isActive = drive == _selectedDrive;
-                  return ListTile(
-                    leading: Image.asset(
-                      drive.iconAsset,
-                      width: 28,
-                      height: 28,
-                      errorBuilder: (_, _, _) => const Icon(
-                          Icons.cloud_rounded,
-                          color: AppColors.textSecondary,
-                          size: 28),
-                    ),
-                    title: Text(drive.label,
-                        style: TextStyle(
-                          color: isActive
-                              ? AppColors.accent
-                              : AppColors.textPrimary,
-                          fontWeight:
-                              isActive ? FontWeight.w600 : FontWeight.normal,
-                        )),
-                    trailing: isActive
-                        ? const Icon(Icons.check_rounded,
-                            color: AppColors.accent, size: 22)
-                        : null,
-                    onTap: () {
-                      setState(() => _selectedDrive = drive);
-                      Navigator.pop(context);
-                    },
-                  );
-                }).toList(),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   @override
   void dispose() {
     _urlController.removeListener(_onUrlChanged);
@@ -491,56 +436,17 @@ class _ParsePageState extends State<ParsePage> {
                       color: AppColors.textPrimary,
                       fontSize: 15,
                       fontWeight: FontWeight.w600)),
-              const Spacer(),
-              Text(
-                _selectedDrive.label,
-                style: const TextStyle(
-                    color: AppColors.textSecondary, fontSize: 12),
-              ),
+              
             ],
           ),
           const SizedBox(height: 14),
-          // 网盘选择器
-          GestureDetector(
-            onTap: _showDriveSelector,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: AppColors.bg,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  Image.asset(
-                    _selectedDrive.iconAsset,
-                    width: 22,
-                    height: 22,
-                    errorBuilder: (_, _, _) => const Icon(
-                        Icons.cloud_rounded,
-                        color: AppColors.textSecondary,
-                        size: 22),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    _selectedDrive.label,
-                    style: const TextStyle(
-                        color: AppColors.textPrimary, fontSize: 14),
-                  ),
-                  const Spacer(),
-                  const Icon(Icons.keyboard_arrow_down_rounded,
-                      color: AppColors.textSecondary, size: 20),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
           TextField(
             controller: _urlController,
             maxLines: 3,
             minLines: 2,
             style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
-            decoration: InputDecoration(
-              hintText: '粘贴${_selectedDrive.label}分享链接或包含链接的文本',
+            decoration: const InputDecoration(
+              hintText: '粘贴分享链接或包含链接的文本（自动识别网盘）',
             ),
           ),
           const SizedBox(height: 10),

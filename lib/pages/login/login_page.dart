@@ -10,8 +10,10 @@ import '../../theme/app_theme.dart';
 import '../../api/quark_auth.dart';
 import 'login_service.dart';
 import 'web_login_page.dart';
+import 'password_login_page.dart';
 
 /// 登录页面：支持多网盘选择与登录
+/// 参考APK样式：每个登录方式为一个按钮，点击打开独立页面，页面上方有「保存」按钮
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -37,23 +39,213 @@ class _LoginPageState extends State<LoginPage> {
             },
           ),
           const SizedBox(height: 4),
-          Expanded(child: _buildLoginContent()),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+              child: _buildLoginMethods(),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildLoginContent() {
+  /// 构建当前网盘的登录方式按钮列表
+  Widget _buildLoginMethods() {
     switch (_selectedDrive) {
       case DriveType.quark:
-        return const _QuarkLoginContent();
+        return _buildMethodList([
+          _MethodItem(
+            icon: Icons.qr_code_scanner_rounded,
+            title: '扫码登录',
+            subtitle: '使用夸克 App 扫码登录',
+            color: AppColors.accent,
+            onTap: () => _openPage(const _QrLoginPage()),
+          ),
+          _MethodItem(
+            icon: Icons.content_paste_rounded,
+            title: 'Cookie 登录',
+            subtitle: '粘贴浏览器 Cookie 登录',
+            color: Colors.orange,
+            onTap: () => _openPage(const _CookieLoginForm(driveType: DriveType.quark)),
+          ),
+          _MethodItem(
+            icon: Icons.language_rounded,
+            title: '网页登录',
+            subtitle: '在应用内打开登录页，登录后点击保存',
+            color: Colors.blue,
+            onTap: () => _openWebLogin(DriveType.quark),
+          ),
+        ]);
+
       case DriveType.ali:
-        return const _AliLoginView();
+        return _buildMethodList([
+          _MethodItem(
+            icon: Icons.vpn_key_rounded,
+            title: 'Refresh Token',
+            subtitle: '使用阿里云盘 refresh_token 登录',
+            color: AppColors.accent,
+            onTap: () => _openPage(const _AliTokenLoginPage()),
+          ),
+          _MethodItem(
+            icon: Icons.language_rounded,
+            title: '网页登录',
+            subtitle: '在应用内打开登录页，登录后点击保存',
+            color: Colors.blue,
+            onTap: () => _openWebLogin(DriveType.ali),
+          ),
+        ]);
+
       case DriveType.baidu:
-        return const _BaiduLoginView();
+        return _buildMethodList([
+          _MethodItem(
+            icon: Icons.vpn_key_rounded,
+            title: 'BDUSS + STOKEN',
+            subtitle: '粘贴百度网盘 BDUSS 和 STOKEN',
+            color: AppColors.accent,
+            onTap: () => _openPage(const _BaiduTokenLoginPage()),
+          ),
+          _MethodItem(
+            icon: Icons.content_paste_rounded,
+            title: 'Cookie 登录',
+            subtitle: '粘贴浏览器 Cookie 登录',
+            color: Colors.orange,
+            onTap: () => _openPage(const _CookieLoginForm(driveType: DriveType.baidu)),
+          ),
+          _MethodItem(
+            icon: Icons.language_rounded,
+            title: '网页登录',
+            subtitle: '在应用内打开登录页，登录后点击保存',
+            color: Colors.blue,
+            onTap: () => _openWebLogin(DriveType.baidu),
+          ),
+        ]);
+
+      case DriveType.tianyi:
+        return _buildMethodList([
+          _MethodItem(
+            icon: Icons.lock_rounded,
+            title: '账号密码登录',
+            subtitle: '使用手机号 + 密码登录',
+            color: AppColors.accent,
+            onTap: () => _openPage(PasswordLoginPage(driveType: DriveType.tianyi)),
+          ),
+          _MethodItem(
+            icon: Icons.language_rounded,
+            title: '网页登录',
+            subtitle: '在应用内打开登录页，登录后点击保存',
+            color: Colors.blue,
+            onTap: () => _openWebLogin(DriveType.tianyi),
+          ),
+        ]);
+
+      case DriveType.pan123:
+        return _buildMethodList([
+          _MethodItem(
+            icon: Icons.lock_rounded,
+            title: '账号密码登录',
+            subtitle: '使用邮箱 + 密码登录',
+            color: AppColors.accent,
+            onTap: () => _openPage(PasswordLoginPage(driveType: DriveType.pan123)),
+          ),
+          _MethodItem(
+            icon: Icons.content_paste_rounded,
+            title: 'Cookie 登录',
+            subtitle: '粘贴浏览器 Cookie 登录',
+            color: Colors.orange,
+            onTap: () => _openPage(const _CookieLoginForm(driveType: DriveType.pan123)),
+          ),
+          _MethodItem(
+            icon: Icons.language_rounded,
+            title: '网页登录',
+            subtitle: '在应用内打开登录页，登录后点击保存',
+            color: Colors.blue,
+            onTap: () => _openWebLogin(DriveType.pan123),
+          ),
+        ]);
+
       default:
-        return _MultiLoginView(driveType: _selectedDrive);
+        return _buildMethodList([
+          _MethodItem(
+            icon: Icons.content_paste_rounded,
+            title: 'Cookie 登录',
+            subtitle: '粘贴浏览器 Cookie 登录',
+            color: Colors.orange,
+            onTap: () => _openPage(_CookieLoginForm(driveType: _selectedDrive)),
+          ),
+          _MethodItem(
+            icon: Icons.language_rounded,
+            title: '网页登录',
+            subtitle: '在应用内打开登录页，登录后点击保存',
+            color: Colors.blue,
+            onTap: () => _openWebLogin(_selectedDrive),
+          ),
+        ]);
     }
+  }
+
+  /// 构建登录方法按钮列表
+  Widget _buildMethodList(List<_MethodItem> items) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(left: 4, bottom: 12),
+          child: Text('选择登录方式',
+              style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500)),
+        ),
+        ...items.map((item) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _MethodCard(item: item),
+            )),
+      ],
+    );
+  }
+
+  /// 打开独立页面（参考APK样式：页面有保存按钮）
+  Future<void> _openPage(Widget page) async {
+    final result = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => page),
+    );
+    if (result == true && mounted) {
+      Navigator.of(context).pop(true);
+    }
+  }
+
+  /// 打开网页登录页
+  Future<void> _openWebLogin(DriveType type) async {
+    final loginUrl = LoginService.getLoginUrl(type);
+    final cookie = await Navigator.of(context).push<String>(
+      MaterialPageRoute(
+        builder: (_) => WebLoginPage(
+          driveType: type,
+          loginUrl: loginUrl,
+        ),
+      ),
+    );
+    if (cookie == null || cookie.isEmpty || !mounted) return;
+
+    // 尝试登录
+    final drive = DriveManager.I.getDrive(type);
+    if (drive == null) {
+      _toast('驱动器未初始化');
+      return;
+    }
+    final err = await drive.login(cookie);
+    if (!mounted) return;
+    if (err == null) {
+      Navigator.of(context).pop(true);
+    } else {
+      _toast('登录失败: $err');
+    }
+  }
+
+  void _toast(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 }
 
@@ -136,67 +328,97 @@ class _DriveSelector extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// 夸克登录：扫码 + Cookie + 网页登录
+// 登录方法卡片组件
 // ═══════════════════════════════════════════════════════════════
 
-class _QuarkLoginContent extends StatefulWidget {
-  const _QuarkLoginContent();
+class _MethodItem {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Color color;
+  final VoidCallback onTap;
 
-  @override
-  State<_QuarkLoginContent> createState() => _QuarkLoginContentState();
+  const _MethodItem({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.color,
+    required this.onTap,
+  });
 }
 
-class _QuarkLoginContentState extends State<_QuarkLoginContent>
-    with SingleTickerProviderStateMixin {
-  late final TabController _tab = TabController(length: 3, vsync: this);
+class _MethodCard extends StatelessWidget {
+  final _MethodItem item;
 
-  @override
-  void dispose() {
-    _tab.dispose();
-    super.dispose();
-  }
+  const _MethodCard({required this.item});
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        TabBar(
-          controller: _tab,
-          indicatorColor: AppColors.accent,
-          labelColor: AppColors.textPrimary,
-          unselectedLabelColor: AppColors.textSecondary,
-          isScrollable: true,
-          tabs: const [
-            Tab(text: '扫码登录'),
-            Tab(text: 'Cookie 登录'),
-            Tab(text: '网页登录'),
-          ],
-        ),
-        Expanded(
-          child: TabBarView(
-            controller: _tab,
-            children: const [
-              _QrLoginView(),
-              _QuarkCookieLoginView(),
-              _WebLoginTab(driveType: DriveType.quark),
+    return Material(
+      color: AppColors.card,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: item.onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: item.color.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(item.icon, color: item.color, size: 24),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.title,
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      item.subtitle,
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right_rounded,
+                  color: AppColors.textSecondary, size: 22),
             ],
           ),
         ),
-      ],
+      ),
     );
   }
 }
 
-// ──────── 夸克扫码登录 ────────
+// ═══════════════════════════════════════════════════════════════
+// 夸克扫码登录页面（独立页面，有保存按钮）
+// ═══════════════════════════════════════════════════════════════
 
-class _QrLoginView extends StatefulWidget {
-  const _QrLoginView();
+class _QrLoginPage extends StatefulWidget {
+  const _QrLoginPage();
 
   @override
-  State<_QrLoginView> createState() => _QrLoginViewState();
+  State<_QrLoginPage> createState() => _QrLoginPageState();
 }
 
-class _QrLoginViewState extends State<_QrLoginView> {
+class _QrLoginPageState extends State<_QrLoginPage> {
   final _auth = QuarkQrLogin();
   String? _qrUrl;
   String? _status;
@@ -270,72 +492,78 @@ class _QrLoginViewState extends State<_QrLoginView> {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (_loading)
-              const CircularProgressIndicator()
-            else if (_qrUrl != null)
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: QrImageView(
-                  data: _qrUrl!,
-                  size: 240,
-                  backgroundColor: Colors.white,
-                ),
-              )
-            else
-              const Icon(Icons.qr_code_2_rounded,
-                  size: 120, color: AppColors.cardLight),
-            const SizedBox(height: 20),
-            Text(
-              _status ?? '',
-              style: const TextStyle(
-                  color: AppColors.textSecondary, fontSize: 13),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              '二维码 5 分钟内有效，请用夸克 App「扫一扫」登录',
-              style:
-                  TextStyle(color: AppColors.textSecondary, fontSize: 11),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 20),
-            OutlinedButton(
-              onPressed: _refresh,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.accent,
-                side: const BorderSide(color: AppColors.accent),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 28, vertical: 10),
+    return Scaffold(
+      appBar: AppBar(title: const Text('扫码登录')),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (_loading)
+                const CircularProgressIndicator()
+              else if (_qrUrl != null)
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: QrImageView(
+                    data: _qrUrl!,
+                    size: 240,
+                    backgroundColor: Colors.white,
+                  ),
+                )
+              else
+                const Icon(Icons.qr_code_2_rounded,
+                    size: 120, color: AppColors.cardLight),
+              const SizedBox(height: 20),
+              Text(
+                _status ?? '',
+                style: const TextStyle(
+                    color: AppColors.textSecondary, fontSize: 13),
+                textAlign: TextAlign.center,
               ),
-              child: const Text('刷新二维码'),
-            ),
-          ],
+              const SizedBox(height: 8),
+              const Text(
+                '二维码 5 分钟内有效，请用夸克 App「扫一扫」登录',
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 20),
+              OutlinedButton(
+                onPressed: _refresh,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.accent,
+                  side: const BorderSide(color: AppColors.accent),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 28, vertical: 10),
+                ),
+                child: const Text('刷新二维码'),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-// ──────── 夸克 Cookie 登录 ────────
+// ═══════════════════════════════════════════════════════════════
+// 通用 Cookie 登录表单页面（独立页面，有保存按钮）
+// ═══════════════════════════════════════════════════════════════
 
-class _QuarkCookieLoginView extends StatefulWidget {
-  const _QuarkCookieLoginView();
+class _CookieLoginForm extends StatefulWidget {
+  final DriveType driveType;
+
+  const _CookieLoginForm({required this.driveType});
 
   @override
-  State<_QuarkCookieLoginView> createState() => _QuarkCookieLoginViewState();
+  State<_CookieLoginForm> createState() => _CookieLoginFormState();
 }
 
-class _QuarkCookieLoginViewState extends State<_QuarkCookieLoginView> {
+class _CookieLoginFormState extends State<_CookieLoginForm> {
   final _controller = TextEditingController();
   bool _submitting = false;
 
@@ -347,48 +575,101 @@ class _QuarkCookieLoginViewState extends State<_QuarkCookieLoginView> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Text(
-            '从浏览器登录 pan.quark.cn 后，复制 Cookie 粘贴到这里（登录二维码失效时的备用方式）',
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
-          ),
-          const SizedBox(height: 14),
-          Expanded(
-            child: TextField(
-              controller: _controller,
-              maxLines: null,
-              expands: true,
-              style:
-                  const TextStyle(color: AppColors.textPrimary, fontSize: 13),
-              decoration: const InputDecoration(
-                hintText: '粘贴 Cookie，形如 __pus=xxx; __puus=xxx; ...',
-                alignLabelWithHint: true,
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          FilledButton(
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('${widget.driveType.label} Cookie 登录'),
+        actions: [
+          TextButton.icon(
             onPressed: _submitting ? null : _submit,
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.accent,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-            ),
-            child: _submitting
+            icon: _submitting
                 ? const SizedBox(
-                    width: 18,
-                    height: 18,
+                    width: 16,
+                    height: 16,
                     child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.white),
+                        strokeWidth: 2, color: AppColors.accent),
                   )
-                : const Text('登录'),
+                : const Icon(Icons.save_rounded, size: 18),
+            label: Text(
+              _submitting ? '登录中…' : '保存',
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.accent,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+            ),
           ),
         ],
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.card,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.info_outline,
+                          size: 16, color: AppColors.accent),
+                      const SizedBox(width: 8),
+                      Text(
+                        '如何获取 ${widget.driveType.label} Cookie？',
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    '1. 打开网盘网页版并登录\n'
+                    '2. 按 F12 打开开发者工具\n'
+                    '3. 在 Network 中找到任意请求\n'
+                    '4. 复制 Request Headers 中的 Cookie 值',
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                      height: 1.6,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Cookie',
+              style: TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: TextField(
+                controller: _controller,
+                maxLines: null,
+                expands: true,
+                style:
+                    const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+                decoration: const InputDecoration(
+                  hintText: '粘贴 Cookie',
+                  hintStyle: TextStyle(fontSize: 13),
+                  alignLabelWithHint: true,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -400,7 +681,15 @@ class _QuarkCookieLoginViewState extends State<_QuarkCookieLoginView> {
       return;
     }
     setState(() => _submitting = true);
-    final err = await AppState.I.login(cookie);
+
+    final drive = DriveManager.I.getDrive(widget.driveType);
+    if (drive == null) {
+      _toast('驱动器未初始化');
+      setState(() => _submitting = false);
+      return;
+    }
+
+    final err = await drive.login(cookie);
     if (!mounted) return;
     setState(() => _submitting = false);
     if (err == null) {
@@ -417,141 +706,119 @@ class _QuarkCookieLoginViewState extends State<_QuarkCookieLoginView> {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// 阿里云盘登录：refresh_token + 网页登录
+// 阿里云盘 Refresh Token 登录页面（独立页面，有保存按钮）
 // ═══════════════════════════════════════════════════════════════
 
-class _AliLoginView extends StatefulWidget {
-  const _AliLoginView();
+class _AliTokenLoginPage extends StatefulWidget {
+  const _AliTokenLoginPage();
 
   @override
-  State<_AliLoginView> createState() => _AliLoginViewState();
+  State<_AliTokenLoginPage> createState() => _AliTokenLoginPageState();
 }
 
-class _AliLoginViewState extends State<_AliLoginView>
-    with SingleTickerProviderStateMixin {
-  late final TabController _tab = TabController(length: 2, vsync: this);
-
+class _AliTokenLoginPageState extends State<_AliTokenLoginPage> {
   final _controller = TextEditingController();
   bool _submitting = false;
 
   @override
   void dispose() {
-    _tab.dispose();
     _controller.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        TabBar(
-          controller: _tab,
-          indicatorColor: AppColors.accent,
-          labelColor: AppColors.textPrimary,
-          unselectedLabelColor: AppColors.textSecondary,
-          tabs: const [
-            Tab(text: 'Refresh Token'),
-            Tab(text: '网页登录'),
-          ],
-        ),
-        Expanded(
-          child: TabBarView(
-            controller: _tab,
-            children: [
-              _buildTokenView(),
-              const _WebLoginTab(driveType: DriveType.ali),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildTokenView() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppColors.card,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.info_outline,
-                        size: 16, color: AppColors.accent),
-                    SizedBox(width: 8),
-                    Text(
-                      '如何获取 refresh_token？',
-                      style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 10),
-                Text(
-                  '1. 打开 https://www.aliyundrive.com/ 并登录\n'
-                  '2. 按 F12 打开开发者工具\n'
-                  '3. 在 Console 中输入：\n'
-                  '   JSON.parse(localStorage.getItem("token"))?.refresh_token\n'
-                  '4. 复制输出的 refresh_token 值',
-                  style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 12,
-                    height: 1.6,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-          const Text(
-            'Refresh Token',
-            style: TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _controller,
-            maxLines: 3,
-            style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
-            decoration: const InputDecoration(
-              hintText: '粘贴 refresh_token',
-              hintStyle: TextStyle(fontSize: 13),
-            ),
-          ),
-          const SizedBox(height: 20),
-          FilledButton(
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('阿里云盘登录'),
+        actions: [
+          TextButton.icon(
             onPressed: _submitting ? null : _submit,
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.accent,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-            ),
-            child: _submitting
+            icon: _submitting
                 ? const SizedBox(
-                    width: 18,
-                    height: 18,
+                    width: 16,
+                    height: 16,
                     child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.white),
+                        strokeWidth: 2, color: AppColors.accent),
                   )
-                : const Text('登录'),
+                : const Icon(Icons.save_rounded, size: 18),
+            label: Text(
+              _submitting ? '登录中…' : '保存',
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.accent,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+            ),
           ),
         ],
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.card,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.info_outline,
+                          size: 16, color: AppColors.accent),
+                      SizedBox(width: 8),
+                      Text(
+                        '如何获取 refresh_token？',
+                        style: TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 10),
+                  Text(
+                    '1. 打开 https://www.aliyundrive.com/ 并登录\n'
+                    '2. 按 F12 打开开发者工具\n'
+                    '3. 在 Console 中输入：\n'
+                    '   JSON.parse(localStorage.getItem("token"))?.refresh_token\n'
+                    '4. 复制输出的 refresh_token 值',
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                      height: 1.6,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Refresh Token',
+              style: TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _controller,
+              maxLines: 3,
+              style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+              decoration: const InputDecoration(
+                hintText: '粘贴 refresh_token',
+                hintStyle: TextStyle(fontSize: 13),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -573,7 +840,6 @@ class _AliLoginViewState extends State<_AliLoginView>
     if (!mounted) return;
     setState(() => _submitting = false);
     if (err == null) {
-      _toast('登录成功');
       Navigator.of(context).pop(true);
     } else {
       _toast('登录失败: $err');
@@ -587,145 +853,60 @@ class _AliLoginViewState extends State<_AliLoginView>
 }
 
 // ═══════════════════════════════════════════════════════════════
-// 百度网盘登录：BDUSS+STOKEN / Cookie + 网页登录
+// 百度网盘 BDUSS/STOKEN 登录页面（独立页面，有保存按钮）
 // ═══════════════════════════════════════════════════════════════
 
-class _BaiduLoginView extends StatefulWidget {
-  const _BaiduLoginView();
+class _BaiduTokenLoginPage extends StatefulWidget {
+  const _BaiduTokenLoginPage();
 
   @override
-  State<_BaiduLoginView> createState() => _BaiduLoginViewState();
+  State<_BaiduTokenLoginPage> createState() => _BaiduTokenLoginPageState();
 }
 
-class _BaiduLoginViewState extends State<_BaiduLoginView>
-    with SingleTickerProviderStateMixin {
-  late final TabController _tab = TabController(length: 2, vsync: this);
-
-  bool _useCookieMode = false;
+class _BaiduTokenLoginPageState extends State<_BaiduTokenLoginPage> {
   final _bdussController = TextEditingController();
   final _stokenController = TextEditingController();
-  final _cookieController = TextEditingController();
   bool _submitting = false;
 
   @override
   void dispose() {
-    _tab.dispose();
     _bdussController.dispose();
     _stokenController.dispose();
-    _cookieController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        TabBar(
-          controller: _tab,
-          indicatorColor: AppColors.accent,
-          labelColor: AppColors.textPrimary,
-          unselectedLabelColor: AppColors.textSecondary,
-          tabs: const [
-            Tab(text: '账号/Cookie'),
-            Tab(text: '网页登录'),
-          ],
-        ),
-        Expanded(
-          child: TabBarView(
-            controller: _tab,
-            children: [
-              _buildFormView(),
-              const _WebLoginTab(driveType: DriveType.baidu),
-            ],
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('百度网盘登录'),
+        actions: [
+          TextButton.icon(
+            onPressed: _submitting ? null : _submit,
+            icon: _submitting
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: AppColors.accent),
+                  )
+                : const Icon(Icons.save_rounded, size: 18),
+            label: Text(
+              _submitting ? '登录中…' : '保存',
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.accent,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+            ),
           ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildFormView() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // 模式切换
-          Row(
-            children: [
-              _modeChip('BDUSS + STOKEN', !_useCookieMode, () {
-                setState(() => _useCookieMode = false);
-              }),
-              const SizedBox(width: 10),
-              _modeChip('Cookie', _useCookieMode, () {
-                setState(() => _useCookieMode = true);
-              }),
-            ],
-          ),
-          const SizedBox(height: 20),
-
-          if (_useCookieMode) ...[
-            // Cookie 模式
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.card,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.info_outline,
-                          size: 16, color: AppColors.accent),
-                      SizedBox(width: 8),
-                      Text(
-                        '如何获取 Cookie？',
-                        style: TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 10),
-                  Text(
-                    '1. 打开 https://pan.baidu.com/ 并登录\n'
-                    '2. 按 F12 打开开发者工具\n'
-                    '3. 在 Network 中找到任意请求\n'
-                    '4. 复制 Request Headers 中的 Cookie 值',
-                    style: TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 12,
-                      height: 1.6,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Cookie',
-              style: TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _cookieController,
-              maxLines: 5,
-              style:
-                  const TextStyle(color: AppColors.textPrimary, fontSize: 13),
-              decoration: const InputDecoration(
-                hintText: '粘贴 Cookie，形如 BDUSS=xxx; STOKEN=yyy; ...',
-                hintStyle: TextStyle(fontSize: 13),
-              ),
-            ),
-          ] else ...[
-            // BDUSS + STOKEN 模式
+        ],
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -765,7 +946,7 @@ class _BaiduLoginViewState extends State<_BaiduLoginView>
                 ],
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
             const Text(
               'BDUSS',
               style: TextStyle(
@@ -778,8 +959,7 @@ class _BaiduLoginViewState extends State<_BaiduLoginView>
             TextField(
               controller: _bdussController,
               maxLines: 2,
-              style:
-                  const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+              style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
               decoration: const InputDecoration(
                 hintText: '粘贴 BDUSS',
                 hintStyle: TextStyle(fontSize: 13),
@@ -798,416 +978,37 @@ class _BaiduLoginViewState extends State<_BaiduLoginView>
             TextField(
               controller: _stokenController,
               maxLines: 2,
-              style:
-                  const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+              style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
               decoration: const InputDecoration(
                 hintText: '粘贴 STOKEN（可选，部分功能需要）',
                 hintStyle: TextStyle(fontSize: 13),
               ),
             ),
           ],
-
-          const SizedBox(height: 20),
-          FilledButton(
-            onPressed: _submitting ? null : _submit,
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.accent,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-            ),
-            child: _submitting
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.white),
-                  )
-                : const Text('登录'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _modeChip(String label, bool selected, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: selected ? AppColors.accent.withOpacity(0.15) : AppColors.card,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: selected ? AppColors.accent : AppColors.divider,
-            width: 1.2,
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: selected ? AppColors.accent : AppColors.textSecondary,
-            fontSize: 13,
-            fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
-          ),
         ),
       ),
     );
   }
 
   Future<void> _submit() async {
+    final bduss = _bdussController.text.trim();
+    if (bduss.isEmpty) {
+      _toast('请先输入 BDUSS');
+      return;
+    }
+    final stoken = _stokenController.text.trim();
+
+    setState(() => _submitting = true);
     final drive = DriveManager.I.getDrive(DriveType.baidu);
-    if (drive == null) {
-      _toast('驱动器未初始化');
-      return;
-    }
-
-    setState(() => _submitting = true);
-
-    String? err;
-    if (_useCookieMode) {
-      final cookie = _cookieController.text.trim();
-      if (cookie.isEmpty) {
-        _toast('请先粘贴 Cookie');
-        setState(() => _submitting = false);
-        return;
-      }
-      final bduss = _extractCookieValue(cookie, 'BDUSS');
-      final stoken = _extractCookieValue(cookie, 'STOKEN');
-      if (bduss.isEmpty) {
-        _toast('Cookie 中未找到 BDUSS');
-        setState(() => _submitting = false);
-        return;
-      }
-      err = await drive.login({'bduss': bduss, 'stoken': stoken});
-    } else {
-      final bduss = _bdussController.text.trim();
-      if (bduss.isEmpty) {
-        _toast('请先输入 BDUSS');
-        setState(() => _submitting = false);
-        return;
-      }
-      final stoken = _stokenController.text.trim();
-      err = await drive.login({'bduss': bduss, 'stoken': stoken});
-    }
-
-    if (!mounted) return;
-    setState(() => _submitting = false);
-    if (err == null) {
-      _toast('登录成功');
-      Navigator.of(context).pop(true);
-    } else {
-      _toast('登录失败: $err');
-    }
-  }
-
-  String _extractCookieValue(String cookie, String key) {
-    final regex = RegExp('$key=([^;]+)', caseSensitive: false);
-    final match = regex.firstMatch(cookie);
-    return match?.group(1)?.trim() ?? '';
-  }
-
-  void _toast(String msg) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════
-// 通用多方式登录（其他网盘）：Cookie + 网页登录
-// ═══════════════════════════════════════════════════════════════
-
-class _MultiLoginView extends StatefulWidget {
-  final DriveType driveType;
-
-  const _MultiLoginView({required this.driveType});
-
-  @override
-  State<_MultiLoginView> createState() => _MultiLoginViewState();
-}
-
-class _MultiLoginViewState extends State<_MultiLoginView>
-    with SingleTickerProviderStateMixin {
-  late final TabController _tab;
-
-  @override
-  void initState() {
-    super.initState();
-    _tab = TabController(length: 2, vsync: this);
-  }
-
-  @override
-  void dispose() {
-    _tab.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        TabBar(
-          controller: _tab,
-          indicatorColor: AppColors.accent,
-          labelColor: AppColors.textPrimary,
-          unselectedLabelColor: AppColors.textSecondary,
-          tabs: const [
-            Tab(text: 'Cookie 登录'),
-            Tab(text: '网页登录'),
-          ],
-        ),
-        Expanded(
-          child: TabBarView(
-            controller: _tab,
-            children: [
-              _CookieLoginView(driveType: widget.driveType),
-              _WebLoginTab(driveType: widget.driveType),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════
-// 通用网页登录 Tab
-// ═══════════════════════════════════════════════════════════════
-
-class _WebLoginTab extends StatelessWidget {
-  final DriveType driveType;
-
-  const _WebLoginTab({required this.driveType});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: AppColors.card,
-                borderRadius: BorderRadius.circular(18),
-              ),
-              child: Column(
-                children: [
-                  Container(
-                    width: 64,
-                    height: 64,
-                    decoration: BoxDecoration(
-                      color: AppColors.accentDeep,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: const Icon(Icons.language_rounded,
-                        color: AppColors.accent, size: 32),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    '网页登录',
-                    style: TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 17,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '在应用内打开 ${driveType.label} 登录页面，\n登录后自动获取凭证',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 13,
-                      height: 1.5,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  FilledButton.icon(
-                    onPressed: () => _openWebLogin(context),
-                    icon: const Icon(Icons.open_in_browser_rounded, size: 18),
-                    label: const Text('打开网页登录'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.accent,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 28, vertical: 12),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _openWebLogin(BuildContext context) async {
-    final loginUrl = LoginService.getLoginUrl(driveType);
-    final cookie = await Navigator.of(context).push<String>(
-      MaterialPageRoute(
-        builder: (_) => WebLoginPage(
-          driveType: driveType,
-          loginUrl: loginUrl,
-        ),
-      ),
-    );
-    if (cookie == null || cookie.isEmpty || !context.mounted) return;
-    final drive = DriveManager.I.getDrive(driveType);
-    if (drive == null) {
-      _toast(context, '驱动器未初始化');
-      return;
-    }
-    final err = await drive.login(cookie);
-    if (!context.mounted) return;
-    if (err == null) {
-      Navigator.of(context).pop(true);
-    } else {
-      _toast(context, '登录失败: $err');
-    }
-  }
-
-  void _toast(BuildContext context, String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════
-// 通用 Cookie 登录（其他网盘）
-// ═══════════════════════════════════════════════════════════════
-
-class _CookieLoginView extends StatefulWidget {
-  final DriveType driveType;
-
-  const _CookieLoginView({required this.driveType});
-
-  @override
-  State<_CookieLoginView> createState() => _CookieLoginViewState();
-}
-
-class _CookieLoginViewState extends State<_CookieLoginView> {
-  final _controller = TextEditingController();
-  bool _submitting = false;
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppColors.card,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.info_outline,
-                        size: 16, color: AppColors.accent),
-                    const SizedBox(width: 8),
-                    Text(
-                      '如何获取 ${widget.driveType.label} Cookie？',
-                      style: const TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                const Text(
-                  '1. 打开网盘网页版并登录\n'
-                  '2. 按 F12 打开开发者工具\n'
-                  '3. 在 Network 中找到任意请求\n'
-                  '4. 复制 Request Headers 中的 Cookie 值',
-                  style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 12,
-                    height: 1.6,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-          const Text(
-            'Cookie',
-            style: TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _controller,
-            maxLines: 8,
-            style:
-                const TextStyle(color: AppColors.textPrimary, fontSize: 13),
-            decoration: const InputDecoration(
-              hintText: '粘贴 Cookie',
-              hintStyle: TextStyle(fontSize: 13),
-            ),
-          ),
-          const SizedBox(height: 16),
-          FilledButton(
-            onPressed: _submitting ? null : _submit,
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.accent,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-            ),
-            child: _submitting
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2, color: Colors.white),
-                  )
-                : const Text('登录'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _submit() async {
-    final cookie = _controller.text.trim();
-    if (cookie.isEmpty) {
-      _toast('请先粘贴 Cookie');
-      return;
-    }
-    setState(() => _submitting = true);
-
-    final drive = DriveManager.I.getDrive(widget.driveType);
     if (drive == null) {
       _toast('驱动器未初始化');
       setState(() => _submitting = false);
       return;
     }
-
-    final err = await drive.login(cookie);
+    final err = await drive.login({'bduss': bduss, 'stoken': stoken});
     if (!mounted) return;
     setState(() => _submitting = false);
     if (err == null) {
-      _toast('登录成功');
       Navigator.of(context).pop(true);
     } else {
       _toast('登录失败: $err');
