@@ -66,13 +66,34 @@ class Pan123Client implements BaseDrive {
 
   /// 登录 123云盘。
   ///
-  /// [credential] 为 Map，支持两种方式:
-  /// 1. 密码登录: {'account': 'xxx', 'password': 'xxx'}
-  /// 2. 二维码: {'qrCode': 'qr_code_token'} 或 {'uniID': 'xxx'}
+  /// [credential] 支持多种方式:
+  /// - String: 直接作为 cookie/token 登录
+  /// - Map 密码登录: {'account': 'xxx', 'password': 'xxx'}
+  /// - Map 二维码: {'qrCode': 'qr_code_token'} 或 {'uniID': 'xxx'}
   ///
   /// 返回 token 字符串，登录失败时返回 null。
   @override
   Future<String?> login(dynamic credential) async {
+    // 处理 String 类型（cookie/token 直接登录）
+    if (credential is String) {
+      if (credential.trim().isEmpty) return null;
+      // 尝试作为 token 直接使用
+      if (credential.startsWith('token=')) {
+        _token = credential.substring(6).trim();
+      } else {
+        _token = credential.trim();
+      }
+      try {
+        await refreshUser();
+        if (_userInfo != null) return _token;
+      } catch (_) {
+        // token 无效，尝试作为 cookie
+        _token = '';
+        _cookie = credential.trim();
+      }
+      return _token.isNotEmpty ? _token : null;
+    }
+
     if (credential is! Map) return null;
 
     try {
@@ -92,10 +113,10 @@ class Pan123Client implements BaseDrive {
       // 先获取配置
       await _getConfig();
 
-      // 登录
+      // 登录 - 使用 user.123pan.cn 域名（与 LoginService 保持一致）
       final resp = await _request(
         'POST',
-        '$loginUrl/api/user/sign_in',
+        'https://user.123pan.cn/api/user/sign_in',
         data: {
           'account': account,
           'password': password,

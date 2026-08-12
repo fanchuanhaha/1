@@ -18,6 +18,7 @@ import 'uc_client.dart';
 import 'weiyun_client.dart';
 import 'xunlei_client.dart';
 import 'yidong_client.dart';
+import 'lanzou_client.dart';
 
 /// 网盘驱动管理器，统一管理所有网盘登录状态
 class DriveManager extends ChangeNotifier {
@@ -66,6 +67,7 @@ class DriveManager extends ChangeNotifier {
     _drives[DriveType.pan123] = Pan123Client();
     _drives[DriveType.yidong] = YiDongClient();
     _drives[DriveType.guangya] = GuangyaClient();
+    _drives[DriveType.lanzou] = LanzouClient();
 
     // 初始化各驱动器
     for (final d in _drives.values) {

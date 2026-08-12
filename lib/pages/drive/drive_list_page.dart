@@ -46,8 +46,11 @@ class _DriveListPageState extends State<DriveListPage> {
   void _onTapDrive(DriveType type) {
     final loggedIn = _hasLogin(type);
     if (!loggedIn) {
+      // 点击未登录网盘 → 直接跳转到该网盘的登录页面
       Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const LoginPage()),
+        MaterialPageRoute(
+          builder: (_) => LoginPage(initialDrive: type),
+        ),
       );
       return;
     }

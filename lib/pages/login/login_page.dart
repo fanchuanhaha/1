@@ -13,40 +13,240 @@ import 'web_login_page.dart';
 import 'password_login_page.dart';
 
 /// 登录页面：支持多网盘选择与登录
-/// 参考APK样式：每个登录方式为一个按钮，点击打开独立页面，页面上方有「保存」按钮
+/// 参考APK样式：每个登录方式为一个按钮，点击打开独立页面，登录成功后显示用户信息
 class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+  /// 指定初始选中的网盘（从网盘列表点击进入时传参）
+  final DriveType? initialDrive;
+
+  const LoginPage({super.key, this.initialDrive});
 
   @override
   State<LoginPage> createState() => _LoginPageState();
 }
 
 class _LoginPageState extends State<LoginPage> {
-  DriveType _selectedDrive = DriveType.quark;
+  late DriveType _selectedDrive;
+  bool _loginSuccess = false;
+  String? _nickname;
+  String? _avatar;
+
+  /// 是否来自网盘列表（有 initialDrive 则为特定网盘登录）
+  bool get _isFromDrive => widget.initialDrive != null;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedDrive = widget.initialDrive ?? DriveType.quark;
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('登录${_selectedDrive.label}'),
+        title: Text(_loginSuccess ? '${_selectedDrive.label} 已登录' : '登录${_selectedDrive.label}'),
+        actions: [
+          if (_loginSuccess)
+            TextButton.icon(
+              onPressed: () => Navigator.of(context).pop(true),
+              icon: const Icon(Icons.check_circle_rounded, size: 18, color: AppColors.green),
+              label: const Text(
+                '返回保存',
+                style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.green),
+              ),
+            ),
+        ],
       ),
       body: Column(
         children: [
-          _DriveSelector(
-            selected: _selectedDrive,
-            onChanged: (type) {
-              setState(() => _selectedDrive = type);
-            },
-          ),
+          // 当从网盘列表进入时，显示当前网盘大图标和信息
+          if (_isFromDrive) _buildDriveHeader(),
+          // 如果未从网盘列表进入，显示网盘选择器
+          if (!_isFromDrive)
+            _DriveSelector(
+              selected: _selectedDrive,
+              onChanged: (type) {
+                setState(() => _selectedDrive = type);
+              },
+            ),
           const SizedBox(height: 4),
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-              child: _buildLoginMethods(),
+              child: _loginSuccess ? _buildLoginSuccess() : _buildLoginMethods(),
             ),
           ),
         ],
       ),
+    );
+  }
+
+  /// 构建网盘头部（大图标 + 名称）
+  Widget _buildDriveHeader() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.asset(
+              _selectedDrive.iconAsset,
+              width: 44,
+              height: 44,
+              errorBuilder: (_, __, ___) => Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: AppColors.card,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.cloud_rounded, color: AppColors.textSecondary, size: 28),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _selectedDrive.label,
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                _loginSuccess ? '已登录' : '未登录',
+                style: TextStyle(
+                  color: _loginSuccess ? AppColors.green : AppColors.textSecondary,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 构建登录成功信息
+  Widget _buildLoginSuccess() {
+    return Column(
+      children: [
+        const SizedBox(height: 16),
+        // 用户头像
+        CircleAvatar(
+          radius: 40,
+          backgroundColor: AppColors.green.withOpacity(0.15),
+          child: _avatar != null && _avatar!.isNotEmpty
+              ? ClipOval(
+                  child: Image.network(
+                    _avatar!,
+                    width: 80,
+                    height: 80,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => const Icon(
+                      Icons.person_rounded,
+                      size: 48,
+                      color: AppColors.green,
+                    ),
+                  ),
+                )
+              : const Icon(
+                  Icons.person_rounded,
+                  size: 48,
+                  color: AppColors.green,
+                ),
+        ),
+        const SizedBox(height: 16),
+        Text(
+          _nickname ?? '${_selectedDrive.label}用户',
+          style: const TextStyle(
+            color: AppColors.textPrimary,
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          decoration: BoxDecoration(
+            color: AppColors.green.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.check_circle_rounded, size: 16, color: AppColors.green),
+              SizedBox(width: 6),
+              Text(
+                '登录成功',
+                style: TextStyle(
+                  color: AppColors.green,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+        // 网盘信息
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.card,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: const Column(
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.storage_rounded, size: 16, color: AppColors.textSecondary),
+                  SizedBox(width: 8),
+                  Text(
+                    '容量: --',
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                  ),
+                ],
+              ),
+              SizedBox(height: 8),
+              Row(
+                children: [
+                  Icon(Icons.check_circle_outline_rounded, size: 16, color: AppColors.green),
+                  SizedBox(width: 8),
+                  Text(
+                    '已登录，可正常使用网盘功能',
+                    style: TextStyle(color: AppColors.green, fontSize: 13),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+        SizedBox(
+          width: double.infinity,
+          height: 48,
+          child: ElevatedButton.icon(
+            onPressed: () => Navigator.of(context).pop(true),
+            icon: const Icon(Icons.check_rounded),
+            label: const Text(
+              '返回保存',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.green,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -205,13 +405,38 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
+  /// 登录成功后的处理：显示用户信息，不直接返回
+  void _onLoginSuccess(DriveType type) {
+    // 获取用户信息
+    String? nickname;
+    String? avatar;
+
+    if (type == DriveType.quark) {
+      nickname = DriveManager.I.user?.nickname;
+      avatar = DriveManager.I.user?.avatar;
+    } else {
+      final drive = DriveManager.I.getDrive(type);
+      if (drive != null) {
+        nickname = drive.userInfo?.nickname;
+        avatar = drive.userInfo?.avatar;
+      }
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _loginSuccess = true;
+      _nickname = nickname;
+      _avatar = avatar;
+    });
+  }
+
   /// 打开独立页面（参考APK样式：页面有保存按钮）
   Future<void> _openPage(Widget page) async {
     final result = await Navigator.of(context).push<bool>(
       MaterialPageRoute(builder: (_) => page),
     );
     if (result == true && mounted) {
-      Navigator.of(context).pop(true);
+      _onLoginSuccess(_selectedDrive);
     }
   }
 
@@ -228,7 +453,18 @@ class _LoginPageState extends State<LoginPage> {
     );
     if (cookie == null || cookie.isEmpty || !mounted) return;
 
-    // 尝试登录
+    // 尝试登录（夸克特殊处理）
+    if (type == DriveType.quark) {
+      final err = await DriveManager.I.login(cookie);
+      if (!mounted) return;
+      if (err == null) {
+        _onLoginSuccess(type);
+      } else {
+        _toast('登录失败: $err');
+      }
+      return;
+    }
+
     final drive = DriveManager.I.getDrive(type);
     if (drive == null) {
       _toast('驱动器未初始化');
@@ -237,7 +473,7 @@ class _LoginPageState extends State<LoginPage> {
     final err = await drive.login(cookie);
     if (!mounted) return;
     if (err == null) {
-      Navigator.of(context).pop(true);
+      _onLoginSuccess(type);
     } else {
       _toast('登录失败: $err');
     }
@@ -681,6 +917,19 @@ class _CookieLoginFormState extends State<_CookieLoginForm> {
       return;
     }
     setState(() => _submitting = true);
+
+    // 夸克特殊处理
+    if (widget.driveType == DriveType.quark) {
+      final err = await DriveManager.I.login(cookie);
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      if (err == null) {
+        Navigator.of(context).pop(true);
+      } else {
+        _toast('登录失败: $err');
+      }
+      return;
+    }
 
     final drive = DriveManager.I.getDrive(widget.driveType);
     if (drive == null) {

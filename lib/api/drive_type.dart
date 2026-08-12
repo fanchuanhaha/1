@@ -9,7 +9,8 @@ enum DriveType {
   xunlei,
   pan123,
   yidong,
-  guangya;
+  guangya,
+  lanzou;
 
   String get label {
     switch (this) {
@@ -35,6 +36,8 @@ enum DriveType {
         return '移动云盘';
       case DriveType.guangya:
         return '光丫';
+      case DriveType.lanzou:
+        return '蓝奏云';
     }
   }
 
@@ -62,6 +65,8 @@ enum DriveType {
         return 'assets/icons/yidong.png';
       case DriveType.guangya:
         return 'assets/icons/quark.png';
+      case DriveType.lanzou:
+        return 'assets/icons/lanzou.png';
     }
   }
 
@@ -78,6 +83,7 @@ enum DriveType {
     if (u.contains('123pan.cn') || u.contains('123pan.com') || u.contains('123.cn')) return DriveType.pan123;
     if (u.contains('139.com') || u.contains('caiyun.139')) return DriveType.yidong;
     if (u.contains('guangyapan.com')) return DriveType.guangya;
+    if (u.contains('lanzou') || u.contains('woozooo') || u.contains('lanzoui')) return DriveType.lanzou;
     return DriveType.quark;
   }
 }
