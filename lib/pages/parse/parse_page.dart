@@ -214,6 +214,21 @@ class _ParsePageState extends State<ParsePage> {
           }
         }
         return (pwdId: '', passcode: '');
+
+      case DriveType.lanzou:
+        // https://pan.lanzoui.com/xxxxx 或 https://www.lanzou.com/xxxxx
+        final uri = Uri.tryParse(u);
+        String pwdId = '';
+        if (uri != null) {
+          final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
+          if (segments.isNotEmpty) {
+            pwdId = segments.last;
+          }
+          // 蓝奏云提取码在参数中
+          final passcode = uri.queryParameters['pwd'] ?? uri.queryParameters['code'] ?? '';
+          return (pwdId: pwdId, passcode: passcode);
+        }
+        return (pwdId: '', passcode: '');
     }
   }
 

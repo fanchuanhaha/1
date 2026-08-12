@@ -27,6 +27,8 @@ class DriveFactory {
         return null;
       case DriveType.guangya:
         return null;
+      case DriveType.lanzou:
+        return null;
     }
   }
 }

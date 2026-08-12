@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:dio/dio.dart';
 
@@ -52,9 +51,9 @@ class LanzouClient implements BaseDrive {
         _cookie = credential;
         _username = '蓝奏云用户';
         _userInfo = DriveUserInfo(
-          uid: 'lanzou',
           nickname: _username,
           avatar: '',
+          userId: 'lanzou',
         );
         return null;
       }
@@ -95,9 +94,9 @@ class LanzouClient implements BaseDrive {
           _cookie = entries.entries.map((e) => '${e.key}=${e.value}').join('; ');
           _username = username;
           _userInfo = DriveUserInfo(
-            uid: 'lanzou',
             nickname: _username,
             avatar: '',
+            userId: 'lanzou',
           );
           return null;
         }
@@ -105,16 +104,11 @@ class LanzouClient implements BaseDrive {
         // 检查响应内容是否包含登录成功标识
         final body = resp.data?.toString() ?? '';
         if (body.contains('success') || body.contains('login')) {
-          // 从跳转 URL 获取 cookie
-          final location = resp.headers['location'] ?? [];
-          if (location.isNotEmpty) {
-            _cookie = location.first;
-          }
           _username = username;
           _userInfo = DriveUserInfo(
-            uid: 'lanzou',
             nickname: _username,
             avatar: '',
+            userId: 'lanzou',
           );
           return null;
         }
@@ -136,29 +130,59 @@ class LanzouClient implements BaseDrive {
   }
 
   @override
-  Future<List<DriveFile>> listFiles(String dir) async => [];
+  Future<void> refreshUser() async {
+    // 蓝奏云暂不支持获取用户信息
+  }
+
   @override
-  Future<DriveFile?> getFile(String fid) async => null;
+  Future<List<DriveFile>> listFiles(String pdirFid,
+      {int page = 1, int size = 100}) async {
+    return [];
+  }
+
   @override
-  Future<String> getDownloadUrl(String fid) async => '';
+  Future<List<DriveFile>> searchFiles(String keyword,
+      {int page = 1, int size = 50}) async {
+    return [];
+  }
+
   @override
-  Future<String> getShareToken(String shareUrl, {String? passcode}) async => '';
+  Future<List<DriveDownloadInfo>> getDownloadInfo(List<String> fids) async {
+    return [];
+  }
+
   @override
-  Future<List<DriveFile>> listShareFiles(String shareUrl, String shareToken,
-      {String? dir}) async => [];
+  Future<DriveShareSession> getShareToken(
+      String pwdId, String passcode) async {
+    return DriveShareSession(
+      shareId: pwdId,
+      pwdId: pwdId,
+      passcode: passcode,
+      stoken: '',
+    );
+  }
+
   @override
-  Future<DriveFile?> getShareFile(String shareUrl, String shareToken,
-      {String? fid}) async => null;
+  Future<List<DriveShareFile>> listShare(DriveShareSession session,
+      String pdirFid,
+      {int page = 1, int size = 50}) async {
+    return [];
+  }
+
   @override
-  Future<bool> deleteFile(String fid) async => false;
+  Future<List<DriveDownloadInfo>> getShareDownloadInfo(
+      DriveShareSession session, List<String> fidList) async {
+    return [];
+  }
+
   @override
-  Future<bool> renameFile(String fid, String newName) async => false;
+  Future<void> saveShare(DriveShareSession session,
+      List<DriveShareFile> files, String toPdirFid) async {
+    // 蓝奏云不支持转存
+  }
+
   @override
-  Future<bool> moveFile(String fid, String targetDir) async => false;
-  @override
-  Future<String?> createFolder(String parentDir, String name) async => null;
-  @override
-  Future<bool> uploadFile(String localPath, String parentDir) async => false;
-  @override
-  Future<String> getDownloadUrlByShare(String shareUrl, String shareToken, String fid) async => '';
+  void dispose() {
+    _dio.close();
+  }
 }
