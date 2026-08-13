@@ -111,7 +111,8 @@ class DriveManager extends ChangeNotifier {
     try {
       quark.setCookie(cookie);
       final info = await quark.getUserInfo();
-      user = info;
+      final cap = await quark.getCapacity();
+      user = info.withCapacity(cap.$1, cap.$2);
       loginError = null;
       quark.startSessionRefresher();
       await _secure.write(key: 'quark_cookie', value: quark.cookie);
@@ -127,7 +128,9 @@ class DriveManager extends ChangeNotifier {
     loading = true;
     notifyListeners();
     try {
-      user = await quark.getUserInfo();
+      final info = await quark.getUserInfo();
+      final cap = await quark.getCapacity();
+      user = info.withCapacity(cap.$1, cap.$2);
       loginError = null;
     } catch (e) {
       loginError = e.toString();

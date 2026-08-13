@@ -25,25 +25,6 @@ class MePage extends StatelessWidget {
               _buildSettingsCard(context, app),
               const SizedBox(height: 16),
               _buildAboutCard(context),
-              if (app.isLoggedIn) ...[
-                const SizedBox(height: 24),
-                OutlinedButton(
-                  onPressed: () async {
-                    final ok = await _confirm(context, '退出登录', '确定退出当前账号吗？');
-                    if (ok == true) {
-                      await app.logout();
-                    }
-                  },
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.red,
-                    side: const BorderSide(color: AppColors.red),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: const Text('退出登录'),
-                ),
-              ],
             ],
           ),
         );
@@ -191,26 +172,6 @@ class MePage extends StatelessWidget {
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('关闭'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<bool?> _confirm(BuildContext context, String title, String content) {
-    return showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title),
-        content: Text(content),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('确定'),
           ),
         ],
       ),

@@ -209,6 +209,29 @@ class QuarkClient {
     return QuarkUserInfo.fromJson({'data': data});
   }
 
+  /// 获取账号容量信息。返回 (总容量, 已用容量)，接口失败时返回 (0, 0)
+  /// 容量来自 /1/clouddrive/member 接口的 total_capacity / use_capacity 字段
+  Future<(int total, int used)> getCapacity() async {
+    try {
+      final data = await _get('$drivePcApi/member', params: {
+        'pr': 'ucpro',
+        'fr': 'pc',
+        'uc_param_str': '',
+        'fetch_subscribe': 'true',
+        '_ch': 'home',
+        'fetch_identity': 'true',
+      });
+      if (data is Map) {
+        final total = toInt(data['total_capacity']);
+        final used = toInt(data['use_capacity']);
+        return (total, used);
+      }
+    } catch (_) {
+      // 忽略容量获取失败
+    }
+    return (0, 0);
+  }
+
   // ---------------- own drive ----------------
 
   /// 列出目录内容（自动翻页拉取全部）

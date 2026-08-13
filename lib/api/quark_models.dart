@@ -26,18 +26,24 @@ class QuarkUserInfo {
         nickname: _s(data, 'nickname'),
         avatar: _s(data, 'avatar'),
         userId: _s(data, 'user_id'),
-        totalSpace: toInt(data['total_space']),
-        usedSpace: toInt(data['used_space']),
       );
     }
     return QuarkUserInfo(
       nickname: _s(json, 'nickname'),
       avatar: _s(json, 'avatar'),
       userId: _s(json, 'user_id'),
-      totalSpace: toInt(json['total_space']),
-      usedSpace: toInt(json['used_space']),
     );
   }
+
+  /// 返回带容量信息的新实例（容量来自 /1/clouddrive/member 接口）
+  /// [total] 总容量（字节），[used] 已用容量（字节）
+  QuarkUserInfo withCapacity(int total, int used) => QuarkUserInfo(
+        nickname: nickname,
+        avatar: avatar,
+        userId: userId,
+        totalSpace: total,
+        usedSpace: used,
+      );
 
   static String _s(dynamic obj, String key) {
     if (obj is Map) {
