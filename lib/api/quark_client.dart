@@ -35,8 +35,10 @@ class QuarkClient {
   static const drivePcApi = 'https://drive-pc.quark.cn/1/clouddrive';
   static const panApi = 'https://pan.quark.cn';
 
+  // 网页 UA（默认，用于绝大多数接口，夸克才接受）
   static const uaPc =
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) quark-cloud-drive/2.5.20 Chrome/100.0.4896.160 Electron/18.3.5.12-a038f7b798 Safari/537.36 Channel/pckk_other_ch';
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
+  // 桌面客户端 UA（仅用于下载直链，网页 UA 易触发限速）
   static const uaDesktopClient =
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) quark-cloud-drive/2.5.56 Chrome/100.0.4896.160 Electron/18.3.5.12-a038f7b798 Safari/537.36 Channel/pckk_other_ch';
 

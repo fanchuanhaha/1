@@ -5,18 +5,37 @@ class QuarkUserInfo {
   final String avatar;
   final String userId;
 
+  /// 总容量（字节），0 表示未返回
+  final int totalSpace;
+
+  /// 已用容量（字节）
+  final int usedSpace;
+
   QuarkUserInfo({
     required this.nickname,
     required this.avatar,
     required this.userId,
+    this.totalSpace = 0,
+    this.usedSpace = 0,
   });
 
   factory QuarkUserInfo.fromJson(Map<String, dynamic> json) {
     final data = json['data'];
+    if (data is Map) {
+      return QuarkUserInfo(
+        nickname: _s(data, 'nickname'),
+        avatar: _s(data, 'avatar'),
+        userId: _s(data, 'user_id'),
+        totalSpace: toInt(data['total_space']),
+        usedSpace: toInt(data['used_space']),
+      );
+    }
     return QuarkUserInfo(
-      nickname: _s(data, 'nickname'),
-      avatar: _s(data, 'avatar'),
-      userId: _s(data, 'user_id'),
+      nickname: _s(json, 'nickname'),
+      avatar: _s(json, 'avatar'),
+      userId: _s(json, 'user_id'),
+      totalSpace: toInt(json['total_space']),
+      usedSpace: toInt(json['used_space']),
     );
   }
 

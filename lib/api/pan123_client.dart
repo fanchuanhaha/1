@@ -25,12 +25,19 @@ class Pan123Exception implements Exception {
 class Pan123Client implements BaseDrive {
   // ---------------- 常量 ----------------
 
-  static const String loginUrl = 'https://login.123pan.com';
-  static const String apiUrl = 'https://www.123pan.com';
+  // 登录接口域名（123云盘官方登录端）
+  static const String signInUrl = 'https://login.123pan.com/api/user/sign_in';
+  // 登录端基础地址（二维码接口等）
+  static const String loginApiUrl = 'https://login.123pan.com/api';
+  // 主站 b/api（用户信息 / 文件列表等，参考 alist 123 驱动）
+  static const String bApiUrl = 'https://yun.123pan.com/b/api';
+  // Web 端 api（搜索 / 流量检查等）
+  static const String webApiUrl = 'https://www.123pan.com/api';
+  // 分享接口域名
   static const String shareUrl = 'https://share.123pan.cn';
 
   static const String uaPc =
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36';
 
   // ---------------- 内部状态 ----------------
 
@@ -110,19 +117,18 @@ class Pan123Client implements BaseDrive {
       final password = credential['password']?.toString() ?? '';
       if (account.isEmpty || password.isEmpty) return null;
 
-      // 先获取配置
-      await _getConfig();
-
-      // 登录 - 使用 user.123pan.cn 域名（与 LoginService 保持一致）
+      // 登录 - login.123pan.com/api/user/sign_in
+      // 手机号: {"passport": 账号, "password": 密码, "remember": true}
+      // 邮箱:   {"mail": 账号, "password": 密码, "type": 2}
+      // 成功返回 code=200, data.token
+      final isEmail = account.contains('@');
       final resp = await _request(
         'POST',
-        'https://user.123pan.cn/api/user/sign_in',
-        data: {
-          'account': account,
-          'password': password,
-          'type': account.contains('@') ? 2 : 1, // 1=手机, 2=邮箱
-        },
-        referer: 'https://www.123pan.com/',
+        signInUrl,
+        data: isEmail
+            ? {'mail': account, 'password': password, 'type': 2}
+            : {'passport': account, 'password': password, 'remember': true},
+        referer: 'https://yun.123pan.com/',
       );
       final body = _parseBody(resp);
       final code = body['code']?.toInt() ?? -1;
@@ -130,7 +136,7 @@ class Pan123Client implements BaseDrive {
         throw Pan123Exception(code, body['message']?.toString() ?? '登录失败');
       }
 
-      // 提取 token（123云盘 token 可能在 data 或直接返回）
+      // 提取 token（123云盘 token 在 data.token）
       final data = body['data'];
       if (data is Map) {
         _token = data['token']?.toString() ?? data['accessToken']?.toString() ?? '';
@@ -165,16 +171,26 @@ class Pan123Client implements BaseDrive {
     try {
       final resp = await _request(
         'GET',
-        '$apiUrl/a/api/user/info',
-        referer: 'https://www.123pan.com/',
+        '$bApiUrl/user/info',
+        referer: 'https://yun.123pan.com/',
       );
       final body = _parseBody(resp);
       final data = body['data'];
       if (data is Map) {
         _userInfo = DriveUserInfo(
-          nickname: data['nickname']?.toString() ?? data['name']?.toString() ?? '',
-          avatar: data['avatar']?.toString() ?? data['headUrl']?.toString() ?? '',
-          userId: data['userId']?.toString() ?? data['id']?.toString() ?? '',
+          nickname: data['nickname']?.toString() ??
+              data['userName']?.toString() ??
+              data['name']?.toString() ??
+              data['UserName']?.toString() ??
+              '',
+          avatar: data['avatar']?.toString() ??
+              data['avatarUrl']?.toString() ??
+              data['headUrl']?.toString() ??
+              '',
+          userId: data['userId']?.toString() ??
+              data['id']?.toString() ??
+              data['UserId']?.toString() ??
+              '',
         );
       }
     } catch (_) {
@@ -189,30 +205,36 @@ class Pan123Client implements BaseDrive {
     var total = -1;
     while (total < 0 || files.length < total) {
       final resp = await _request(
-        'POST',
-        '$apiUrl/api/file/list/new',
-        data: {
-          'driveId': 0,
-          'parentFileId': int.tryParse(pdirFid) ?? 0,
-          'page': page,
-          'limit': size,
-          'orderBy': 'updatedAt',
+        'GET',
+        '$bApiUrl/file/list/new',
+        params: {
+          'driveId': '0',
+          'limit': '$size',
+          'next': '0',
+          'orderBy': 'file_id',
           'orderDirection': 'desc',
-          'trash': false,
+          'parentFileId': pdirFid,
+          'trashed': 'false',
+          'SearchData': '',
+          'Page': '$page',
+          'OnlyLookAbnormalFile': '0',
+          'event': 'homeListFile',
+          'operateType': '4',
+          'inDirectSpace': 'false',
         },
-        referer: 'https://www.123pan.com/',
+        referer: 'https://yun.123pan.com/',
       );
       final body = _parseBody(resp);
       final code = body['code']?.toInt() ?? -1;
       if (code != 0) break;
       final data = body['data'];
       if (data is! Map) break;
-      final fileList = data['fileList'] as List<dynamic>? ?? [];
+      final fileList = data['InfoList'] as List<dynamic>? ?? [];
       if (fileList.isEmpty) break;
       files.addAll(fileList
           .whereType<Map>()
           .map((e) => _parseDriveFile(e.cast<String, dynamic>())));
-      total = data['total']?.toInt() ?? -1;
+      total = data['Total']?.toInt() ?? -1;
       if (total < 0 && fileList.length < size) break;
       page++;
       if (page > 500) break;
@@ -225,7 +247,7 @@ class Pan123Client implements BaseDrive {
       {int page = 1, int size = 50}) async {
     final resp = await _request(
       'POST',
-      '$apiUrl/api/search.php',
+      '$webApiUrl/search.php',
       data: {
         'driveId': 0,
         'keyword': keyword,
@@ -254,7 +276,7 @@ class Pan123Client implements BaseDrive {
         // 先检查流量
         final trafficResp = await _request(
           'GET',
-          '$apiUrl/api/file/download/traffic/check',
+          '$webApiUrl/file/download/traffic/check',
           params: {'fileId': fid},
           referer: 'https://www.123pan.com/',
         );
@@ -266,7 +288,7 @@ class Pan123Client implements BaseDrive {
         // 获取文件信息（含下载链接）
         final infoResp = await _request(
           'GET',
-          '$apiUrl/b/api/file/info',
+          '$bApiUrl/file/info',
           params: {'fileId': fid},
           referer: 'https://www.123pan.com/',
         );
@@ -453,8 +475,10 @@ class Pan123Client implements BaseDrive {
       'Accept': 'application/json, text/plain, */*',
       'Content-Type': 'application/json',
       'User-Agent': uaPc,
-      'Referer': referer ?? 'https://www.123pan.com/',
+      'Referer': referer ?? 'https://yun.123pan.com/',
+      'Origin': 'https://yun.123pan.com',
       'Platform': 'web',
+      'app-version': '3',
       if (_token.isNotEmpty) 'Authorization': 'Bearer $_token',
       if (_cookie.isNotEmpty) 'Cookie': _cookie,
     };
@@ -515,7 +539,7 @@ class Pan123Client implements BaseDrive {
   Future<Map<String, dynamic>> generateQrCode() async {
     final resp = await _request(
       'POST',
-      '$loginUrl/api/user/qr-code/generate',
+      '$loginApiUrl/user/qr-code/generate',
       data: {},
       referer: 'https://www.123pan.com/',
     );
@@ -535,7 +559,7 @@ class Pan123Client implements BaseDrive {
       try {
         final resp = await _request(
           'GET',
-          '$loginUrl/api/user/qr-code/result',
+          '$loginApiUrl/user/qr-code/result',
           params: {'uniID': uniID},
           referer: 'https://www.123pan.com/',
         );
@@ -566,7 +590,7 @@ class Pan123Client implements BaseDrive {
     // 如果传入的是二维码数据，先生成 uniID
     final generateResp = await _request(
       'POST',
-      '$loginUrl/api/user/qr-code/generate',
+      '$loginApiUrl/user/qr-code/generate',
       data: {},
       referer: 'https://www.123pan.com/',
     );
@@ -586,7 +610,7 @@ class Pan123Client implements BaseDrive {
   Future<Map<String, dynamic>> _getConfig() async {
     final resp = await _request(
       'GET',
-      '$apiUrl/api/v1/config',
+      '$webApiUrl/v1/config',
       referer: 'https://www.123pan.com/',
     );
     final body = _parseBody(resp);
@@ -596,19 +620,19 @@ class Pan123Client implements BaseDrive {
   // ---------------- 模型解析 ----------------
 
   DriveFile _parseDriveFile(Map<String, dynamic> json) {
-    final type = json['type']?.toInt() ?? 0;
+    final type = json['type']?.toInt() ?? json['Type']?.toInt() ?? 0;
     final dirFlag = type == 1 || json['isFolder'] == true;
     return DriveFile(
-      fid: json['fileId']?.toString() ?? json['id']?.toString() ?? '',
-      fileName: json['fileName']?.toString() ?? json['name']?.toString() ?? '',
+      fid: json['fileId']?.toString() ?? json['FileId']?.toString() ?? json['id']?.toString() ?? '',
+      fileName: json['fileName']?.toString() ?? json['FileName']?.toString() ?? json['name']?.toString() ?? '',
       fileType: type == 1 ? 'folder' : 'file',
       isDir: dirFlag,
-      size: json['size']?.toInt() ?? 0,
-      pdirFid: json['parentFileId']?.toString() ?? json['parentId']?.toString() ?? '0',
-      fileExt: json['fileExt']?.toString() ?? json['ext']?.toString() ?? '',
-      updatedAt: json['updatedAt']?.toInt() ?? json['updateTime']?.toInt() ?? 0,
-      thumbnail: json['thumbnail']?.toString() ?? json['thumb']?.toString() ?? '',
-      previewUrl: json['previewUrl']?.toString() ?? '',
+      size: json['size']?.toInt() ?? json['Size']?.toInt() ?? 0,
+      pdirFid: json['parentFileId']?.toString() ?? json['ParentFileId']?.toString() ?? json['parentId']?.toString() ?? '0',
+      fileExt: json['fileExt']?.toString() ?? json['FileExt']?.toString() ?? json['ext']?.toString() ?? '',
+      updatedAt: json['updatedAt']?.toInt() ?? json['UpdatedAt']?.toInt() ?? json['updateTime']?.toInt() ?? 0,
+      thumbnail: json['thumbnail']?.toString() ?? json['Thumbnail']?.toString() ?? json['thumb']?.toString() ?? '',
+      previewUrl: json['previewUrl']?.toString() ?? json['PreviewUrl']?.toString() ?? '',
     );
   }
 

@@ -5,6 +5,7 @@ import '../../api/drive_manager.dart';
 import '../../api/base_drive.dart';
 import '../../state/app_state.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/format.dart';
 import '../login/login_page.dart';
 import 'drive_files_page.dart';
 import 'drive_page.dart' as old_drive;
@@ -41,6 +42,18 @@ class _DriveListPageState extends State<DriveListPage> {
   BaseDrive? _getDrive(DriveType type) {
     if (type == DriveType.quark) return null;
     return DriveManager.I.getDrive(type);
+  }
+
+  /// 获取指定网盘类型的容量描述（仅夸克可实现）
+  String _capacityText(DriveType type) {
+    if (type == DriveType.quark) {
+      final user = DriveManager.I.user;
+      if (user != null && user.totalSpace > 0) {
+        final used = user.usedSpace > 0 ? formatBytes(user.usedSpace) : '0 B';
+        return '已用 $used / ${formatBytes(user.totalSpace)}';
+      }
+    }
+    return '';
   }
 
   void _onTapDrive(DriveType type) {
@@ -192,19 +205,25 @@ class _DriveListPageState extends State<DriveListPage> {
               ),
             const Spacer(),
             // 容量信息
-            const Row(
+            Row(
               children: [
-                Icon(
+                const Icon(
                   Icons.storage_rounded,
                   size: 14,
                   color: AppColors.textSecondary,
                 ),
-                SizedBox(width: 4),
-                Text(
-                  '容量: --',
-                  style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 12,
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    loggedIn && _capacityText(type).isNotEmpty
+                        ? _capacityText(type)
+                        : '容量: --',
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],

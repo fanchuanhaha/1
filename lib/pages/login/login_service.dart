@@ -174,86 +174,44 @@ class LoginService {
       'Accept': 'application/json, text/plain, */*',
       'Content-Type': 'application/json',
       'User-Agent': _uaPc,
-      'Referer': 'https://www.123pan.com/',
-      'Origin': 'https://www.123pan.com',
+      'Referer': 'https://yun.123pan.com/',
+      'Origin': 'https://yun.123pan.com',
       'Platform': 'web',
+      'app-version': '3',
     };
     try {
-      // 尝试多个端点
-      final endpoints = [
-        'https://user.123pan.cn/api/user/sign_in',
+      // 手机号: {"passport", "password", "remember"}；邮箱: {"mail", "password", "type":2}
+      final isEmail = username.contains('@');
+      final resp = await _dio.post(
         'https://login.123pan.com/api/user/sign_in',
-        'https://www.123pan.com/api/user/sign_in',
-      ];
-
-      Map<String, dynamic>? lastBody;
-      String? lastError;
-
-      for (final endpoint in endpoints) {
-        try {
-          final resp = await _dio.post(
-            endpoint,
-            data: {
-              'account': username,
-              'password': password,
-              'type': username.contains('@') ? 2 : 1, // 1=手机号, 2=邮箱
-            },
-            options: Options(headers: headers, validateStatus: (_) => true),
-          );
-          lastBody = _decode(resp);
-          
-          // 检查响应
-          if (lastBody['code'] == 0 || lastBody['code'] == 200) {
-            final data = lastBody['data'] is Map ? lastBody['data'] as Map : lastBody;
-            final token = data['token']?.toString() ?? data['accessToken']?.toString() ?? '';
-            if (token.isNotEmpty) {
-              return {'token': token, 'cookie': 'token=$token'};
-            }
-          }
-
-          // 需要验证码
-          final code = lastBody['code']?.toInt() ?? -1;
-          if (code == 40001 || code == 40002 || code == 40003) {
-            throw CaptchaRequiredException('需要验证码');
-          }
-
-          // 检查是否有 set-cookie
-          final setCookies = resp.headers['set-cookie'] ?? [];
-          if (setCookies.isNotEmpty) {
-            final entries = <String, String>{};
-            for (final raw in setCookies) {
-              final seg = raw.split(';').first.trim();
-              final eq = seg.indexOf('=');
-              if (eq <= 0) continue;
-              entries[seg.substring(0, eq).trim()] = seg.substring(eq + 1).trim();
-            }
-            // 查找 token 或 session 相关 cookie
-            final tokenKeys = ['token', 'accessToken', 'session', 'sid', 'userToken'];
-            for (final k in tokenKeys) {
-              if (entries.containsKey(k)) {
-                final token = entries[k]!;
-                return {'token': token, 'cookie': entries.entries.map((e) => '${e.key}=${e.value}').join('; ')};
-              }
-            }
-            // 如果有 cookie 但没有 token，返回 cookie 试试
-            if (entries.isNotEmpty) {
-              return {'cookie': entries.entries.map((e) => '${e.key}=${e.value}').join('; ')};
-            }
-          }
-
-          lastError = lastBody['message']?.toString() ?? lastBody['msg']?.toString() ?? '登录失败';
-        } catch (_) {
-          // 尝试下一个端点
-          continue;
+        data: isEmail
+            ? {'mail': username, 'password': password, 'type': 2}
+            : {'passport': username, 'password': password, 'remember': true},
+        options: Options(headers: headers, validateStatus: (_) => true),
+      );
+      final res = _decode(resp);
+      final code = res['code']?.toInt() ?? -1;
+      if (code != 200) {
+        final msg = res['message']?.toString() ??
+            res['msg']?.toString() ??
+            '登录失败';
+        if (msg.contains('验证码') ||
+            msg.contains('captcha') ||
+            code == 40001 ||
+            code == 40002 ||
+            code == 40003) {
+          throw CaptchaRequiredException(msg);
         }
-      }
-
-      // 所有端点都失败了
-      if (lastBody != null) {
-        final msg = lastBody['message']?.toString() ?? lastBody['msg']?.toString() ?? '登录失败';
         throw Exception(msg);
       }
-      throw Exception(lastError ?? '登录失败，请检查账号密码');
+      final data = res['data'] is Map ? res['data'] as Map : res;
+      final token = data['token']?.toString() ??
+          data['accessToken']?.toString() ??
+          '';
+      if (token.isEmpty) {
+        throw Exception('登录失败: 未获取到 token');
+      }
+      return {'token': token, 'cookie': 'token=$token'};
     } on CaptchaRequiredException {
       rethrow;
     } catch (e) {
