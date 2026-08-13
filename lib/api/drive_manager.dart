@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -25,6 +26,10 @@ class DriveManager extends ChangeNotifier {
   static const _secure = FlutterSecureStorage(
     aOptions: AndroidOptions(encryptedSharedPreferences: true),
   );
+
+  static const _kCookie = 'quark_cookie';
+  static const _kCookieBackup = 'quark_cookie_backup';
+  static const _kUserCache = 'quark_user_cache';
 
   static DriveManager? _instance;
   static DriveManager get I => _instance ??= DriveManager._();
@@ -77,11 +82,82 @@ class DriveManager extends ChangeNotifier {
     }
 
     // 初始化夸克
-    final cookie = await _secure.read(key: 'quark_cookie');
+    final cookie = await _loadCookie();
     if (cookie != null && cookie.isNotEmpty) {
       quark.setCookie(cookie);
       quark.startSessionRefresher();
+      user = await _readCachedUser();
       await refreshUser();
+    }
+  }
+
+  /// 读取持久化 cookie：优先安全存储，读取失败时回退到普通存储
+  Future<String?> _loadCookie() async {
+    try {
+      final cookie = await _secure.read(key: _kCookie);
+      if (cookie != null && cookie.isNotEmpty) return cookie;
+    } catch (_) {
+      // 部分设备 Keystore 异常导致安全存储不可读，走兜底存储
+    }
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString(_kCookieBackup);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// 双写持久化：安全存储 + 普通存储兜底
+  Future<void> _saveCookie() async {
+    final cookie = quark.cookie;
+    if (cookie.isEmpty) return;
+    try {
+      await _secure.write(key: _kCookie, value: cookie);
+    } catch (_) {}
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_kCookieBackup, cookie);
+    } catch (_) {}
+  }
+
+  Future<void> _clearCookie() async {
+    try {
+      await _secure.delete(key: _kCookie);
+    } catch (_) {}
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_kCookieBackup);
+      await prefs.remove(_kUserCache);
+    } catch (_) {}
+  }
+
+  Future<void> _cacheUser(QuarkUserInfo info) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        _kUserCache,
+        jsonEncode({
+          'nickname': info.nickname,
+          'avatar': info.avatar,
+          'user_id': info.userId,
+        }),
+      );
+    } catch (_) {}
+  }
+
+  Future<QuarkUserInfo?> _readCachedUser() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_kUserCache);
+      if (raw == null || raw.isEmpty) return null;
+      final map = jsonDecode(raw) as Map<String, dynamic>;
+      return QuarkUserInfo(
+        nickname: map['nickname']?.toString() ?? '',
+        avatar: map['avatar']?.toString() ?? '',
+        userId: map['user_id']?.toString() ?? '',
+      );
+    } catch (_) {
+      return null;
     }
   }
 
@@ -91,6 +167,30 @@ class DriveManager extends ChangeNotifier {
       return null; // 夸克使用 QuarkClient
     }
     return _drives[type];
+  }
+
+  /// 获取指定网盘类型的登录凭证（cookie/token 字符串）
+  String? cookieOf(DriveType type) {
+    if (type == DriveType.quark) {
+      return quark.cookie.isEmpty ? null : quark.cookie;
+    }
+    final drive = getDrive(type);
+    if (drive == null) return null;
+    final cookie = drive.loginCookie;
+    return (cookie == null || cookie.isEmpty) ? null : cookie;
+  }
+
+  /// 退出指定网盘类型的登录
+  Future<void> logoutOf(DriveType type) async {
+    if (type == DriveType.quark) {
+      await logout();
+      return;
+    }
+    final drive = getDrive(type);
+    if (drive != null) {
+      await drive.logout();
+      notifyListeners();
+    }
   }
 
   /// 获取当前活跃驱动器
@@ -115,7 +215,8 @@ class DriveManager extends ChangeNotifier {
       user = info.withCapacity(cap.$1, cap.$2);
       loginError = null;
       quark.startSessionRefresher();
-      await _secure.write(key: 'quark_cookie', value: quark.cookie);
+      await _saveCookie();
+      await _cacheUser(info);
       notifyListeners();
       return null;
     } catch (e) {
@@ -132,8 +233,11 @@ class DriveManager extends ChangeNotifier {
       final cap = await quark.getCapacity();
       user = info.withCapacity(cap.$1, cap.$2);
       loginError = null;
+      await _cacheUser(info);
+      await _saveCookie();
     } catch (e) {
-      loginError = e.toString();
+      // 网络等临时错误不登出：保留已登录状态，避免每次启动都被迫重新登录
+      if (user == null) loginError = e.toString();
     }
     loading = false;
     notifyListeners();
@@ -142,7 +246,7 @@ class DriveManager extends ChangeNotifier {
   Future<void> logout() async {
     quark.setCookie('');
     user = null;
-    await _secure.delete(key: 'quark_cookie');
+    await _clearCookie();
     notifyListeners();
   }
 

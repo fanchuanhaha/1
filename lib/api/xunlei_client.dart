@@ -59,6 +59,9 @@ class XunleiClient implements BaseDrive {
   @override
   DriveUserInfo? get userInfo => _userInfo;
 
+  @override
+  String? get loginCookie => _accessToken.isNotEmpty ? 'Bearer $_accessToken' : ( _cookie.isEmpty ? null : _cookie);
+
   // ---- 内部状态 ----
   final Dio _dio;
   String _accessToken = '';

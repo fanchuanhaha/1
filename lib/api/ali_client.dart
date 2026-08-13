@@ -56,6 +56,10 @@ class AliClient extends BaseDrive {
   @override
   DriveUserInfo? get userInfo => _userInfo;
 
+  @override
+  String? get loginCookie =>
+      _accessToken.isEmpty ? null : 'Bearer $_accessToken';
+
   /// 设置 refresh_token（用于持久化恢复）
   void setRefreshToken(String token) {
     _refreshToken = token.trim();

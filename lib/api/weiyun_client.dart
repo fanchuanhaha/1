@@ -76,8 +76,11 @@ class WeiyunClient extends BaseDrive {
     _cookie = cookie.trim();
   }
 
-  /// 获取当前 Cookie
+  /// 获取当前 Cookie 快照（用于持久化保存）
   String get cookie => _cookie;
+
+  @override
+  String? get loginCookie => _cookie.isEmpty ? null : _cookie;
 
   // ──────────────────── HTTP 请求基础设施 ────────────────────
 

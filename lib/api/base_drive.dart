@@ -101,6 +101,9 @@ abstract class BaseDrive {
   bool get hasLogin => false;
   DriveUserInfo? get userInfo => null;
 
+  /// 当前登录凭证（cookie/token 字符串），用于展示与持久化
+  String? get loginCookie => null;
+
   /// 初始化（加载持久化的登录凭证）
   Future<void> init();
 

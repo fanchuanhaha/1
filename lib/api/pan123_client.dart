@@ -67,6 +67,12 @@ class Pan123Client implements BaseDrive {
   DriveUserInfo? get userInfo => _userInfo;
 
   @override
+  String? get loginCookie {
+    if (_token.isNotEmpty) return 'token=$_token';
+    return _cookie.isEmpty ? null : _cookie;
+  }
+
+  @override
   Future<void> init() async {
     // 从持久化缓存加载凭证（由上层调用方实现存储）
   }

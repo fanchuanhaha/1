@@ -39,6 +39,9 @@ class LanzouClient implements BaseDrive {
   DriveUserInfo? get userInfo => _userInfo;
 
   @override
+  String? get loginCookie => _cookie.isEmpty ? null : _cookie;
+
+  @override
   Future<void> init() async {}
 
   /// 登录蓝奏云

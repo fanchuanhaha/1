@@ -41,6 +41,10 @@ class PikPakClient implements BaseDrive {
   @override
   DriveUserInfo? get userInfo => _userInfo;
 
+  @override
+  String? get loginCookie =>
+      _accessToken.isEmpty ? null : 'Bearer $_accessToken';
+
   // ---- 内部状态 ----
   final Dio _dio;
   String _accessToken = '';

@@ -72,6 +72,10 @@ class GuangyaClient implements BaseDrive {
   DriveUserInfo? get userInfo => _userInfo;
 
   @override
+  String? get loginCookie =>
+      _accessToken.isEmpty ? null : 'Bearer $_accessToken';
+
+  @override
   Future<void> init() async {
     // 从持久化缓存加载凭证（由上层调用方实现存储）
   }

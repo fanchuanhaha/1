@@ -56,6 +56,10 @@ class BaiduClient extends BaseDrive {
   @override
   DriveUserInfo? get userInfo => _userInfo;
 
+  @override
+  String? get loginCookie =>
+      _bduss.isEmpty ? null : 'BDUSS=$_bduss;_stoken=$_stoken';
+
   /// 设置 BDUSS（持久化恢复用）
   void setBduss(String bduss) {
     _bduss = bduss.trim();

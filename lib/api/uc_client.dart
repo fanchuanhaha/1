@@ -68,6 +68,9 @@ class UcClient extends BaseDrive {
   /// 获取当前 Cookie 快照（用于持久化保存）
   String get cookie => _cookie;
 
+  @override
+  String? get loginCookie => _cookie.isEmpty ? null : _cookie;
+
   /// 获取当前 Cookie 快照（下载时使用）
   String get downloadCookieSnapshot => _cookie;
 
