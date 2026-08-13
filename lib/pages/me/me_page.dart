@@ -9,7 +9,7 @@ class MePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: Listenable.merge([AppState.I, DriveManager.I]),
+      listenable: AppState.I,
       builder: (context, _) {
         final app = AppState.I;
         return SafeArea(
