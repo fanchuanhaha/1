@@ -225,6 +225,12 @@ class QuarkClient {
           toInt(body['code'], fallback: -1),
           body['message']?.toString() ?? '登录状态无效，请重新登录');
     }
+    // data 为空对象（如 {"success":true,"data":{}}）说明 cookie 未被服务端识别，
+    // 常见原因是缺失 HttpOnly 的 __puus/__pus 会话 cookie，需重新用网页登录获取完整 cookie。
+    if (data.isEmpty) {
+      throw QuarkException(
+          -1, '登录状态无效：cookie 缺少会话字段，请重新登录（优先使用「网页登录」）');
+    }
     return QuarkUserInfo.fromJson({'data': data});
   }
 

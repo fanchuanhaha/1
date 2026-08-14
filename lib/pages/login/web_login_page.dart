@@ -86,7 +86,27 @@ class _WebLoginPageState extends State<WebLoginPage> {
   }
 
   /// 刷新当前 Cookie
+  ///
+  /// 优先用 WebViewCookieManager 读取（可包含 HttpOnly cookie）。
+  /// 夸克/UC 的关键会话 cookie（__puus、__pus）是 HttpOnly 的，
+  /// document.cookie 读不到它们，缺失会导致后续接口返回 500。
   Future<void> _refreshCookie() async {
+    // 1) 优先使用 CookieManager，能读到 HttpOnly cookie
+    try {
+      final cookies =
+          await WebViewCookieManager.instance().getCookies(widget.loginUrl);
+      if (cookies.isNotEmpty) {
+        final parts = cookies
+            .where((c) => c.name.isNotEmpty && c.value.isNotEmpty)
+            .map((c) => '${c.name}=${c.value}')
+            .toList();
+        if (parts.isNotEmpty) {
+          _currentCookie = parts.join('; ');
+          return;
+        }
+      }
+    } catch (_) {}
+    // 2) 兜底：document.cookie（读不到 HttpOnly）
     try {
       final cookies = await _controller.runJavaScriptReturningResult(
         'document.cookie',
@@ -100,7 +120,19 @@ class _WebLoginPageState extends State<WebLoginPage> {
 
   /// 用户点击保存按钮 - 手动确认保存 cookie
   void _onSave() async {
-    // 先尝试从 localStorage 获取 token
+    // 夸克/UC 使用 Cookie 认证，必须用完整 cookie（含 HttpOnly 的 __puus/__pus），
+    // 不能回退到 localStorage 里的 token。
+    if (widget.driveType == DriveType.quark ||
+        widget.driveType == DriveType.uc) {
+      if (_currentCookie.isEmpty) {
+        _toast('未检测到登录 Cookie，请先登录后再点击保存');
+        return;
+      }
+      if (mounted) Navigator.of(context).pop(_currentCookie);
+      return;
+    }
+
+    // 其他网盘：先尝试从 localStorage 获取 token
     String? result;
 
     try {
