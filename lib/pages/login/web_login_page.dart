@@ -94,7 +94,7 @@ class _WebLoginPageState extends State<WebLoginPage> {
     // 1) 优先使用 CookieManager，能读到 HttpOnly cookie
     try {
       final cookies =
-          await WebViewCookieManager.instance().getCookies(widget.loginUrl);
+          await WebViewCookieManager().getCookies(domain: Uri.parse(widget.loginUrl));
       if (cookies.isNotEmpty) {
         final parts = cookies
             .where((c) => c.name.isNotEmpty && c.value.isNotEmpty)
