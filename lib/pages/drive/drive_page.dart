@@ -5,6 +5,7 @@ import '../../state/app_state.dart';
 import '../../state/download_manager.dart';
 import '../../state/download_service.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/app_logger.dart';
 import '../../utils/format.dart';
 import '../../widgets/empty_view.dart';
 import '../../widgets/file_icon.dart';
@@ -84,6 +85,7 @@ class _DrivePageState extends State<DrivePage>
     });
     try {
       final files = await AppState.I.quark.listFiles(_pdirFid);
+      AppLogger.I.i('drive_page', 'listFiles(pdirFid=$_pdirFid) 成功，返回 ${files.length} 个文件');
       if (mounted) {
         setState(() {
           _files = files;
@@ -91,6 +93,7 @@ class _DrivePageState extends State<DrivePage>
         });
       }
     } catch (e) {
+      AppLogger.I.e('drive_page', 'listFiles(pdirFid=$_pdirFid) 加载失败: $e');
       if (mounted) {
         setState(() {
           _loading = false;
@@ -117,6 +120,7 @@ class _DrivePageState extends State<DrivePage>
         });
       }
     } catch (e) {
+      AppLogger.I.e('drive_page', 'enterDir listFiles(pdirFid=$_pdirFid) 失败: $e');
       if (mounted) {
         setState(() {
           _loading = false;

@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:dio/dio.dart';
 
+import '../utils/app_logger.dart';
 import '../utils/types.dart';
 import 'quark_models.dart';
 
@@ -87,6 +88,24 @@ class QuarkClient {
       ),
     );
     _mergeSetCookie(resp);
+    // 日志：记录请求结果（脱敏 cookie，仅记录长度与关键字段）
+    final sc = resp.statusCode ?? -1;
+    final body = resp.data;
+    String bodyStr;
+    try {
+      bodyStr = body is String
+          ? body
+          : jsonEncode(body).toString();
+    } catch (_) {
+      bodyStr = '<无法序列化>';
+    }
+    if (bodyStr.length > 800) bodyStr = '${bodyStr.substring(0, 800)}…';
+    AppLogger.I.i(
+      'quark',
+      '$method $url\n'
+      '  status=$sc cookie=${cookie.isEmpty ? 'empty' : 'len=${cookie.length}'}\n'
+      '  body=$bodyStr',
+    );
     return resp;
   }
 
@@ -210,7 +229,6 @@ class QuarkClient {
   }
 
   /// 获取账号容量信息。返回 (总容量, 已用容量)，接口失败时返回 (0, 0)
-  /// 容量来自 /1/clouddrive/member 接口的 total_capacity / use_capacity 字段
   Future<(int total, int used)> getCapacity() async {
     try {
       final data = await _get('$drivePcApi/member', params: {
@@ -224,10 +242,12 @@ class QuarkClient {
       if (data is Map) {
         final total = toInt(data['total_capacity']);
         final used = toInt(data['use_capacity']);
+        AppLogger.I.i('quark', 'getCapacity: total_capacity=$total use_capacity=$used');
         return (total, used);
       }
-    } catch (_) {
-      // 忽略容量获取失败
+      AppLogger.I.w('quark', 'getCapacity: 返回非 Map，data=$data');
+    } catch (e) {
+      AppLogger.I.e('quark', 'getCapacity 失败: $e');
     }
     return (0, 0);
   }

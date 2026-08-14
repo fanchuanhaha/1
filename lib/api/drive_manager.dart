@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../utils/app_logger.dart';
 import 'ali_client.dart';
 import 'base_drive.dart';
 import 'baidu_client.dart';
@@ -208,19 +209,24 @@ class DriveManager extends ChangeNotifier {
 
   /// 登录夸克
   Future<String?> login(String cookie) async {
+    AppLogger.I.i('login', '开始夸克登录，cookie长度=${cookie.length}');
     try {
       quark.setCookie(cookie);
       final info = await quark.getUserInfo();
+      AppLogger.I.i('login', 'getUserInfo 成功: nickname=${info.nickname} uid=${info.userId}');
       final cap = await quark.getCapacity();
+      AppLogger.I.i('login', 'getCapacity 结果: total=${cap.$1} used=${cap.$2}');
       user = info.withCapacity(cap.$1, cap.$2);
       loginError = null;
       quark.startSessionRefresher();
       await _saveCookie();
       await _cacheUser(info);
       notifyListeners();
+      AppLogger.I.i('login', '夸克登录成功');
       return null;
     } catch (e) {
       quark.setCookie('');
+      AppLogger.I.e('login', '夸克登录失败: $e');
       return e.toString();
     }
   }
@@ -237,6 +243,7 @@ class DriveManager extends ChangeNotifier {
       await _saveCookie();
     } catch (e) {
       // 网络等临时错误不登出：保留已登录状态，避免每次启动都被迫重新登录
+      AppLogger.I.e('refreshUser', '获取用户/容量失败: $e');
       if (user == null) loginError = e.toString();
     }
     loading = false;
@@ -244,6 +251,7 @@ class DriveManager extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    AppLogger.I.i('logout', '退出夸克登录');
     quark.setCookie('');
     user = null;
     await _clearCookie();

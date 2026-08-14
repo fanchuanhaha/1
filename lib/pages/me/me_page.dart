@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../state/app_state.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/app_logger.dart';
 
 class MePage extends StatelessWidget {
   const MePage({super.key});
@@ -79,12 +81,86 @@ class MePage extends StatelessWidget {
         color: AppColors.card,
         borderRadius: BorderRadius.circular(18),
       ),
-      child: ListTile(
-        leading: const Icon(Icons.info_outline_rounded,
-            color: AppColors.accent),
-        title: const Text('关于'),
-        subtitle: const Text('Quarklite v1.1.3  ·  基于 Gopeed 下载引擎'),
-        onTap: () => _showAbout(context),
+      child: Column(
+        children: [
+          ListTile(
+            leading: const Icon(Icons.bug_report_rounded,
+                color: AppColors.accent),
+            title: const Text('日志'),
+            subtitle: const Text('查看/复制运行日志，排查容量与文件加载问题'),
+            trailing: const Icon(Icons.chevron_right_rounded,
+                color: AppColors.textSecondary),
+            onTap: () => _showLog(context),
+          ),
+          const Divider(height: 1, indent: 56),
+          ListTile(
+            leading: const Icon(Icons.info_outline_rounded,
+                color: AppColors.accent),
+            title: const Text('关于'),
+            subtitle: const Text('Quarklite v1.1.3  ·  基于 Gopeed 下载引擎'),
+            onTap: () => _showAbout(context),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showLog(BuildContext context) async {
+    final path = await AppLogger.I.logPath();
+    final content = await AppLogger.I.readLog();
+    if (!context.mounted) return;
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('运行日志'),
+        content: SizedBox(
+          width: 420,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('日志文件位置：',
+                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+              SelectableText(path,
+                  style: const TextStyle(fontSize: 12, color: AppColors.accent)),
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                height: 220,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.cardLight,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: SingleChildScrollView(
+                  child: SelectableText(
+                    content,
+                    style: const TextStyle(
+                        fontSize: 11, color: AppColors.textSecondary, height: 1.5),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('关闭'),
+          ),
+          FilledButton.icon(
+            icon: const Icon(Icons.copy_rounded, size: 18),
+            label: const Text('复制日志'),
+            onPressed: () async {
+              await Clipboard.setData(ClipboardData(text: content));
+              if (ctx.mounted) {
+                Navigator.pop(ctx);
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                    content: Text('日志已复制，请直接粘贴发送给开发者')));
+              }
+            },
+          ),
+        ],
       ),
     );
   }
