@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../api/quark_client.dart';
 import '../state/app_state.dart';
+import '../theme/app_theme.dart';
 
 /// 夸克图片/缩略图加载所需的请求头（缩略图 URL 带签名，需携带登录 Cookie）
 Map<String, String> quarkImageHeaders() {
@@ -44,4 +45,22 @@ void toast(BuildContext context, String msg) {
   if (!context.mounted) return;
   ScaffoldMessenger.of(context)
       .showSnackBar(SnackBar(content: Text(msg)));
+}
+
+/// 下载成功提示：SnackBar 附带「查看」按钮，点击跳转到下载管理页（底部第 3 个 tab）
+void showDownloadAddedToast(BuildContext context, String msg) {
+  if (!context.mounted) return;
+  ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        duration: const Duration(seconds: 3),
+        action: SnackBarAction(
+          label: '查看',
+          textColor: AppColors.accent,
+          onPressed: () => AppState.I.tabIndex.value = 2,
+        ),
+      ),
+    );
 }

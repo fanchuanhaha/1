@@ -343,7 +343,7 @@ class _SearchPageState extends State<SearchPage> {
       toast(context, err);
       return;
     }
-    toast(context, '已加入下载队列');
+    showDownloadAddedToast(context, '已加入下载队列');
     DownloadManager.I.startPolling();
   }
 }

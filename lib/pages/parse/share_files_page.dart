@@ -5,6 +5,7 @@ import '../../state/download_manager.dart';
 import '../../state/download_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/format.dart';
+import '../../utils/permission.dart';
 import '../../widgets/empty_view.dart';
 import '../../widgets/file_icon.dart';
 
@@ -165,7 +166,7 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
         );
         if (err == null) added++;
       }
-      _toast('已添加 $added 个下载任务');
+      showDownloadAddedToast(context, '已添加 $added 个下载任务');
       DownloadManager.I.startPolling();
       _exitSelectMode();
     } catch (e) {
@@ -443,7 +444,7 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
         connections: 16,
       );
       if (err != null) throw Exception(err);
-      _toast('已加入下载队列');
+      showDownloadAddedToast(context, '已加入下载队列');
       DownloadManager.I.startPolling();
     } catch (e) {
       _toast('下载失败: $e');

@@ -7,6 +7,7 @@ import '../../state/download_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/app_logger.dart';
 import '../../utils/format.dart';
+import '../../utils/permission.dart';
 import '../../widgets/empty_view.dart';
 import '../../widgets/file_icon.dart';
 import 'album_page.dart';
@@ -580,7 +581,7 @@ class _DrivePageState extends State<DrivePage>
         connections: app.connections,
       );
       if (err != null) throw Exception(err);
-      _toast('已加入下载队列');
+      showDownloadAddedToast(context, '已加入下载队列');
       DownloadManager.I.startPolling();
     } catch (e) {
       _toast('下载失败: $e');

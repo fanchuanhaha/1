@@ -37,6 +37,9 @@ class AppState extends ChangeNotifier {
   bool get loading => driveManager.loading;
   bool get isLoggedIn => driveManager.isLoggedIn;
 
+  /// 底部导航当前 tab（0解析 / 1网盘 / 2下载 / 3我的），供全局跳转（如下载提示的「查看」）
+  final ValueNotifier<int> tabIndex = ValueNotifier<int>(0);
+
   final _secure = const FlutterSecureStorage(
     aOptions: AndroidOptions(encryptedSharedPreferences: true),
   );

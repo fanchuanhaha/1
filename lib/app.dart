@@ -110,8 +110,6 @@ class RootPage extends StatefulWidget {
 }
 
 class _RootPageState extends State<RootPage> {
-  int _index = 0;
-
   static const _pages = [
     ParsePage(),
     DriveListPage(),
@@ -121,12 +119,17 @@ class _RootPageState extends State<RootPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: IndexedStack(index: _index, children: _pages),
-      bottomNavigationBar: _BottomBar(
-        index: _index,
-        onTap: (i) => setState(() => _index = i),
-      ),
+    return ValueListenableBuilder<int>(
+      valueListenable: AppState.I.tabIndex,
+      builder: (context, index, _) {
+        return Scaffold(
+          body: IndexedStack(index: index, children: _pages),
+          bottomNavigationBar: _BottomBar(
+            index: index,
+            onTap: (i) => AppState.I.tabIndex.value = i,
+          ),
+        );
+      },
     );
   }
 }

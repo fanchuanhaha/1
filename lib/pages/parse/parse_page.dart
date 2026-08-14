@@ -9,6 +9,7 @@ import '../../api/quark_drive_adapter.dart';
 import '../../state/app_state.dart';
 import '../../state/download_service.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/permission.dart';
 import 'share_files_page.dart';
 
 /// 解析页面：自动识别粘贴链接所属的网盘，使用对应客户端解析
@@ -322,7 +323,7 @@ class _ParsePageState extends State<ParsePage> {
     try {
       final err = await DownloadService.addMagnet(url: magnet);
       if (err != null) throw Exception(err);
-      _toast('已添加到下载队列');
+      showDownloadAddedToast(context, '已添加到下载队列');
     } catch (e) {
       _toast('添加失败: $e');
     } finally {
