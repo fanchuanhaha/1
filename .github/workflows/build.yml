@@ -72,8 +72,8 @@ jobs:
       - name: Build release APK
         run: |
           flutter pub get
-          flutter build apk --release --no-enable-impeller
-          flutter build apk --release --split-per-abi --no-enable-impeller
+          flutter build apk --release
+          flutter build apk --release --split-per-abi
 
       - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
