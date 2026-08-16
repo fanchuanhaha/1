@@ -35,5 +35,9 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- 禁用 Impeller，回退 Skia 渲染，修复 Android 上中文文字下方出现黄色色块/下划线的渲染 bug -->
+        <meta-data
+            android:name="io.flutter.embedding.android.EnableImpeller"
+            android:value="false" />
     </application>
 </manifest>
