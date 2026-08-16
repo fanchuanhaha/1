@@ -27,7 +27,7 @@ class AppTheme {
         onSurface: AppColors.textPrimary,
         onPrimary: Colors.white,
       ),
-      fontFamily: null,
+      fontFamily: 'MiSansPro',
     );
     return base.copyWith(
       cardTheme: const CardThemeData(
