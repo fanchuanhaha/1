@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../api/drive_type.dart';
 import '../../api/quark_models.dart';
 import '../../state/app_state.dart';
 import '../../state/download_manager.dart';
@@ -257,9 +258,11 @@ class _DrivePageState extends State<DrivePage>
                         color: AppColors.accent, size: 20),
                   ),
                 const SizedBox(width: 4),
-                const Text('网盘',
-                    style:
-                        TextStyle(fontSize: 24, fontWeight: FontWeight.w800)),
+                Text(
+                  DriveType.quark.label,
+                  style: const TextStyle(
+                      fontSize: 24, fontWeight: FontWeight.w800),
+                ),
                 const Spacer(),
                 if (_selectMode)
                   Row(
