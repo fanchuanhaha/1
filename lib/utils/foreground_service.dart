@@ -116,7 +116,7 @@ class ForegroundServiceManager {
     _running = false;
   }
 
-  static String? get _icon {
+  static NotificationIcon? get _icon {
     // 使用应用图标作为通知图标
     return null; // 不显式指定，走插件默认（应用图标）
   }
