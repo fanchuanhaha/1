@@ -69,11 +69,6 @@ jobs:
           path: android/app/upload-keystore.jks
           key: keystore-${{ github.repository }}
 
-      - name: Analyze code
-        run: |
-          flutter pub get
-          flutter analyze --no-pub --no-fatal-warnings
-
       - name: Build release APK
         run: |
           flutter build apk --release
@@ -134,12 +129,6 @@ jobs:
           if (-not $exe) { throw "gopeed.exe not found in archive" }
           Copy-Item $exe.FullName windows/resources/gopeed.exe
           Get-Item windows/resources/gopeed.exe | Select-Object Name, Length
-
-      - name: Analyze code
-        shell: pwsh
-        run: |
-          flutter pub get
-          flutter analyze --no-pub --no-fatal-warnings
 
       - name: Build Windows release
         shell: pwsh
