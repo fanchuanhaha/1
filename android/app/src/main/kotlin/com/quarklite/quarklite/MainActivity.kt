@@ -5,6 +5,8 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
+import android.os.PowerManager
+import android.provider.Settings
 import androidx.annotation.NonNull
 import com.gopeed.libgopeed.Libgopeed
 import io.flutter.embedding.android.FlutterActivity
@@ -55,6 +57,11 @@ open class MainActivity : FlutterActivity() {
                         openAllFilesAccess()
                         result.success(null)
                     }
+                    "canIgnoreBattery" -> result.success(canIgnoreBattery())
+                    "requestIgnoreBattery" -> {
+                        requestIgnoreBattery()
+                        result.success(null)
+                    }
                     else -> result.notImplemented()
                 }
             }
@@ -84,6 +91,29 @@ open class MainActivity : FlutterActivity() {
             }
         } else {
             requestPermissions(arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE), 0)
+        }
+    }
+
+    /// 是否已允许忽略电池优化（后台不被系统杀）
+    private fun canIgnoreBattery(): Boolean {
+        val pm = getSystemService(POWER_SERVICE) as? PowerManager ?: return true
+        return pm.isIgnoringBatteryOptimizations(packageName)
+    }
+
+    /// 引导用户到「忽略电池优化 / 允许后台运行」设置页
+    private fun requestIgnoreBattery() {
+        try {
+            if (canIgnoreBattery()) return
+            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+            intent.data = Uri.parse("package:$packageName")
+            startActivity(intent)
+        } catch (e: Exception) {
+            // 部分厂商去掉了该入口，回退到应用详情页
+            try {
+                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                intent.data = Uri.parse("package:$packageName")
+                startActivity(intent)
+            } catch (_: Exception) {}
         }
     }
 }

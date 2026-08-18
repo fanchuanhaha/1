@@ -72,6 +72,16 @@ class MePage extends StatelessWidget {
           ),
           const Divider(height: 1, indent: 56),
           ListTile(
+            leading: const Icon(Icons.battery_saver_rounded,
+                color: AppColors.accent),
+            title: const Text('后台运行'),
+            subtitle: const Text('允许忽略电池优化，锁屏后仍持续下载'),
+            trailing: const Icon(Icons.chevron_right_rounded,
+                color: AppColors.textSecondary),
+            onTap: () => app.requestIgnoreBattery(),
+          ),
+          const Divider(height: 1, indent: 56),
+          ListTile(
             leading: const Icon(Icons.close_fullscreen_rounded,
                 color: AppColors.accent),
             title: const Text('关闭窗口时'),

@@ -122,6 +122,24 @@ class AppState extends ChangeNotifier {
     } catch (_) {}
   }
 
+  /// 是否已允许忽略电池优化（后台下载不被系统终止）
+  Future<bool> canIgnoreBattery() async {
+    if (!kIsWeb && !Platform.isAndroid) return true;
+    try {
+      return await _sysChannel.invokeMethod<bool>('canIgnoreBattery') ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// 引导开启「忽略电池优化 / 允许后台运行」
+  Future<void> requestIgnoreBattery() async {
+    if (!kIsWeb && !Platform.isAndroid) return;
+    try {
+      await _sysChannel.invokeMethod('requestIgnoreBattery');
+    } catch (_) {}
+  }
+
   @override
   void dispose() {
     driveManager.dispose();

@@ -140,15 +140,49 @@ class _RootPageState extends State<RootPage> {
   @override
   void initState() {
     super.initState();
-    // 进入应用即申请「所有文件访问」权限，不用等触发下载时才提示。
-    // 已授权时 ensureStoragePermission 静默跳过，仅在未授权时弹出引导去系统设置。
+    // 进入应用即申请必要的系统能力，避免用到时才提示：
+    // 1) 所有文件访问权限（存储）
+    // 2) 忽略电池优化 / 允许后台运行（保证后台持续下载不被系统杀）
+    // 已授权时对应弹窗静默跳过，仅未授权时引导去系统设置。
     if (!kIsWeb && Platform.isAndroid) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          ensureStoragePermission(context);
-        }
+        if (!mounted) return;
+        unawaited(_grantStartupPermissions());
       });
     }
+  }
+
+  Future<void> _grantStartupPermissions() async {
+    await ensureStoragePermission(context);
+    if (!mounted) return;
+    await _ensureIgnoreBattery(context);
+  }
+
+  /// 未开启「忽略电池优化」时弹窗引导，用户拒绝不阻塞使用（仅提示一次）
+  Future<void> _ensureIgnoreBattery(BuildContext context) async {
+    final app = AppState.I;
+    if (await app.canIgnoreBattery()) return;
+    if (!context.mounted) return;
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('保持后台运行'),
+        content: const Text('建议允许「忽略电池优化」，否则锁屏一段时间后系统可能终止下载进程，任务会中断。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('暂不'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              app.requestIgnoreBattery();
+            },
+            child: const Text('去开启'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
