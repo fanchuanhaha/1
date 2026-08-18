@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'core/gopeed/gopeed_boot.dart';
@@ -12,6 +14,7 @@ import 'state/app_state.dart';
 import 'state/download_manager.dart';
 import 'theme/app_theme.dart';
 import 'utils/app_logger.dart';
+import 'utils/permission.dart';
 
 class QuarkLiteApp extends StatefulWidget {
   final GlobalKey<NavigatorState>? navigatorKey;
@@ -133,6 +136,20 @@ class _RootPageState extends State<RootPage> {
     DownloadsPage(),
     MePage(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    // 进入应用即申请「所有文件访问」权限，不用等触发下载时才提示。
+    // 已授权时 ensureStoragePermission 静默跳过，仅在未授权时弹出引导去系统设置。
+    if (!kIsWeb && Platform.isAndroid) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          ensureStoragePermission(context);
+        }
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
