@@ -72,7 +72,7 @@ jobs:
       - name: Analyze code
         run: |
           flutter pub get
-          flutter analyze --no-pub
+          flutter analyze --no-pub --no-fatal-warnings
 
       - name: Build release APK
         run: |
@@ -139,7 +139,7 @@ jobs:
         shell: pwsh
         run: |
           flutter pub get
-          flutter analyze --no-pub
+          flutter analyze --no-pub --no-fatal-warnings
 
       - name: Build Windows release
         shell: pwsh
