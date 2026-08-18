@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -15,6 +16,7 @@ class AppState extends ChangeNotifier {
   static const _sysChannel = MethodChannel('quarklite.com/system');
   static const _kDownloadDir = 'download_dir';
   static const _kConnections = 'connections';
+  static const _kCloseAction = 'window_close_action';
 
   static AppState? _instance;
   static AppState get I => _instance ??= AppState._();
@@ -46,6 +48,7 @@ class AppState extends ChangeNotifier {
 
   String downloadDir = '';
   int connections = 16;
+  String closeAction = 'ask_once';
 
   Timer? _sessionTimer;
 
@@ -59,6 +62,7 @@ class AppState extends ChangeNotifier {
       downloadDir =
           prefs.getString(_kDownloadDir) ?? '/storage/emulated/0/Download/Quarklite';
       connections = prefs.getInt(_kConnections) ?? 16;
+      closeAction = prefs.getString(_kCloseAction) ?? 'ask_once';
       notifyListeners();
     });
   }
@@ -84,8 +88,20 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> setCloseAction(String action) async {
+    closeAction = action;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kCloseAction, action);
+    notifyListeners();
+  }
+
   /// 当前可用的下载目录（无存储权限时回退到应用专属目录）
   Future<String> effectiveDownloadDir() async {
+    if (!kIsWeb && !Platform.isAndroid && !Platform.isIOS) {
+      // Windows / macOS / Linux：直接用系统文档目录
+      final docs = await getApplicationDocumentsDirectory();
+      return '${docs.path}/Quarklite';
+    }
     final canWrite = await canWriteDownload();
     if (canWrite && downloadDir.isNotEmpty) return downloadDir;
     final ext = await getExternalStorageDirectory();

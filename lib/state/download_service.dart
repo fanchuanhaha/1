@@ -12,7 +12,8 @@ class DownloadService {
   }) async {
     try {
       final dir = await AppState.I.effectiveDownloadDir();
-      await GopeedEngine.client.create(
+      final client = await GopeedEngine.ensureStarted();
+      await client.create(
         url: url,
         path: dir,
         name: fileName,
@@ -56,7 +57,8 @@ class DownloadService {
   }) async {
     try {
       final dir = await AppState.I.effectiveDownloadDir();
-      await GopeedEngine.client.create(
+      final client = await GopeedEngine.ensureStarted();
+      await client.create(
         url: url,
         path: dir,
         name: name ?? '',

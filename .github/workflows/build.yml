@@ -106,3 +106,68 @@ jobs:
           generate_release_notes: false
           make_latest: true
           token: ${{ secrets.RELEASE_TOKEN }}
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Download gopeed engine
+        shell: pwsh
+        run: |
+          $ver = "${{ vars.GOPEED_VERSION || 'v1.9.3' }}"
+          $url = "https://github.com/GopeedLab/gopeed/releases/download/$ver/gopeed-web-$ver-windows-amd64.zip"
+          Invoke-WebRequest -Uri $url -OutFile gopeed.zip
+          Expand-Archive gopeed.zip -DestinationPath gopeed
+          New-Item -ItemType Directory -Force -Path windows/resources | Out-Null
+          $exe = Get-ChildItem -Path gopeed -Recurse -Filter "gopeed*.exe" | Select-Object -First 1
+          if (-not $exe) { throw "gopeed.exe not found in archive" }
+          Copy-Item $exe.FullName windows/resources/gopeed.exe
+          Get-Item windows/resources/gopeed.exe | Select-Object Name, Length
+
+      - name: Build Windows release
+        shell: pwsh
+        run: |
+          flutter pub get
+          flutter build windows --release --verbose 2>&1 | Tee-Object -FilePath build_verbose.log
+          if ($LASTEXITCODE -ne 0) {
+            Get-Content build_verbose.log -Tail 120
+            exit $LASTEXITCODE
+          }
+
+      - name: Package zip
+        shell: pwsh
+        run: |
+          $dir = "build/windows/x64/runner/Release"
+          if (-not (Test-Path "$dir/gopeed.exe")) { throw "gopeed.exe missing from output" }
+          Compress-Archive -Path "$dir/*" -DestinationPath quarklite-win.zip
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup -y --no-progress
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $version = (Select-String -Path pubspec.yaml -Pattern '^version:\s*([0-9.]+)').Matches[0].Groups[1].Value
+          Write-Host "App version: $version"
+          $iscc = Get-ChildItem "C:\Program Files (x86)\Inno Setup*" -Recurse -Filter ISCC.exe | Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $iscc) { throw "ISCC.exe not found" }
+          & $iscc.FullName "scripts\quarklite.iss" "/DAppVersion=$version"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Get-ChildItem build\installer | Select-Object Name, Length
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: quarklite-windows
+          path: |
+            quarklite-win.zip
+            build/installer/quarklite-*-setup.exe
+          if-no-files-found: error

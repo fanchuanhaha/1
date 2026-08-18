@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'core/gopeed/gopeed_boot.dart';
@@ -9,9 +11,12 @@ import 'pages/parse/parse_page.dart';
 import 'state/app_state.dart';
 import 'state/download_manager.dart';
 import 'theme/app_theme.dart';
+import 'utils/app_logger.dart';
 
 class QuarkLiteApp extends StatefulWidget {
-  const QuarkLiteApp({super.key});
+  final GlobalKey<NavigatorState>? navigatorKey;
+
+  const QuarkLiteApp({super.key, this.navigatorKey});
 
   @override
   State<QuarkLiteApp> createState() => _QuarkLiteAppState();
@@ -30,6 +35,20 @@ class _QuarkLiteAppState extends State<QuarkLiteApp> {
   Future<void> _bootstrap() async {
     try {
       await AppState.I.init();
+    } catch (e) {
+      _bootError = e.toString();
+      AppLogger.I.e('app', 'AppState 初始化失败: $e');
+    }
+    // 引擎后台异步启动，不阻塞界面（失败时下载页/添加任务时会自动重试）
+    unawaited(_bootEngine());
+    DownloadManager.I.startPolling();
+    if (mounted) {
+      setState(() => _ready = true);
+    }
+  }
+
+  Future<void> _bootEngine() async {
+    try {
       await GopeedEngine.start();
       final client = GopeedEngine.client;
       final cfg = await client.getConfig();
@@ -41,12 +60,9 @@ class _QuarkLiteAppState extends State<QuarkLiteApp> {
           connections: AppState.I.connections,
         );
       }
-      DownloadManager.I.startPolling();
     } catch (e) {
-      _bootError = e.toString();
-    }
-    if (mounted) {
-      setState(() => _ready = true);
+      AppLogger.I.e('app', '后台启动引擎失败: $e');
+      // 引擎启动失败不阻塞应用：添加下载任务时会自动尝试拉起
     }
   }
 
@@ -61,6 +77,7 @@ class _QuarkLiteAppState extends State<QuarkLiteApp> {
     return MaterialApp(
       title: 'Quarklite',
       debugShowCheckedModeBanner: false,
+      navigatorKey: widget.navigatorKey,
       theme: AppTheme.dark(),
       home: _ready ? const RootPage() : _BootView(error: _bootError),
     );
