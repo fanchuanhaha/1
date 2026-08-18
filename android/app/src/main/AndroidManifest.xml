@@ -44,15 +44,5 @@
             android:name="com.pravera.flutter_foreground_task.service.ForegroundService"
             android:foregroundServiceType="dataSync"
             android:exported="false" />
-        <service
-            android:name="com.pravera.flutter_foreground_task.service.ForegroundServiceTask"
-            android:exported="false" />
-        <receiver
-            android:name="com.pravera.flutter_foreground_task.receiver.BootReceiver"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.BOOT_COMPLETED" />
-            </intent-filter>
-        </receiver>
     </application>
 </manifest>

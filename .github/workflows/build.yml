@@ -69,9 +69,13 @@ jobs:
           path: android/app/upload-keystore.jks
           key: keystore-${{ github.repository }}
 
-      - name: Build release APK
+      - name: Analyze code
         run: |
           flutter pub get
+          flutter analyze --no-pub
+
+      - name: Build release APK
+        run: |
           flutter build apk --release
           flutter build apk --release --split-per-abi
 
@@ -131,10 +135,15 @@ jobs:
           Copy-Item $exe.FullName windows/resources/gopeed.exe
           Get-Item windows/resources/gopeed.exe | Select-Object Name, Length
 
-      - name: Build Windows release
+      - name: Analyze code
         shell: pwsh
         run: |
           flutter pub get
+          flutter analyze --no-pub
+
+      - name: Build Windows release
+        shell: pwsh
+        run: |
           flutter build windows --release --verbose 2>&1 | Tee-Object -FilePath build_verbose.log
           if ($LASTEXITCODE -ne 0) {
             Get-Content build_verbose.log -Tail 120
