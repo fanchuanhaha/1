@@ -57,6 +57,7 @@ class _PasswordLoginPageState extends State<PasswordLoginPage> {
 
     try {
       String? result;
+      Map<String, dynamic>? credentialMap;
       if (widget.driveType == DriveType.tianyi) {
         final r = await LoginService.tianyiPasswordLogin(
           phone: username,
@@ -75,9 +76,13 @@ class _PasswordLoginPageState extends State<PasswordLoginPage> {
               : _captchaController.text.trim(),
         );
         result = r['cookie'];
+      } else if (widget.driveType == DriveType.lanzou) {
+        // 蓝奏云：由 LanzouClient 通过 mlogin.php 直接提交账号密码
+        credentialMap = {'username': username, 'password': password};
       }
 
-      if (result == null || result.isEmpty) {
+      if (widget.driveType != DriveType.lanzou &&
+          (result == null || result.isEmpty)) {
         throw Exception('未获取到登录凭证');
       }
 
@@ -88,7 +93,9 @@ class _PasswordLoginPageState extends State<PasswordLoginPage> {
         setState(() => _submitting = false);
         return;
       }
-      final err = await drive.login(result);
+      final err = credentialMap != null
+          ? await drive.login(credentialMap)
+          : await drive.login(result);
       if (!mounted) return;
       if (err == null) {
         Navigator.of(context).pop(true);

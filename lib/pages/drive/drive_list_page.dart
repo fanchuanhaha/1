@@ -45,17 +45,25 @@ class _DriveListPageState extends State<DriveListPage> {
     return DriveManager.I.getDrive(type);
   }
 
-  /// 获取剩余容量描述（剩余 = 总容量 - 已用）
-  String _capacityText(DriveType type) {
+  /// 容量信息（参考APK样式：已用 X / 总 Y）及使用比例
+  /// 返回 null 表示当前网盘不提供容量数据
+  ({String text, double fraction})? _capacityInfo(DriveType type) {
+    int used = 0;
+    int total = 0;
     if (type == DriveType.quark) {
       final user = DriveManager.I.user;
-      if (user != null && user.totalSpace > 0) {
-        final remain = user.totalSpace - user.usedSpace;
-        final remainText = remain > 0 ? formatBytes(remain) : '0 B';
-        return '剩余 $remainText';
+      if (user != null) {
+        used = user.usedSpace;
+        total = user.totalSpace;
       }
     }
-    return '';
+    if (total <= 0) return null;
+    final usedClamped = used < 0 ? 0 : used;
+    final fraction = (usedClamped / total).clamp(0.0, 1.0);
+    return (
+      text: '已用 ${formatBytes(usedClamped)} / 总 ${formatBytes(total)}',
+      fraction: fraction,
+    );
   }
 
   void _onTapDrive(DriveType type) {
@@ -212,7 +220,8 @@ class _DriveListPageState extends State<DriveListPage> {
   }
 
   Widget _buildDriveRow(DriveType type, bool loggedIn, String? nickname) {
-    final capacity = _capacityText(type);
+    final capInfo = _capacityInfo(type);
+    final capacity = capInfo?.text ?? '';
     return Container(
       decoration: BoxDecoration(
         color: AppColors.card,
@@ -292,7 +301,7 @@ class _DriveListPageState extends State<DriveListPage> {
                       ],
                     ),
                     const SizedBox(height: 6),
-                    // 下方：剩余容量（未登录或无容量时显示昵称/占位）
+                    // 下方：容量（已用 X / 总 Y，参考APK样式）；未登录或无容量时显示昵称/占位
                     Text(
                       loggedIn &&
                               (capacity.isNotEmpty ||
@@ -308,6 +317,23 @@ class _DriveListPageState extends State<DriveListPage> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
+                    // 容量使用进度条（登录且有容量数据时显示）
+                    if (loggedIn && capInfo != null) ...[
+                      const SizedBox(height: 8),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(3),
+                        child: LinearProgressIndicator(
+                          value: capInfo.fraction,
+                          minHeight: 5,
+                          backgroundColor: AppColors.cardLight,
+                          valueColor: AlwaysStoppedAnimation(
+                            capInfo.fraction >= 0.9
+                                ? Colors.orangeAccent
+                                : AppColors.accent,
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
