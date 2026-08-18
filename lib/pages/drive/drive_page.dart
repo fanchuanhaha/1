@@ -242,82 +242,62 @@ class _DrivePageState extends State<DrivePage>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    final canBack = Navigator.of(context).canPop();
-    return SafeArea(
-      child: Column(
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(DriveType.quark.label),
+        actions: _selectMode
+            ? [
+                TextButton(
+                  onPressed: _selectAllFiles,
+                  child: const Text('全选',
+                      style: TextStyle(color: AppColors.accent)),
+                ),
+                IconButton(
+                  onPressed: _exitSelectMode,
+                  icon: const Icon(Icons.close_rounded,
+                      color: AppColors.accent),
+                ),
+              ]
+            : [
+                IconButton(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const AlbumPage()),
+                  ),
+                  icon: const Icon(Icons.photo_library_rounded,
+                      color: AppColors.accent),
+                  tooltip: '相册',
+                ),
+                IconButton(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const SearchPage()),
+                  ),
+                  icon: const Icon(Icons.search_rounded,
+                      color: AppColors.accent),
+                  tooltip: '搜索',
+                ),
+                IconButton(
+                  onPressed: () {
+                    _crumbs
+                      ..clear()
+                      ..add(('0', '全部文件'));
+                    _pdirFid = '0';
+                    _currentName = '全部文件';
+                    _files = [];
+                    _load();
+                  },
+                  icon: const Icon(Icons.home_rounded,
+                      color: AppColors.accent),
+                ),
+                IconButton(
+                  onPressed: _load,
+                  icon: const Icon(Icons.refresh_rounded,
+                      color: AppColors.accent),
+                ),
+              ],
+      ),
+      body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 16, 20, 8),
-            child: Row(
-              children: [
-                if (canBack)
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.arrow_back_ios_new_rounded,
-                        color: AppColors.accent, size: 20),
-                  ),
-                const SizedBox(width: 4),
-                Text(
-                  DriveType.quark.label,
-                  style: const TextStyle(
-                      fontSize: 24, fontWeight: FontWeight.w800),
-                ),
-                const Spacer(),
-                if (_selectMode)
-                  Row(
-                    children: [
-                      TextButton(
-                        onPressed: _selectAllFiles,
-                        child: const Text('全选',
-                            style: TextStyle(color: AppColors.accent)),
-                      ),
-                      IconButton(
-                        onPressed: _exitSelectMode,
-                        icon: const Icon(Icons.close_rounded,
-                            color: AppColors.accent),
-                      ),
-                    ],
-                  )
-                else ...[
-                  IconButton(
-                    onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const AlbumPage()),
-                    ),
-                    icon: const Icon(Icons.photo_library_rounded,
-                        color: AppColors.accent),
-                    tooltip: '相册',
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const SearchPage()),
-                    ),
-                    icon: const Icon(Icons.search_rounded,
-                        color: AppColors.accent),
-                    tooltip: '搜索',
-                  ),
-                  IconButton(
-                    onPressed: () {
-                      _crumbs
-                        ..clear()
-                        ..add(('0', '全部文件'));
-                      _pdirFid = '0';
-                      _currentName = '全部文件';
-                      _files = [];
-                      _load();
-                    },
-                    icon: const Icon(Icons.home_rounded,
-                        color: AppColors.accent),
-                  ),
-                  IconButton(
-                    onPressed: _load,
-                    icon: const Icon(Icons.refresh_rounded,
-                        color: AppColors.accent),
-                  ),
-                ],
-              ],
-            ),
-          ),
           if (_crumbs.length > 1)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
