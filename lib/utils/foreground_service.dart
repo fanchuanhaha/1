@@ -1,4 +1,5 @@
-import 'package:flutter/foundation.dart';
+import 'dart:async';
+
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 
 import '../state/download_manager.dart';
@@ -29,7 +30,7 @@ class ForegroundServiceManager {
         channelName: '下载进度',
         channelDescription: '下载进行时显示常驻通知与实时进度',
         onlyAlertOnce: true,
-        priority: NotificationPriority.low,
+        priority: NotificationPriority.LOW,
       ),
       iosNotificationOptions: const IOSNotificationOptions(
         showNotification: false,
