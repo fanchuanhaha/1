@@ -22,6 +22,7 @@ dependencies:
   video_player: ^2.10.0
   ffi: ^2.2.0
   webview_flutter_windows: ^1.1.1
+  flutter_foreground_task: ^10.0.0
 
 dev_dependencies:
   flutter_test:

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -5,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import 'app.dart';
 import 'utils/app_logger.dart';
+import 'utils/foreground_service.dart';
 import 'utils/single_instance.dart';
 import 'utils/window_close.dart';
 
@@ -22,6 +24,10 @@ void main() {
   // Windows 关闭窗口行为（最小化/退出）回调
   if (!kIsWeb && Platform.isWindows) {
     WindowCloseHandler.init(appNavigatorKey);
+  }
+  // Android：初始化前台服务（下载时显示常驻通知，防后台被回收）
+  if (!kIsWeb && Platform.isAndroid) {
+    unawaited(ForegroundServiceManager.init());
   }
   runApp(QuarkLiteApp(navigatorKey: appNavigatorKey));
 }
