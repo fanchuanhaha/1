@@ -194,7 +194,7 @@ class LanzouClient implements BaseDrive {
               'formhash': formHash,
             },
             options: Options(
-              headers: _pcHeaders({'User-Agent': uaMobile}),
+              headers: _pcHeaders(extra: {'User-Agent': uaMobile}),
               contentType: Headers.formUrlEncodedContentType,
               validateStatus: (_) => true,
             ),
@@ -275,15 +275,13 @@ class LanzouClient implements BaseDrive {
   }
 
   Future<Response> _get(String url, {bool followRedirects = true}) async {
-    return _dio.get(
-      url,
-      options: Options(
-        headers: _pcHeaders(),
-        validateStatus: (_) => true,
-        followRedirects: followRedirects,
-        if (!followRedirects) maxRedirects: 0,
-      ),
+    final opts = Options(
+      headers: _pcHeaders(),
+      validateStatus: (_) => true,
+      followRedirects: followRedirects,
     );
+    if (!followRedirects) opts.maxRedirects = 0;
+    return _dio.get(url, options: opts);
   }
 
   Map<String, dynamic> _jsonBody(Response resp) {
