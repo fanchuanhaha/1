@@ -79,9 +79,17 @@ class _PasswordLoginPageState extends State<PasswordLoginPage> {
       } else if (widget.driveType == DriveType.lanzou) {
         // 蓝奏云：由 LanzouClient 通过 mlogin.php 直接提交账号密码
         credentialMap = {'username': username, 'password': password};
+      } else if (widget.driveType == DriveType.xunlei) {
+        // 迅雷网盘：由 XunleiClient 提交账号密码换取 access_token
+        credentialMap = {
+          'type': 'password',
+          'username': username,
+          'password': password,
+        };
       }
 
       if (widget.driveType != DriveType.lanzou &&
+          widget.driveType != DriveType.xunlei &&
           (result == null || result.isEmpty)) {
         throw Exception('未获取到登录凭证');
       }

@@ -52,7 +52,9 @@ class LanzouClient implements BaseDrive {
 
   Map<String, String> _pcHeaders({Map<String, String>? extra}) => {
         'User-Agent': uaPc,
-        'Referer': mydiskUrl,
+        'Referer': (_uid.isNotEmpty && _uid != '0')
+            ? '$mydiskUrl?item=files&action=index&u=$_uid'
+            : mydiskUrl,
         'Accept-Language': 'zh-CN,zh;q=0.9',
         if (extra != null) ...extra,
         if (_cookie.isNotEmpty) 'Cookie': _cookie,
@@ -354,6 +356,7 @@ class LanzouClient implements BaseDrive {
         final fileResp = await _post(
           douploadUrl,
           {'task': 5, 'folder_id': folderId, 'pg': pg},
+          needUid: true,
         );
         final body = _jsonBody(fileResp);
         final info = body['info'];

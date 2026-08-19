@@ -398,6 +398,31 @@ class _LoginPageState extends State<LoginPage> {
           ),
         ]);
 
+      case DriveType.xunlei:
+        return _buildMethodList([
+          _MethodItem(
+            icon: Icons.lock_rounded,
+            title: '账号密码登录',
+            subtitle: '使用迅雷账号和密码登录',
+            color: AppColors.accent,
+            onTap: () => _openPage(PasswordLoginPage(driveType: DriveType.xunlei)),
+          ),
+          _MethodItem(
+            icon: Icons.content_paste_rounded,
+            title: 'Cookie 登录',
+            subtitle: '粘贴浏览器 Cookie 登录',
+            color: Colors.orange,
+            onTap: () => _openPage(_CookieLoginForm(driveType: DriveType.xunlei)),
+          ),
+          _MethodItem(
+            icon: Icons.language_rounded,
+            title: '网页登录',
+            subtitle: '在应用内打开登录页，登录后点击保存',
+            color: Colors.blue,
+            onTap: () => _openWebLogin(DriveType.xunlei),
+          ),
+        ]);
+
       default:
         return _buildMethodList([
           _MethodItem(
