@@ -2,9 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 
 import '../../api/drive_type.dart';
 import '../../api/drive_manager.dart';
+import '../../api/ali_client.dart';
 import '../../state/app_state.dart';
 import '../../theme/app_theme.dart';
 import '../../api/quark_auth.dart';
@@ -280,6 +282,13 @@ class _LoginPageState extends State<LoginPage> {
 
       case DriveType.ali:
         return _buildMethodList([
+          _MethodItem(
+            icon: Icons.sms_rounded,
+            title: '手机号验证码登录',
+            subtitle: '使用手机号 + 短信验证码登录（参考原版）',
+            color: AppColors.green,
+            onTap: () => _openPage(const _AliSmsCodeLoginPage()),
+          ),
           _MethodItem(
             icon: Icons.vpn_key_rounded,
             title: 'Refresh Token',
@@ -1123,6 +1132,167 @@ class _AliTokenLoginPageState extends State<_AliTokenLoginPage> {
   void _toast(String msg) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 阿里云盘 手机号 + 短信验证码登录页面（参考原版 account + SMS 登录）
+// 内嵌 WebView 加载阿里云盘授权页，用户用手机号+验证码登录，
+// 结束回调到 www.aliyundrive.com/sign/callback?code=XXX 时自动捕获 code
+// 并换取 refresh_token，登录完成自动返回。
+// ═══════════════════════════════════════════════════════════════
+
+class _AliSmsCodeLoginPage extends StatefulWidget {
+  const _AliSmsCodeLoginPage();
+
+  @override
+  State<_AliSmsCodeLoginPage> createState() => _AliSmsCodeLoginPageState();
+}
+
+class _AliSmsCodeLoginPageState extends State<_AliSmsCodeLoginPage> {
+  late final WebViewController _controller;
+  bool _loading = true;
+  bool _done = false;
+  String _status = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _initWebView();
+  }
+
+  void _initWebView() {
+    _controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setUserAgent(
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      )
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          onUrlChange: (change) => _checkCallback(change.url),
+          onPageStarted: (_) {
+            if (!mounted) return;
+            setState(() => _loading = true);
+          },
+          onPageFinished: (_) {
+            if (!mounted) return;
+            setState(() => _loading = false);
+          },
+          onWebResourceError: (error) {
+            if (!mounted) return;
+            setState(() => _loading = false);
+          },
+        ),
+      )
+      ..loadRequest(Uri.parse(AliClient.webviewLoginUrl));
+  }
+
+  /// 监听授权回调，捕获 code 并换取 token
+  void _checkCallback(String? url) {
+    if (url == null || _done) return;
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+    var code = uri.queryParameters['code'];
+    if (code == null && uri.fragment.isNotEmpty) {
+      // 兼容 code 放在 fragment 的情况
+      try {
+        final frag = Uri.splitQueryString(uri.fragment);
+        code = frag['code'];
+      } catch (_) {}
+    }
+    if (code == null) return;
+    // 只在阿里云盘回调域名下触发，避免误抓
+    final host = uri.host;
+    if (!host.contains('aliyundrive.com') &&
+        !host.contains('aliyundrive.cn') &&
+        !host.contains('alipan.com')) {
+      return;
+    }
+    if (code.trim().isEmpty) return;
+    _completeLogin(code.trim());
+  }
+
+  Future<void> _completeLogin(String code) async {
+    _done = true;
+    if (mounted) {
+      setState(() {
+        _status = '登录成功，正在获取凭证…';
+        _loading = false;
+      });
+    }
+    final drive = DriveManager.I.getDrive(DriveType.ali);
+    String? err = '驱动器未初始化';
+    if (drive != null) {
+      err = await drive.login({'code': code});
+    }
+    if (!mounted) return;
+    if (err == null) {
+      Navigator.of(context).pop(true);
+    } else {
+      setState(() {
+        _done = false;
+        _status = '登录失败: $err';
+      });
+      _toast('登录失败: $err');
+    }
+  }
+
+  void _toast(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg),
+      duration: const Duration(seconds: 2),
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('阿里云盘 验证码登录'),
+        actions: [
+          if (_loading)
+            const Padding(
+              padding: EdgeInsets.only(right: 8),
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded, size: 22),
+            onPressed: () => _controller.reload(),
+            tooltip: '刷新',
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            color: AppColors.accentDeep.withOpacity(0.3),
+            child: Row(
+              children: [
+                const Icon(Icons.sms_rounded, size: 16, color: AppColors.green),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _status.isNotEmpty
+                        ? _status
+                        : '在下方页面输入手机号，点击「获取验证码」，登录成功后自动完成',
+                    style: const TextStyle(
+                        color: AppColors.textSecondary, fontSize: 12),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(child: WebViewWidget(controller: _controller)),
+        ],
+      ),
+    );
   }
 }
 

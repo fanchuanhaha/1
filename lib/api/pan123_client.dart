@@ -25,10 +25,11 @@ class Pan123Exception implements Exception {
 class Pan123Client implements BaseDrive {
   // ---------------- 常量 ----------------
 
-  // 登录接口域名（123云盘官方登录端）
-  static const String signInUrl = 'https://login.123pan.com/api/user/sign_in';
+  // 登录接口域名：2026-06-30 迁移，旧 login.123pan.com 已返回 404
+  // 新登录端点统一为 user.123pan.cn，仅需 Bearer Token 鉴权
+  static const String signInUrl = 'https://user.123pan.cn/api/user/sign_in';
   // 登录端基础地址（二维码接口等）
-  static const String loginApiUrl = 'https://login.123pan.com/api';
+  static const String loginApiUrl = 'https://user.123pan.cn/api';
   // 主站 b/api（用户信息 / 文件列表等，参考 alist 123 驱动）
   static const String bApiUrl = 'https://yun.123pan.com/b/api';
   // Web 端 api（搜索 / 流量检查等）
@@ -134,7 +135,8 @@ class Pan123Client implements BaseDrive {
         data: isEmail
             ? {'mail': account, 'password': password, 'type': 2}
             : {'passport': account, 'password': password, 'remember': true},
-        referer: 'https://yun.123pan.com/',
+        referer: 'https://yun.123pan.cn/',
+        origin: 'https://yun.123pan.cn',
       );
       final body = _parseBody(resp);
       final code = body['code']?.toInt() ?? -1;
@@ -476,13 +478,14 @@ class Pan123Client implements BaseDrive {
     Map<String, dynamic>? params,
     Object? data,
     String? referer,
+    String? origin,
   }) async {
     final headers = <String, dynamic>{
       'Accept': 'application/json, text/plain, */*',
       'Content-Type': 'application/json',
       'User-Agent': uaPc,
-      'Referer': referer ?? 'https://yun.123pan.com/',
-      'Origin': 'https://yun.123pan.com',
+      'Referer': referer ?? 'https://yun.123pan.cn/',
+      'Origin': origin ?? 'https://yun.123pan.cn',
       'Platform': 'web',
       'app-version': '3',
       if (_token.isNotEmpty) 'Authorization': 'Bearer $_token',
