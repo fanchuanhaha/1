@@ -60,11 +60,13 @@ class _WebLoginPageState extends State<WebLoginPage> {
   }
 
   void _initWebView() {
+    // 蓝奏云的 mlogin.php 是 H5 移动端登录页，用移动端 UA 才能正常渲染滑动验证码
+    final isLanzou = widget.driveType == DriveType.lanzou;
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setUserAgent(
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      )
+      ..setUserAgent(isLanzou
+          ? 'Mozilla/5.0 (Linux; Android 5.0; SM-G900P Build/LRX21T) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/82.0.4051.0 Mobile Safari/537.36'
+          : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageStarted: (_) {
@@ -120,10 +122,11 @@ class _WebLoginPageState extends State<WebLoginPage> {
 
   /// 用户点击保存按钮 - 手动确认保存 cookie
   void _onSave() async {
-    // 夸克/UC 使用 Cookie 认证，必须用完整 cookie（含 HttpOnly 的 __puus/__pus），
-    // 不能回退到 localStorage 里的 token。
+    // 夸克/UC/蓝奏云 使用 Cookie 认证，必须用完整 cookie（含 HttpOnly 的 __puus/__pus，
+    // 以及蓝奏云登录成功后的 ylogin），不能回退到 localStorage 里的 token。
     if (widget.driveType == DriveType.quark ||
-        widget.driveType == DriveType.uc) {
+        widget.driveType == DriveType.uc ||
+        widget.driveType == DriveType.lanzou) {
       if (_currentCookie.isEmpty) {
         _toast('未检测到登录 Cookie，请先登录后再点击保存');
         return;

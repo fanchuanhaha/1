@@ -276,6 +276,16 @@ class LanzouClient implements BaseDrive {
           _finishLogin(username);
           return null;
         }
+
+        // 蓝奏云现要求滑动验证（scene:ic_login_h5 + 阿里 NVC），纯接口无法破解，
+        // 必须引导到应用内网页登录完成滑动。
+        final sliderBlocked = loginBody.contains('ic_login_h5') ||
+            loginBody.contains('smartCaptcha') ||
+            loginBody.contains('NVC_Opt') ||
+            loginBody.contains('noCaptcha');
+        if (sliderBlocked) {
+          return '蓝奏云要求滑动验证码，纯接口无法完成，请改用「账号密码登录」在应用内网页完成滑动';
+        }
         return '登录失败：账号或密码错误';
       }
 

@@ -378,9 +378,9 @@ class _LoginPageState extends State<LoginPage> {
           _MethodItem(
             icon: Icons.lock_rounded,
             title: '账号密码登录',
-            subtitle: '使用蓝奏云账号和密码登录',
+            subtitle: '在应用内登录蓝奏云，遇滑动验证请完成后点保存',
             color: AppColors.accent,
-            onTap: () => _openPage(PasswordLoginPage(driveType: DriveType.lanzou)),
+            onTap: () => _openWebLogin(DriveType.lanzou),
           ),
           _MethodItem(
             icon: Icons.content_paste_rounded,
@@ -388,13 +388,6 @@ class _LoginPageState extends State<LoginPage> {
             subtitle: '粘贴浏览器 Cookie 登录',
             color: Colors.orange,
             onTap: () => _openPage(const _CookieLoginForm(driveType: DriveType.lanzou)),
-          ),
-          _MethodItem(
-            icon: Icons.language_rounded,
-            title: '网页登录',
-            subtitle: '在应用内打开登录页，登录后点击保存',
-            color: Colors.blue,
-            onTap: () => _openWebLogin(DriveType.lanzou),
           ),
         ]);
 
