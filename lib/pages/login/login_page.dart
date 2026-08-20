@@ -1202,6 +1202,8 @@ class _AliSmsCodeLoginPageState extends State<_AliSmsCodeLoginPage> {
           onPageFinished: (_) {
             if (!mounted) return;
             setState(() => _loading = false);
+            // 登录成功后优先从 localStorage 读取 refresh_token
+            _tryReadRefreshToken();
           },
           onWebResourceError: (error) {
             if (!mounted) return;
@@ -1210,6 +1212,55 @@ class _AliSmsCodeLoginPageState extends State<_AliSmsCodeLoginPage> {
         ),
       )
       ..loadRequest(Uri.parse(AliClient.webviewLoginUrl));
+  }
+
+  /// 从阿里云盘网页的 localStorage 直接读取 refresh_token（token 键下含 refresh_token）
+  Future<void> _tryReadRefreshToken() async {
+    if (_done || !mounted) return;
+    try {
+      final tokenStr = await _controller.runJavaScriptReturningResult('''
+(function() {
+  try {
+    var v = localStorage.getItem('token');
+    if (v) {
+      var p = JSON.parse(v);
+      if (p && p.refresh_token) return String(p.refresh_token);
+    }
+  } catch(e) {}
+  return '';
+})();
+''');
+      final value = tokenStr.toString();
+      if (value.isNotEmpty && value != '""' && value != "''") {
+        await _completeLoginWith(value);
+      }
+    } catch (_) {}
+  }
+
+  /// 用 refresh_token 或 code 完成登录
+  Future<void> _completeLoginWith(dynamic credential) async {
+    _done = true;
+    if (mounted) {
+      setState(() {
+        _status = '登录成功，正在获取凭证…';
+        _loading = false;
+      });
+    }
+    final drive = DriveManager.I.getDrive(DriveType.ali);
+    String? err = '驱动器未初始化';
+    if (drive != null) {
+      err = await drive.login(credential);
+    }
+    if (!mounted) return;
+    if (err == null) {
+      Navigator.of(context).pop(true);
+    } else {
+      setState(() {
+        _done = false;
+        _status = '登录失败: $err';
+      });
+      _toast('登录失败: $err');
+    }
   }
 
   /// 监听授权回调，捕获 code 并换取 token
@@ -1234,32 +1285,7 @@ class _AliSmsCodeLoginPageState extends State<_AliSmsCodeLoginPage> {
       return;
     }
     if (code.trim().isEmpty) return;
-    _completeLogin(code.trim());
-  }
-
-  Future<void> _completeLogin(String code) async {
-    _done = true;
-    if (mounted) {
-      setState(() {
-        _status = '登录成功，正在获取凭证…';
-        _loading = false;
-      });
-    }
-    final drive = DriveManager.I.getDrive(DriveType.ali);
-    String? err = '驱动器未初始化';
-    if (drive != null) {
-      err = await drive.login({'code': code});
-    }
-    if (!mounted) return;
-    if (err == null) {
-      Navigator.of(context).pop(true);
-    } else {
-      setState(() {
-        _done = false;
-        _status = '登录失败: $err';
-      });
-      _toast('登录失败: $err');
-    }
+    await _completeLoginWith({'code': code.trim()});
   }
 
   void _toast(String msg) {

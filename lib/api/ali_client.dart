@@ -214,9 +214,14 @@ class AliClient extends BaseDrive {
   }
 
   /// 使用 code + client_id 登录（从 webview OAuth 回调获取）
+  ///
+  /// 阿里云盘的 authorization_code 换接口为
+  /// https://api.aliyundrive.com/oauth/access_token，
+  /// 而 auth.aliyundrive.com/v2/account/token 只接受 refresh_token 类型。
   Future<String?> loginByCode(String code) async {
+    final tokenUrl = 'https://api.aliyundrive.com/oauth/access_token';
     final resp = await _dio.request(
-      _authUrl,
+      tokenUrl,
       data: {
         'grant_type': 'authorization_code',
         'code': code,
@@ -227,6 +232,8 @@ class AliClient extends BaseDrive {
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+              'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
         },
         validateStatus: (_) => true,
       ),
@@ -234,7 +241,7 @@ class AliClient extends BaseDrive {
     AppLogger.I.http(
       'ali',
       'POST',
-      _authUrl,
+      tokenUrl,
       status: resp.statusCode ?? -1,
       cred: 'code',
       body: resp.data,

@@ -227,29 +227,52 @@ class LanzouClient implements BaseDrive {
         }
 
         // 第二优先：up.woozooo.com/mlogin.php（部分账号可用）
-        final resp = await _dio.post(
-          'https://up.woozooo.com/mlogin.php',
-          data: {'action': 'login', 'username': username, 'password': password},
-          options: Options(
-            headers: {
-              'User-Agent': uaPc,
-              'Content-Type': 'application/x-www-form-urlencoded',
-              'Referer': 'https://up.woozooo.com/',
-            },
-            validateStatus: (_) => true,
-          ),
-        );
-        _mergeSetCookie(resp);
-        AppLogger.I.http(
-          'lanzou',
-          'POST',
-          'https://up.woozooo.com/mlogin.php',
-          status: resp.statusCode ?? -1,
-          cred: _cookie,
-          body: resp.data,
-        );
-        final body = resp.data?.toString() ?? '';
-        if (_cookie.isNotEmpty || body.contains('success') || body.contains('login')) {
+        // 该接口在 acw_sc__v2 反爬下，首次请求会返回 JS 挑战页，
+        // 需按算法计算 acw cookie 后重试才能真正登录。
+        String loginBody = '';
+        for (var attempt = 0; attempt < 3; attempt++) {
+          final resp = await _dio.post(
+            'https://up.woozooo.com/mlogin.php',
+            data: {'action': 'login', 'username': username, 'password': password},
+            options: Options(
+              headers: _pcHeaders(extra: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Referer': 'https://up.woozooo.com/',
+                'Origin': 'https://up.woozooo.com',
+              }),
+              validateStatus: (_) => true,
+            ),
+          );
+          _mergeSetCookie(resp);
+          AppLogger.I.http(
+            'lanzou',
+            'POST',
+            'https://up.woozooo.com/mlogin.php',
+            status: resp.statusCode ?? -1,
+            cred: _cookie,
+            body: resp.data,
+          );
+          loginBody = resp.data?.toString() ?? '';
+
+          // 遇到 acw 反爬：计算 cookie 后重试
+          if (loginBody.contains('acw_sc__v2')) {
+            final acw = _calcAcwV2(loginBody);
+            if (acw.isNotEmpty) {
+              _cookie = (_cookie.split(';')
+                    ..removeWhere((p) => p.trim().startsWith('acw_sc__v2=')))
+                  .join('; ');
+              _cookie = (_cookie.isEmpty ? '' : '$_cookie; ') + 'acw_sc__v2=$acw';
+            }
+            continue;
+          }
+          break;
+        }
+
+        final uidOk = _uid.isNotEmpty && _uid != '0';
+        final bodyOk = loginBody.contains('success') ||
+            loginBody.contains('成功') ||
+            loginBody.contains('"zt"') && !loginBody.contains('"zt":0');
+        if (uidOk || bodyOk) {
           _finishLogin(username);
           return null;
         }
