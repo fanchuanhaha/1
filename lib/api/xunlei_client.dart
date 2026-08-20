@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:dio/dio.dart';
 
+import '../utils/app_logger.dart';
 import '../utils/types.dart';
 import 'base_drive.dart';
 import 'drive_type.dart';
@@ -118,6 +119,14 @@ class XunleiClient implements BaseDrive {
       ),
     );
     _mergeSetCookie(resp);
+    AppLogger.I.http(
+      'xunlei',
+      method,
+      url,
+      status: resp.statusCode ?? -1,
+      cred: _accessToken.isEmpty ? _cookie : _accessToken,
+      body: resp.data,
+    );
     return resp;
   }
 

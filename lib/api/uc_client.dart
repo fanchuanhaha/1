@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:dio/dio.dart';
 
+import '../utils/app_logger.dart';
 import '../utils/types.dart';
 import 'base_drive.dart';
 import 'drive_type.dart';
@@ -109,6 +110,14 @@ class UcClient extends BaseDrive {
       ),
     );
     _mergeSetCookie(resp);
+    AppLogger.I.http(
+      'uc',
+      method,
+      url,
+      status: resp.statusCode ?? -1,
+      cred: _cookie,
+      body: resp.data,
+    );
     return resp;
   }
 

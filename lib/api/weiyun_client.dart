@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:dio/dio.dart';
 
+import '../utils/app_logger.dart';
 import '../utils/types.dart';
 import 'base_drive.dart';
 import 'drive_type.dart';
@@ -114,6 +115,14 @@ class WeiyunClient extends BaseDrive {
       ),
     );
     _mergeSetCookie(resp);
+    AppLogger.I.http(
+      'weiyun',
+      method,
+      url,
+      status: resp.statusCode ?? -1,
+      cred: _cookie,
+      body: resp.data,
+    );
     return resp;
   }
 

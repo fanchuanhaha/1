@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:dio/dio.dart';
 
+import '../utils/app_logger.dart';
 import '../utils/types.dart';
 import 'base_drive.dart';
 import 'drive_type.dart';
@@ -94,6 +95,14 @@ class PikPakClient implements BaseDrive {
         headers: headers,
         validateStatus: (_) => true,
       ),
+    );
+    AppLogger.I.http(
+      'pikpak',
+      method,
+      url,
+      status: resp.statusCode ?? -1,
+      cred: _accessToken,
+      body: resp.data,
     );
     return resp;
   }

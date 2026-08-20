@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:dio/dio.dart';
 
+import '../utils/app_logger.dart';
 import '../utils/types.dart';
 import 'base_drive.dart';
 import 'drive_type.dart';
@@ -108,6 +109,14 @@ class AliClient extends BaseDrive {
         validateStatus: (_) => true,
       ),
     );
+    AppLogger.I.http(
+      'ali',
+      method,
+      url,
+      status: resp.statusCode ?? -1,
+      cred: _accessToken.isEmpty ? _refreshToken : _accessToken,
+      body: resp.data,
+    );
     final body = _parseBody(resp);
 
     // token 过期（401），自动刷新重试
@@ -188,6 +197,14 @@ class AliClient extends BaseDrive {
         validateStatus: (_) => true,
       ),
     );
+    AppLogger.I.http(
+      'ali',
+      'POST',
+      _authUrl,
+      status: resp.statusCode ?? -1,
+      cred: _refreshToken,
+      body: resp.data,
+    );
     final body = _parseBody(resp);
     if (body['access_token'] == null) {
       throw AliException(-1, 'refresh_token 已失效，请重新登录');
@@ -213,6 +230,14 @@ class AliClient extends BaseDrive {
         },
         validateStatus: (_) => true,
       ),
+    );
+    AppLogger.I.http(
+      'ali',
+      'POST',
+      _authUrl,
+      status: resp.statusCode ?? -1,
+      cred: 'code',
+      body: resp.data,
     );
     final body = _parseBody(resp);
     if (body['access_token'] == null) {

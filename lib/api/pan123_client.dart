@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:dio/dio.dart';
 
+import '../utils/app_logger.dart';
 import '../utils/types.dart';
 import 'base_drive.dart';
 import 'drive_type.dart';
@@ -502,6 +503,14 @@ class Pan123Client implements BaseDrive {
       ),
     );
     _mergeSetCookie(resp);
+    AppLogger.I.http(
+      'pan123',
+      method,
+      url,
+      status: resp.statusCode ?? -1,
+      cred: _token.isEmpty ? _cookie : _token,
+      body: resp.data,
+    );
     return resp;
   }
 

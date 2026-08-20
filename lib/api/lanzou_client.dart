@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:dio/dio.dart';
 
+import '../utils/app_logger.dart';
 import 'base_drive.dart';
 import 'drive_type.dart';
 
@@ -177,6 +178,14 @@ class LanzouClient implements BaseDrive {
             validateStatus: (_) => true,
           ),
         );
+        AppLogger.I.http(
+          'lanzou',
+          'GET',
+          accountUrl,
+          status: accountResp.statusCode ?? -1,
+          cred: _cookie,
+          body: accountResp.data,
+        );
         _mergeSetCookie(accountResp);
         final formHash = RegExp(r'name="formhash" value="(.+?)"')
             .firstMatch(accountResp.data?.toString() ?? '')
@@ -202,6 +211,14 @@ class LanzouClient implements BaseDrive {
             ),
           );
           _mergeSetCookie(resp);
+          AppLogger.I.http(
+            'lanzou',
+            'POST',
+            mydiskUrl,
+            status: resp.statusCode ?? -1,
+            cred: _cookie,
+            body: resp.data,
+          );
           final body = resp.data?.toString() ?? '';
           if (_uid != '0' || body.contains('成功') || body.contains('success')) {
             _finishLogin(username);
@@ -223,6 +240,14 @@ class LanzouClient implements BaseDrive {
           ),
         );
         _mergeSetCookie(resp);
+        AppLogger.I.http(
+          'lanzou',
+          'POST',
+          'https://up.woozooo.com/mlogin.php',
+          status: resp.statusCode ?? -1,
+          cred: _cookie,
+          body: resp.data,
+        );
         final body = resp.data?.toString() ?? '';
         if (_cookie.isNotEmpty || body.contains('success') || body.contains('login')) {
           _finishLogin(username);
@@ -265,7 +290,7 @@ class LanzouClient implements BaseDrive {
     bool needUid = false,
   }) async {
     final target = needUid ? '$url?uid=$_uid' : url;
-    return _dio.post(
+    final resp = await _dio.post(
       target,
       data: data,
       options: Options(
@@ -274,6 +299,15 @@ class LanzouClient implements BaseDrive {
         validateStatus: (_) => true,
       ),
     );
+    AppLogger.I.http(
+      'lanzou',
+      'POST',
+      target,
+      status: resp.statusCode ?? -1,
+      cred: _cookie,
+      body: resp.data,
+    );
+    return resp;
   }
 
   Future<Response> _get(String url, {bool followRedirects = true}) async {
@@ -283,7 +317,16 @@ class LanzouClient implements BaseDrive {
       followRedirects: followRedirects,
     );
     if (!followRedirects) opts.maxRedirects = 0;
-    return _dio.get(url, options: opts);
+    final resp = await _dio.get(url, options: opts);
+    AppLogger.I.http(
+      'lanzou',
+      'GET',
+      url,
+      status: resp.statusCode ?? -1,
+      cred: _cookie,
+      body: resp.data,
+    );
+    return resp;
   }
 
   Map<String, dynamic> _jsonBody(Response resp) {
@@ -480,6 +523,14 @@ class LanzouClient implements BaseDrive {
             validateStatus: (_) => true,
           ),
         );
+        AppLogger.I.http(
+          'lanzou',
+          'POST',
+          '$hostUrl/ajaxm.php',
+          status: li.statusCode ?? -1,
+          cred: _cookie,
+          body: li.data,
+        );
         linkInfo = _jsonBody(li);
       } else {
         // 无提取码：先取 iframe 下载参数页，再 downprocess
@@ -505,6 +556,14 @@ class LanzouClient implements BaseDrive {
             contentType: Headers.formUrlEncodedContentType,
             validateStatus: (_) => true,
           ),
+        );
+        AppLogger.I.http(
+          'lanzou',
+          'POST',
+          '$hostUrl/ajaxm.php',
+          status: li.statusCode ?? -1,
+          cred: _cookie,
+          body: li.data,
         );
         linkInfo = _jsonBody(li);
       }

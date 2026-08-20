@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
@@ -57,6 +58,55 @@ class AppLogger {
     String p(int v, [int w = 2]) => v.toString().padLeft(w, '0');
     return '${n.year}-${p(n.month)}-${p(n.day)} '
         '${p(n.hour)}:${p(n.minute)}:${p(n.second)}.${p(n.millisecond, 3)}';
+  }
+
+  /// 记录一次 HTTP 请求的脱敏日志（各网盘客户端统一调用）
+  ///
+  /// [cred] 传入会话凭据（cookie/access_token），仅记录长度不记录明文。
+  void http(
+    String tag,
+    String method,
+    String url, {
+    int? status,
+    String? cred,
+    Object? body,
+  }) {
+    final sb = StringBuffer('$method $url');
+    if (status != null) sb.write('\n  status=$status');
+    if (cred != null) {
+      sb.write(' cred=${cred.isEmpty ? 'empty' : 'len=${cred.length}'}');
+    }
+    if (body != null) {
+      String s;
+      try {
+        s = body is String ? body : jsonEncode(body).toString();
+      } catch (_) {
+        s = '<无法序列化>';
+      }
+      if (s.length > 800) s = '${s.substring(0, 800)}…';
+      sb.write('\n  body=$s');
+    }
+    _log('INFO', tag, sb.toString());
+  }
+
+  /// 清空日志文件
+  Future<void> clear() async {
+    final f = _file;
+    if (f != null) {
+      try {
+        f.writeAsStringSync('');
+      } catch (_) {}
+    }
+    // 确保文件存在，便于后续继续写入
+    try {
+      final docs = await getApplicationDocumentsDirectory();
+      final dir = Directory('${docs.path}/quarklite/logs');
+      if (!dir.existsSync()) dir.createSync(recursive: true);
+      final nf = File('${dir.path}/app.log');
+      if (!nf.existsSync()) nf.writeAsStringSync('');
+      _file = nf;
+      _ready = true;
+    } catch (_) {}
   }
 
   /// 读取最近 [maxLines] 行日志（供界面复制/展示）

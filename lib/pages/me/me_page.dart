@@ -127,60 +127,76 @@ class MePage extends StatelessWidget {
 
   Future<void> _showLog(BuildContext context) async {
     final path = await AppLogger.I.logPath();
-    final content = await AppLogger.I.readLog();
+    var content = await AppLogger.I.readLog();
     if (!context.mounted) return;
     showDialog<void>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('运行日志'),
-        content: SizedBox(
-          width: 420,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('日志文件位置：',
-                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-              SelectableText(path,
-                  style: const TextStyle(fontSize: 12, color: AppColors.accent)),
-              const SizedBox(height: 12),
-              Container(
-                width: double.infinity,
-                height: 220,
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: AppColors.cardLight,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: SingleChildScrollView(
-                  child: SelectableText(
-                    content,
-                    style: const TextStyle(
-                        fontSize: 11, color: AppColors.textSecondary, height: 1.5),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('运行日志'),
+          content: SizedBox(
+            width: 420,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('日志文件位置：',
+                    style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                SelectableText(path,
+                    style: const TextStyle(fontSize: 12, color: AppColors.accent)),
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  height: 220,
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.cardLight,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: SingleChildScrollView(
+                    child: SelectableText(
+                      content,
+                      style: const TextStyle(
+                          fontSize: 11, color: AppColors.textSecondary, height: 1.5),
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('关闭'),
-          ),
-          FilledButton.icon(
-            icon: const Icon(Icons.copy_rounded, size: 18),
-            label: const Text('复制日志'),
-            onPressed: () async {
-              await Clipboard.setData(ClipboardData(text: content));
-              if (ctx.mounted) {
-                Navigator.pop(ctx);
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('关闭'),
+            ),
+            TextButton.icon(
+              icon: const Icon(Icons.delete_sweep_rounded,
+                  size: 18, color: AppColors.red),
+              label: const Text('清空日志',
+                  style: TextStyle(color: AppColors.red)),
+              onPressed: () async {
+                await AppLogger.I.clear();
+                content = await AppLogger.I.readLog();
+                if (!ctx.mounted) return;
+                setDialogState(() {});
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                    content: Text('日志已复制，请直接粘贴发送给开发者')));
-              }
-            },
-          ),
-        ],
+                    content: Text('日志已清空')));
+              },
+            ),
+            FilledButton.icon(
+              icon: const Icon(Icons.copy_rounded, size: 18),
+              label: const Text('复制日志'),
+              onPressed: () async {
+                await Clipboard.setData(ClipboardData(text: content));
+                if (ctx.mounted) {
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                      content: Text('日志已复制，请直接粘贴发送给开发者')));
+                }
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
