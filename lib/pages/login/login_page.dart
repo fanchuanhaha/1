@@ -1285,7 +1285,10 @@ class _AliSmsCodeLoginPageState extends State<_AliSmsCodeLoginPage> {
       return;
     }
     if (code.trim().isEmpty) return;
-    await _completeLoginWith({'code': code.trim()});
+    // 注意：_checkCallback 由 WebView onUrlChange 同步回调触发，非 async。
+    // 这里发起异步登录，不需要在此等待。
+    // ignore: unawaited_futures
+    _completeLoginWith({'code': code.trim()});
   }
 
   void _toast(String msg) {
