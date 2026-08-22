@@ -463,6 +463,8 @@ class _LoginPageState extends State<LoginPage> {
     if (type != DriveType.quark) {
       DriveManager.I.saveDriveSession(type);
     }
+    // 通知所有监听 DriveManager 的页面（如网盘列表）刷新登录态，立即显示「已登录」
+    DriveManager.I.notifyListeners();
     // 获取用户信息
     String? nickname;
     String? avatar;

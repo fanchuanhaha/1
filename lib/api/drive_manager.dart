@@ -94,6 +94,9 @@ class DriveManager extends ChangeNotifier {
       user = await _readCachedUser();
       await refreshUser();
     }
+
+    // 刷新 UI：让恢复后的各网盘登录态立即显示出来，无需第 2 次进入
+    notifyListeners();
   }
 
   /// 读取持久化 cookie：优先安全存储，读取失败时回退到普通存储

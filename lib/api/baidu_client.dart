@@ -266,7 +266,20 @@ class BaiduClient extends BaseDrive {
   Future<String?> login(dynamic credential) async {
     if (credential == null) return '缺少凭证';
     if (credential is String) {
-      // 尝试将字符串解析为 BDUSS
+      // 可能是完整 cookie（BDUSS=xxx; STOKEN=yyy），也可能是纯 BDUSS。
+      // 从 cookie 中解析出 BDUSS / STOKEN，避免整体当 BDUSS 用导致鉴权失败。
+      final bduss = RegExp(r'(?:^|;|,\s*)BDUSS=([^;,\s]+)', caseSensitive: false)
+              .firstMatch(credential)
+              ?.group(1) ??
+          '';
+      final stoken = RegExp(r'(?:^|;|,\s*)STOKEN=([^;,\s]+)', caseSensitive: false)
+              .firstMatch(credential)
+              ?.group(1) ??
+          '';
+      if (bduss.isNotEmpty) {
+        return loginByCredentials(bduss, stoken);
+      }
+      // 没有可识别的 BDUSS= 前缀，视为纯 BDUSS
       return loginByCredentials(credential, '');
     }
     if (credential is Map) {

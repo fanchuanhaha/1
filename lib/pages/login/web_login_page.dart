@@ -78,6 +78,10 @@ class _WebLoginPageState extends State<WebLoginPage> {
             if (!mounted) return;
             setState(() => _loading = false);
             _refreshCookie();
+            // 登录成功跳转后 Cookie 可能稍后才落地，延迟再读一次
+            Future.delayed(const Duration(milliseconds: 1500), () {
+              if (mounted) _refreshCookie();
+            });
           },
           onWebResourceError: (error) {
             if (!mounted) return;
@@ -96,16 +100,28 @@ class _WebLoginPageState extends State<WebLoginPage> {
   Future<void> _refreshCookie() async {
     // 1) 优先使用 CookieManager，能读到 HttpOnly cookie
     try {
-      final cookies =
-          await WebViewCookieManager().getCookies(domain: Uri.parse(widget.loginUrl));
-      if (cookies.isNotEmpty) {
-        final parts = cookies
-            .where((c) => c.name.isNotEmpty && c.value.isNotEmpty)
-            .map((c) => '${c.name}=${c.value}')
-            .toList();
-        if (parts.isNotEmpty) {
-          _currentCookie = parts.join('; ');
-          return;
+      // 登录过程中可能有跳转（如 passport.baidu.com → pan.baidu.com），
+      // 同时尝试初始登录页与当前页两个域名。
+      final candidates = <Uri>[Uri.parse(widget.loginUrl)];
+      try {
+        final cur = _controller.currentUrl();
+        if (cur != null && cur.isNotEmpty) {
+          final u = Uri.parse(cur);
+          if (!candidates.contains(u)) candidates.add(u);
+        }
+      } catch (_) {}
+      for (final u in candidates) {
+        final cookies =
+            await WebViewCookieManager().getCookies(domain: u);
+        if (cookies.isNotEmpty) {
+          final parts = cookies
+              .where((c) => c.name.isNotEmpty && c.value.isNotEmpty)
+              .map((c) => '${c.name}=${c.value}')
+              .toList();
+          if (parts.isNotEmpty) {
+            _currentCookie = parts.join('; ');
+            return;
+          }
         }
       }
     } catch (_) {}
@@ -123,11 +139,12 @@ class _WebLoginPageState extends State<WebLoginPage> {
 
   /// 用户点击保存按钮 - 手动确认保存 cookie
   void _onSave() async {
-    // 夸克/UC/蓝奏云 使用 Cookie 认证，必须用完整 cookie（含 HttpOnly 的 __puus/__pus，
-    // 以及蓝奏云登录成功后的 ylogin），不能回退到 localStorage 里的 token。
+    // 夸克/UC/蓝奏云/百度 使用 Cookie 认证，必须用完整 cookie（含 HttpOnly 的 __puus/__pus、
+    // 蓝奏云 ylogin、百度 BDUSS/STOKEN），不能回退到 localStorage 里的 token。
     if (widget.driveType == DriveType.quark ||
         widget.driveType == DriveType.uc ||
-        widget.driveType == DriveType.lanzou) {
+        widget.driveType == DriveType.lanzou ||
+        widget.driveType == DriveType.baidu) {
       if (_currentCookie.isEmpty) {
         _toast('未检测到登录 Cookie，请先登录后再点击保存');
         return;

@@ -24,7 +24,7 @@ class AliException implements Exception {
 /// 认证方式：refresh_token -> access_token（Bearer），access_token 过期时自动刷新。
 class AliClient extends BaseDrive {
   static const String _baseUrl = 'https://api.aliyundrive.com';
-  static const String _authUrl = 'https://auth.aliyundrive.com/v2/account/token';
+  static const String _authUrl = 'https://openapi.alipan.com/oauth/access_token';
 
   static const String _webviewLoginUrl =
       'https://auth.aliyundrive.com/v2/oauth/authorize'
@@ -215,11 +215,10 @@ class AliClient extends BaseDrive {
 
   /// 使用 code + client_id 登录（从 webview OAuth 回调获取）
   ///
-  /// 阿里云盘的 authorization_code 换接口为
-  /// https://api.aliyundrive.com/oauth/access_token，
-  /// 而 auth.aliyundrive.com/v2/account/token 只接受 refresh_token 类型。
+  /// 阿里云盘(Alipan) 的 authorization_code 换接口为
+  /// https://openapi.alipan.com/oauth/access_token（旧域名 api.aliyundrive.com 已 404）。
   Future<String?> loginByCode(String code) async {
-    final tokenUrl = 'https://api.aliyundrive.com/oauth/access_token';
+    final tokenUrl = 'https://openapi.alipan.com/oauth/access_token';
     final resp = await _dio.request(
       tokenUrl,
       data: {
