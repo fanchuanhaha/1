@@ -181,12 +181,16 @@ class AliClient extends BaseDrive {
   // ──────────────────── 认证 ────────────────────
 
   /// 通过 refresh_token 获取新的 access_token
+  ///
+  /// 阿里云盘(Alipan) 的 openapi 端点强制要求 client_id，
+  /// 缺失会返回 "client_id 不能为空"，导致登录/自动刷新失败。
   Future<void> _doRefreshToken() async {
     final resp = await _dio.request(
       _authUrl,
       data: {
         'grant_type': 'refresh_token',
         'refresh_token': _refreshToken,
+        'client_id': '25dzX3vbYqktVxyX',
       },
       options: Options(
         method: 'POST',

@@ -101,28 +101,41 @@ class _WebLoginPageState extends State<WebLoginPage> {
     // 1) 优先使用 CookieManager，能读到 HttpOnly cookie
     try {
       // 登录过程中可能有跳转（如 passport.baidu.com → pan.baidu.com），
-      // 同时尝试初始登录页与当前页两个域名。
-      final candidates = <Uri>[Uri.parse(widget.loginUrl)];
+      // 不同子域（passport/pan/yun）会分别存放关键 cookie（如百度 BDUSS 在 passport.baidu.com，
+      // 蓝奏云 ylogin 在 up.woozooo.com）。必须把候选子域的 cookie 全部合并，
+      // 而不是拿到第一个非空就返回，否则会漏掉跳转后子域上的关键会话 cookie。
+      final allParts = <String>{};
+      final candidateHosts = <String>{Uri.parse(widget.loginUrl).host};
       try {
         final cur = await _controller.currentUrl();
         if (cur != null && cur.isNotEmpty) {
           final u = Uri.parse(cur);
-          if (!candidates.contains(u)) candidates.add(u);
+          if (u.host.isNotEmpty) candidateHosts.add(u.host);
         }
       } catch (_) {}
-      for (final u in candidates) {
-        final cookies =
-            await WebViewCookieManager().getCookies(domain: u);
-        if (cookies.isNotEmpty) {
-          final parts = cookies
-              .where((c) => c.name.isNotEmpty && c.value.isNotEmpty)
-              .map((c) => '${c.name}=${c.value}')
-              .toList();
-          if (parts.isNotEmpty) {
-            _currentCookie = parts.join('; ');
-            return;
+      // 对百度额外补上常见会话子域，确保 BDUSS/STOKEN 被读到
+      if (widget.driveType == DriveType.baidu) {
+        candidateHosts.addAll({
+          'passport.baidu.com',
+          'pan.baidu.com',
+          'yun.baidu.com',
+          '.baidu.com',
+        });
+      }
+      for (final host in candidateHosts) {
+        try {
+          final cookies =
+              await WebViewCookieManager().getCookies(domain: host);
+          for (final c in cookies) {
+            if (c.name.isNotEmpty && c.value.isNotEmpty) {
+              allParts.add('${c.name}=${c.value}');
+            }
           }
-        }
+        } catch (_) {}
+      }
+      if (allParts.isNotEmpty) {
+        _currentCookie = allParts.join('; ');
+        return;
       }
     } catch (_) {}
     // 2) 兜底：document.cookie（读不到 HttpOnly）

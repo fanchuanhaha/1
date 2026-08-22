@@ -228,7 +228,7 @@ class LoginService {
       case DriveType.quark:
         return 'https://pan.quark.cn/';
       case DriveType.ali:
-        return 'https://www.aliyundrive.com/';
+        return 'https://www.alipan.com/sign/';
       case DriveType.baidu:
         return 'https://pan.baidu.com/';
       case DriveType.pikpak:
