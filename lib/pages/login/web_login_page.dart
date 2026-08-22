@@ -119,13 +119,12 @@ class _WebLoginPageState extends State<WebLoginPage> {
           'passport.baidu.com',
           'pan.baidu.com',
           'yun.baidu.com',
-          '.baidu.com',
         });
       }
       for (final host in candidateHosts) {
         try {
-          final cookies =
-              await WebViewCookieManager().getCookies(domain: host);
+          final cookies = await WebViewCookieManager()
+              .getCookies(domain: Uri.parse('https://$host/'));
           for (final c in cookies) {
             if (c.name.isNotEmpty && c.value.isNotEmpty) {
               allParts.add('${c.name}=${c.value}');
