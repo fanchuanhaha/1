@@ -104,7 +104,7 @@ class _WebLoginPageState extends State<WebLoginPage> {
       // 同时尝试初始登录页与当前页两个域名。
       final candidates = <Uri>[Uri.parse(widget.loginUrl)];
       try {
-        final cur = _controller.currentUrl();
+        final cur = await _controller.currentUrl();
         if (cur != null && cur.isNotEmpty) {
           final u = Uri.parse(cur);
           if (!candidates.contains(u)) candidates.add(u);
