@@ -31,6 +31,7 @@ class DriveManager extends ChangeNotifier {
   static const _kCookie = 'quark_cookie';
   static const _kCookieBackup = 'quark_cookie_backup';
   static const _kUserCache = 'quark_user_cache';
+  static const _kDriveSessions = 'drive_sessions_map';
 
   static DriveManager? _instance;
   static DriveManager get I => _instance ??= DriveManager._();
@@ -82,6 +83,9 @@ class DriveManager extends ChangeNotifier {
       } catch (_) {}
     }
 
+    // 恢复除夸克外其它网盘的持久化会话（登录、进度等在重启后保留）
+    await _restoreDriveSessions();
+
     // 初始化夸克
     final cookie = await _loadCookie();
     if (cookie != null && cookie.isNotEmpty) {
@@ -130,6 +134,103 @@ class DriveManager extends ChangeNotifier {
       await prefs.remove(_kCookieBackup);
       await prefs.remove(_kUserCache);
     } catch (_) {}
+  }
+
+  /// 获取某网盘的可持久化凭证。
+  ///
+  /// 阿里云盘/PikPak/迅雷 的 access_token 会过期，持久化 refresh_token 才能恢复；
+  /// 其余网盘直接保存 loginCookie（cookie/token 字符串）。
+  String? _persistableOf(BaseDrive drive) {
+    if (drive is AliClient) {
+      final rt = drive.refreshToken.trim();
+      return rt.isEmpty ? null : rt;
+    }
+    return drive.loginCookie;
+  }
+
+  /// 保存指定网盘的登录凭证到持久化存储
+  Future<void> saveDriveSession(DriveType type) async {
+    if (type == DriveType.quark || type == DriveType.guangya) return;
+    final drive = _drives[type];
+    if (drive == null) return;
+    final cred = _persistableOf(drive);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final map = _readSessionMap(prefs);
+      if (cred == null || cred.isEmpty) {
+        map.remove(type.name);
+      } else {
+        map[type.name] = cred;
+      }
+      await prefs.setString(_kDriveSessions, jsonEncode(map));
+      AppLogger.I.i('persist', '已保存 ${type.name} 登录态 len=${cred?.length ?? 0}');
+    } catch (e) {
+      AppLogger.I.e('persist', '保存 ${type.name} 登录态失败: $e');
+    }
+  }
+
+  /// 清除指定网盘的持久化凭证
+  Future<void> clearDriveSession(DriveType type) async {
+    if (type == DriveType.quark) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final map = _readSessionMap(prefs);
+      if (map.remove(type.name) != null) {
+        await prefs.setString(_kDriveSessions, jsonEncode(map));
+        AppLogger.I.i('persist', '已清除 ${type.name} 登录态');
+      }
+    } catch (e) {
+      AppLogger.I.e('persist', '清除 ${type.name} 登录态失败: $e');
+    }
+  }
+
+  Map<String, String> _readSessionMap(SharedPreferences prefs) {
+    final raw = prefs.getString(_kDriveSessions);
+    if (raw == null || raw.isEmpty) return {};
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is Map) {
+        return decoded.map((k, v) => MapEntry(k.toString(), v.toString()));
+      }
+    } catch (_) {}
+    return {};
+  }
+
+  /// 启动时恢复所有已登录网盘的会话
+  Future<void> _restoreDriveSessions() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final map = _readSessionMap(prefs);
+      if (map.isEmpty) {
+        AppLogger.I.i('persist', '无持久化网盘会话');
+        return;
+      }
+      for (final d in _drives.entries) {
+        final cred = map[d.key.name];
+        if (cred == null || cred.isEmpty) continue;
+        try {
+          if (d.value is AliClient) {
+            (d.value as AliClient).setRefreshToken(cred);
+            await (d.value as AliClient).init();
+          } else {
+            d.value.restoreSession(cred);
+          }
+          // 仅当确实有凭证时才视为已恢复
+          if (d.value.loginCookie != null && d.value.loginCookie!.isNotEmpty) {
+            AppLogger.I.i('persist', '已恢复 ${d.key.label} 登录态');
+          } else {
+            AppLogger.I.w('persist', '${d.key.label} 凭证已过期，清除');
+            map.remove(d.key.name);
+          }
+        } catch (e) {
+          AppLogger.I.e('persist', '恢复 ${d.key.label} 失败: $e');
+          map.remove(d.key.name);
+        }
+      }
+      await prefs.setString(_kDriveSessions, jsonEncode(map));
+    } catch (e) {
+      AppLogger.I.e('persist', '读取持久化会话失败: $e');
+    }
   }
 
   Future<void> _cacheUser(QuarkUserInfo info) async {
@@ -190,6 +291,7 @@ class DriveManager extends ChangeNotifier {
     final drive = getDrive(type);
     if (drive != null) {
       await drive.logout();
+      await clearDriveSession(type);
       notifyListeners();
     }
   }

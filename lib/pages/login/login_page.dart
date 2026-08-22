@@ -459,6 +459,10 @@ class _LoginPageState extends State<LoginPage> {
 
   /// 登录成功后的处理：显示用户信息，不直接返回
   void _onLoginSuccess(DriveType type) {
+    // 持久化除夸克外其它网盘的登录态，保证重启后仍在
+    if (type != DriveType.quark) {
+      DriveManager.I.saveDriveSession(type);
+    }
     // 获取用户信息
     String? nickname;
     String? avatar;

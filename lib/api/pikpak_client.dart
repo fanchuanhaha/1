@@ -166,6 +166,16 @@ class PikPakClient implements BaseDrive {
     _userId = userId;
   }
 
+  @override
+  void restoreSession(String credential) {
+    final v = stripBearer((credential ?? '').trim());
+    if (v.isEmpty) return;
+    _accessToken = v;
+    _userInfo = DriveUserInfo(nickname: _userId, avatar: '', userId: _userId);
+  }
+
+  static String stripBearer(String s) => s.startsWith('Bearer ') ? s.substring(7).trim() : s;
+
   /// 获取当前访问令牌
   String get accessToken => _accessToken;
 

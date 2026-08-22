@@ -79,6 +79,19 @@ class Pan123Client implements BaseDrive {
     // 从持久化缓存加载凭证（由上层调用方实现存储）
   }
 
+  @override
+  void restoreSession(String credential) {
+    final value = (credential ?? '').trim();
+    if (value.isEmpty) return;
+    if (value.startsWith('token=')) {
+      _token = value.substring(6).trim();
+      _cookie = '';
+    } else {
+      _token = value;
+      _cookie = '';
+    }
+  }
+
   /// 登录 123云盘。
   ///
   /// [credential] 支持多种方式:

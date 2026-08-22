@@ -104,6 +104,10 @@ abstract class BaseDrive {
   /// 当前登录凭证（cookie/token 字符串），用于展示与持久化
   String? get loginCookie => null;
 
+  /// 从持久化凭证恢复登录态（应尽量不发网络，失败静默）。
+  /// [credential] 即 [loginCookie] 保存下来的值。
+  void restoreSession(String credential) {}
+
   /// 初始化（加载持久化的登录凭证）
   Future<void> init();
 

@@ -71,6 +71,24 @@ class BaiduClient extends BaseDrive {
     _stoken = stoken.trim();
   }
 
+  @override
+  void restoreSession(String credential) {
+    // 持久化格式: BDUSS=xxx;_stoken=yyy 或 BDUSS=xxx; STOKEN=yyy
+    final bduss = RegExp(r'BDUSS=([^;]+)').firstMatch(credential)?.group(1) ?? '';
+    final stoken =
+        RegExp(r'_?STOKEN=([^;]+)', caseSensitive: false)
+            .firstMatch(credential)
+            ?.group(1) ??
+        '';
+    if (bduss.isNotEmpty) setBduss(bduss);
+    if (stoken.isNotEmpty) setStoken(stoken);
+    if (_bduss.isNotEmpty) _userInfo = DriveUserInfo(
+      nickname: '',
+      avatar: '',
+      userId: _bduss,
+    );
+  }
+
   /// 获取 BDUSS
   String get bduss => _bduss;
 

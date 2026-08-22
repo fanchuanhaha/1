@@ -60,12 +60,13 @@ class _WebLoginPageState extends State<WebLoginPage> {
   }
 
   void _initWebView() {
-    // 蓝奏云的 mlogin.php 是 H5 移动端登录页，用移动端 UA 才能正常渲染滑动验证码
+    // 蓝奏云 = H5 移动端登录页，需用现代移动端 UA 才能正常渲染并完成「我是人」滑动验证；
+    // 阿里云/其它网盘 = 电脑端站点，必须用桌面 UA（手机 UA 会不显示登录表单）。
     final isLanzou = widget.driveType == DriveType.lanzou;
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setUserAgent(isLanzou
-          ? 'Mozilla/5.0 (Linux; Android 5.0; SM-G900P Build/LRX21T) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/82.0.4051.0 Mobile Safari/537.36'
+          ? 'Mozilla/5.0 (Linux; Android 13; Pixel 7 Build/TQ3A.230805.001) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36'
           : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
       ..setNavigationDelegate(
         NavigationDelegate(

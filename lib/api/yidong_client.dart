@@ -74,6 +74,14 @@ class YiDongClient implements BaseDrive {
     // 从持久化缓存加载凭证（由上层调用方实现存储）
   }
 
+  @override
+  void restoreSession(String credential) {
+    final value = (credential ?? '').trim();
+    if (value.isEmpty) return;
+    _cookie = value;
+    _isLoggedIn = true;
+  }
+
   /// 使用密码登录移动云盘。
   ///
   /// [credential] 为 Map，需包含:

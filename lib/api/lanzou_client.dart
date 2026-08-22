@@ -17,7 +17,7 @@ class LanzouClient implements BaseDrive {
   static const String uaPc =
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
   static const String uaMobile =
-      'Mozilla/5.0 (Linux; Android 5.0; SM-G900P Build/LRX21T) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/82.0.4051.0 Mobile Safari/537.36';
+      'Mozilla/5.0 (Linux; Android 13; Pixel 7 Build/TQ3A.230805.001) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36';
 
   static const String accountUrl = 'https://pc.woozooo.com/account.php';
   static const String mydiskUrl = 'https://pc.woozooo.com/mydisk.php';
@@ -302,6 +302,27 @@ class LanzouClient implements BaseDrive {
       avatar: '',
       userId: 'lanzou',
     );
+  }
+
+  @override
+  void restoreSession(String credential) {
+    final value = (credential ?? '').trim();
+    if (value.isEmpty) return;
+    _cookie = value;
+    _username = '蓝奏云用户';
+    _userInfo = DriveUserInfo(
+      nickname: _username,
+      avatar: '',
+      userId: 'lanzou',
+    );
+    // 尝试从 cookie 提取 uid
+    for (final part in _cookie.split(';')) {
+      final kv = part.trim();
+      final eq = kv.indexOf('=');
+      if (eq > 0 && kv.substring(0, eq).trim() == 'ylogin') {
+        _uid = kv.substring(eq + 1).trim();
+      }
+    }
   }
 
   @override

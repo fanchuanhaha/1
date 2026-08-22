@@ -306,6 +306,13 @@ class WeiyunClient extends BaseDrive {
     }
   }
 
+  @override
+  void restoreSession(String credential) {
+    final value = (credential ?? '').trim();
+    if (value.isEmpty) return;
+    _cookie = value;
+  }
+
   // ──────────────────── 文件列表 ────────────────────
 
   @override

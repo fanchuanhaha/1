@@ -76,6 +76,22 @@ class TianyiClient implements BaseDrive {
     // 从持久化缓存加载凭证（由上层调用方实现存储）
   }
 
+  @override
+  void restoreSession(String credential) {
+    final sessionKey =
+        RegExp(r'SessionKey=([^;]+)').firstMatch(credential)?.group(1) ?? '';
+    final accessToken =
+        RegExp(r'AccessToken=([^;]+)').firstMatch(credential)?.group(1) ?? '';
+    if (sessionKey.isEmpty && accessToken.isEmpty) return;
+    _sessionKey = sessionKey;
+    _accessToken = accessToken;
+    _userInfo = DriveUserInfo(
+      nickname: '',
+      avatar: '',
+      userId: sessionKey.isEmpty ? accessToken : sessionKey,
+    );
+  }
+
   /// 使用密码登录天翼云盘。
   ///
   /// [credential] 为 Map，需包含:

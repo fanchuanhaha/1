@@ -66,6 +66,11 @@ class UcClient extends BaseDrive {
     _cookie = cookie.trim();
   }
 
+  @override
+  void restoreSession(String credential) {
+    setCookie(credential);
+  }
+
   /// 获取当前 Cookie 快照（用于持久化保存）
   String get cookie => _cookie;
 
