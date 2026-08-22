@@ -222,6 +222,31 @@ class XunleiClient implements BaseDrive {
   }
 
   @override
+  void restoreSession(String credential) {
+    final v = (credential ?? '').trim();
+    if (v.isEmpty) return;
+    // 兼容 JSON 格式与 Bearer <token> 两种持久化值
+    if (v.startsWith('{')) {
+      try {
+        final m = jsonDecode(v) as Map<String, dynamic>;
+        setToken(
+          m['access_token']?.toString() ?? '',
+          refreshToken: m['refresh_token']?.toString() ?? '',
+          userId: m['user_id']?.toString() ?? '',
+          deviceId: m['device_id']?.toString() ?? '',
+          cookie: m['cookie']?.toString() ?? '',
+        );
+        return;
+      } catch (_) {}
+    }
+    if (v.startsWith('Bearer ')) {
+      _accessToken = v.substring(7).trim();
+    } else {
+      _cookie = v;
+    }
+  }
+
+  @override
   Future<String?> login(dynamic credential) async {
     // credential 支持多种登录方式：
     //   {type: 'token', access_token, refresh_token, user_id, device_id}

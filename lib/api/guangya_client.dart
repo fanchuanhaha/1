@@ -81,6 +81,16 @@ class GuangyaClient implements BaseDrive {
     // 从持久化缓存加载凭证（由上层调用方实现存储）
   }
 
+  @override
+  void restoreSession(String credential) {
+    final v = (credential ?? '').trim();
+    if (v.isEmpty) return;
+    if (v.startsWith('Bearer ')) {
+      _accessToken = v.substring(7).trim();
+      _userInfo = DriveUserInfo(nickname: '光丫用户', avatar: '', userId: _sessionId);
+    }
+  }
+
   /// 使用密码登录光丫网盘。
   ///
   /// [credential] 为 Map，需包含:
