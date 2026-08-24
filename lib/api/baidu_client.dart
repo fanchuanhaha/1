@@ -31,12 +31,14 @@ class BaiduClient extends BaseDrive {
   static const String _ua =
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
       ' (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
-
+// ---- 内部状态 ----
   final Dio _dio;
-
   String _bduss = '';
   String _stoken = '';
   String _bdstoken = '';
+  /// 网页登录时捕获的完整 cookie 字符串（含 BAIDUID 等辅助 cookie），
+  /// 发送请求时优先使用完整 cookie 而非仅 BDUSS+STOKEN。
+  String _rawCookie = '';
   DriveUserInfo? _userInfo;
 
   BaiduClient()
@@ -59,7 +61,7 @@ class BaiduClient extends BaseDrive {
 
   @override
   String? get loginCookie =>
-      _bduss.isEmpty ? null : 'BDUSS=$_bduss;_stoken=$_stoken';
+      _bduss.isEmpty ? null : (_rawCookie.isNotEmpty ? _rawCookie : 'BDUSS=$_bduss; STOKEN=$_stoken');
 
   /// 设置 BDUSS（持久化恢复用）
   void setBduss(String bduss) {
@@ -74,6 +76,7 @@ class BaiduClient extends BaseDrive {
   @override
   void restoreSession(String credential) {
     // 持久化格式: BDUSS=xxx;_stoken=yyy 或 BDUSS=xxx; STOKEN=yyy
+    _rawCookie = credential;
     final bduss = RegExp(r'BDUSS=([^;]+)').firstMatch(credential)?.group(1) ?? '';
     final stoken =
         RegExp(r'_?STOKEN=([^;]+)', caseSensitive: false)
@@ -103,12 +106,13 @@ class BaiduClient extends BaseDrive {
   String get _cookie => 'BDUSS=$_bduss; STOKEN=$_stoken';
 
   Map<String, dynamic> _buildHeaders() {
+    final cookie = _rawCookie.isNotEmpty ? _rawCookie : _cookie;
     return {
       'Accept': 'application/json, text/plain, */*',
       'Content-Type': 'application/x-www-form-urlencoded',
       'User-Agent': _ua,
       'Referer': 'https://pan.baidu.com/',
-      if (_bduss.isNotEmpty) 'Cookie': _cookie,
+      if (_bduss.isNotEmpty) 'Cookie': cookie,
     };
   }
 
@@ -124,16 +128,22 @@ class BaiduClient extends BaseDrive {
       headers['Content-Type'] = 'application/json';
     }
 
-    final resp = await _dio.request(
-      url,
-      data: data,
-      queryParameters: params,
-      options: Options(
-        method: method,
-        headers: headers,
-        validateStatus: (_) => true,
-      ),
-    );
+    Response<dynamic> resp;
+    try {
+      resp = await _dio.request(
+        url,
+        data: data,
+        queryParameters: params,
+        options: Options(
+          method: method,
+          headers: headers,
+          validateStatus: (_) => true,
+        ),
+      );
+    } catch (e) {
+      AppLogger.I.e('baidu', 'HTTP请求失败: $method $url, 错误: $e');
+      rethrow;
+    }
     _mergeSetCookie(resp);
     AppLogger.I.http(
       'baidu',
@@ -219,6 +229,7 @@ class BaiduClient extends BaseDrive {
 
   /// 从服务端获取 bdstoken
   Future<void> _refreshBdstoken() async {
+    AppLogger.I.i('baidu', '刷新 bdstoken: BDUSS长度=${_bduss.length} STOKEN长度=${_stoken.length}');
     try {
       final body = await _get('$_baseUrl/api/gettemplatevariable', params: {
         'clienttype': 0,
@@ -231,30 +242,40 @@ class BaiduClient extends BaseDrive {
         final bdstokenObj = result['bdstoken'];
         if (bdstokenObj is Map) {
           _bdstoken = bdstokenObj['bdstoken']?.toString() ?? '';
+          AppLogger.I.i('baidu', 'bdstoken 获取成功, 长度=${_bdstoken.length}');
+        } else {
+          AppLogger.I.w('baidu', 'bdstoken 字段格式异常: $bdstokenObj');
         }
+      } else {
+        AppLogger.I.w('baidu', 'gettemplatevariable 返回无 result 字段, 完整响应: $body');
       }
-    } catch (_) {
-      // 刷新失败时保持旧值
+    } catch (e) {
+      AppLogger.I.e('baidu', '刷新 bdstoken 失败: $e, BDUSS长度=${_bduss.length} STOKEN长度=${_stoken.length}');
     }
   }
 
   /// 通过 BDUSS + STOKEN 登录
   Future<String?> loginByCredentials(String bduss, String stoken) async {
+    AppLogger.I.i('baidu', 'loginByCredentials: BDUSS长度=${bduss.length} STOKEN长度=${stoken.length}');
     _bduss = bduss.trim();
     _stoken = stoken.trim();
     try {
       await _refreshBdstoken();
       if (_bdstoken.isEmpty) {
+        AppLogger.I.e('baidu', 'bdstoken 获取失败, BDUSS已设=${_bduss.isNotEmpty} STOKEN已设=${_stoken.isNotEmpty}');
         throw BaiduException(-1, '无法获取 bdstoken');
       }
       await refreshUser();
+      AppLogger.I.i('baidu', '登录成功, 用户名=${_userInfo?.nickname ?? "未知"}');
       return null;
     } on BaiduException catch (e) {
+      AppLogger.I.e('baidu', '百度登录失败: ${e.message} (code=${e.code})');
       _bduss = '';
       _stoken = '';
       _bdstoken = '';
       return e.message;
     } catch (e) {
+      AppLogger.I.e('baidu', '百度登录异常: $e');
       _bduss = '';
       _stoken = '';
       _bdstoken = '';
@@ -265,7 +286,11 @@ class BaiduClient extends BaseDrive {
   @override
   Future<String?> login(dynamic credential) async {
     if (credential == null) return '缺少凭证';
+    AppLogger.I.i('baidu', 'login 开始, credential类型=${credential.runtimeType}');
     if (credential is String) {
+      AppLogger.I.i('baidu', 'login 原始凭证前100字: ${credential.length > 100 ? "${credential.substring(0, 100)}..." : credential}');
+      // 保存完整 cookie 字符串（含 BAIDUID 等辅助 cookie），发送请求时优先使用
+      _rawCookie = credential;
       // 可能是完整 cookie（BDUSS=xxx; STOKEN=yyy），也可能是纯 BDUSS。
       // 从 cookie 中解析出 BDUSS / STOKEN，避免整体当 BDUSS 用导致鉴权失败。
       final bduss = RegExp(r'(?:^|;|,\s*)BDUSS=([^;,\s]+)', caseSensitive: false)
@@ -276,15 +301,18 @@ class BaiduClient extends BaseDrive {
               .firstMatch(credential)
               ?.group(1) ??
           '';
+      AppLogger.I.i('baidu', 'login 解析: BDUSS找到=${bduss.isNotEmpty} len=${bduss.length} STOKEN找到=${stoken.isNotEmpty} len=${stoken.length}');
       if (bduss.isNotEmpty) {
         return loginByCredentials(bduss, stoken);
       }
       // 没有可识别的 BDUSS= 前缀，视为纯 BDUSS
+      AppLogger.I.w('baidu', 'login 未找到BDUSS=前缀, 将整个凭证作为BDUSS尝试');
       return loginByCredentials(credential, '');
     }
     if (credential is Map) {
       final bduss = credential['bduss']?.toString() ?? credential['BDUSS']?.toString() ?? '';
       final stoken = credential['stoken']?.toString() ?? credential['STOKEN']?.toString() ?? '';
+      AppLogger.I.i('baidu', 'login Map: BDUSS找到=${bduss.isNotEmpty} STOKEN找到=${stoken.isNotEmpty}');
       if (bduss.isNotEmpty) {
         return loginByCredentials(bduss, stoken);
       }
@@ -297,6 +325,7 @@ class BaiduClient extends BaseDrive {
     _bduss = '';
     _stoken = '';
     _bdstoken = '';
+    _rawCookie = '';
     _userInfo = null;
   }
 
