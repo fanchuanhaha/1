@@ -68,6 +68,7 @@ class _WebLoginPageState extends State<WebLoginPage> {
       ..setUserAgent(isLanzou
           ? 'Mozilla/5.0 (Linux; Android 13; Pixel 7 Build/TQ3A.230805.001) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36'
           : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+      ..setInitialScale(isLanzou ? 100 : 50)
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageStarted: (_) {
@@ -77,6 +78,24 @@ class _WebLoginPageState extends State<WebLoginPage> {
           onPageFinished: (_) {
             if (!mounted) return;
             setState(() => _loading = false);
+            // 对桌面站点注入 viewport 元标签，使页面在手机上以合适比例显示
+            // 参考 APK 做法：固定 viewport 宽度为 980px，initial-scale=0.55
+            if (!isLanzou) {
+              _controller.runJavaScript('''
+(function() {
+  var vp = document.querySelector('meta[name="viewport"]');
+  var w = 980;
+  if (!vp) {
+    vp = document.createElement('meta');
+    vp.name = 'viewport';
+    document.head.appendChild(vp);
+  }
+  vp.content = 'width=' + w + ', initial-scale=0.55, minimum-scale=0.25, maximum-scale=3, user-scalable=yes';
+  document.documentElement.style.minWidth = w + 'px';
+  document.body.style.minWidth = w + 'px';
+})();
+''');
+            }
             _refreshCookie();
             // 登录成功跳转后 Cookie 可能稍后才落地，延迟再读一次
             Future.delayed(const Duration(milliseconds: 1500), () {
