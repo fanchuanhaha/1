@@ -230,7 +230,7 @@ class LoginService {
       case DriveType.ali:
         return 'https://www.alipan.com/sign/';
       case DriveType.baidu:
-        return 'https://pan.baidu.com/';
+        return 'https://passport.baidu.com/v2/?login&tpl=netdisk&staticpage=https%3A%2F%2Fpan.baidu.com%2F';
       case DriveType.pikpak:
         return 'https://mypikpak.com/';
       case DriveType.tianyi:

@@ -239,12 +239,16 @@ class BaiduClient extends BaseDrive {
       });
       final result = body['result'];
       if (result is Map) {
-        final bdstokenObj = result['bdstoken'];
-        if (bdstokenObj is Map) {
-          _bdstoken = bdstokenObj['bdstoken']?.toString() ?? '';
-          AppLogger.I.i('baidu', 'bdstoken 获取成功, 长度=${_bdstoken.length}');
+        final bdstokenVal = result['bdstoken'];
+        // API 返回格式: {"result":{"bdstoken":"xxx"}} 或 {"result":{"bdstoken":{"bdstoken":"xxx"}}}
+        if (bdstokenVal is String) {
+          _bdstoken = bdstokenVal;
+          AppLogger.I.i('baidu', 'bdstoken 获取成功(字符串), 长度=${_bdstoken.length}');
+        } else if (bdstokenVal is Map) {
+          _bdstoken = bdstokenVal['bdstoken']?.toString() ?? '';
+          AppLogger.I.i('baidu', 'bdstoken 获取成功(对象), 长度=${_bdstoken.length}');
         } else {
-          AppLogger.I.w('baidu', 'bdstoken 字段格式异常: $bdstokenObj');
+          AppLogger.I.w('baidu', 'bdstoken 字段格式异常: $bdstokenVal');
         }
       } else {
         AppLogger.I.w('baidu', 'gettemplatevariable 返回无 result 字段, 完整响应: $body');

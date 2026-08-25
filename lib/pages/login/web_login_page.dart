@@ -98,6 +98,7 @@ class _WebLoginPageState extends State<WebLoginPage> {
   /// 夸克/UC 的关键会话 cookie（__puus、__pus）是 HttpOnly 的，
   /// document.cookie 读不到它们，缺失会导致后续接口返回 500。
   Future<void> _refreshCookie() async {
+    debugPrint('[WebLogin] _refreshCookie 开始, type=${widget.driveType}');
     // 1) 优先使用 CookieManager，能读到 HttpOnly cookie
     try {
       // 登录过程中可能有跳转（如 passport.baidu.com → pan.baidu.com），
@@ -108,45 +109,63 @@ class _WebLoginPageState extends State<WebLoginPage> {
       final candidateHosts = <String>{Uri.parse(widget.loginUrl).host};
       try {
         final cur = await _controller.currentUrl();
+        debugPrint('[WebLogin] 当前URL: $cur');
         if (cur != null && cur.isNotEmpty) {
           final u = Uri.parse(cur);
           if (u.host.isNotEmpty) candidateHosts.add(u.host);
         }
-      } catch (_) {}
-      // 对百度额外补上常见会话子域，确保 BDUSS/STOKEN 被读到
+      } catch (e) {
+        debugPrint('[WebLogin] 获取当前URL失败: $e');
+      }
+      // 对百度额外补上常见会话子域及父域，确保 BDUSS/STOKEN 被读到
       if (widget.driveType == DriveType.baidu) {
         candidateHosts.addAll({
           'passport.baidu.com',
           'pan.baidu.com',
           'yun.baidu.com',
+          '.baidu.com',
         });
       }
+      debugPrint('[WebLogin] 候选域名: $candidateHosts');
       for (final host in candidateHosts) {
         try {
-          final cookies = await WebViewCookieManager()
-              .getCookies(domain: Uri.parse('https://$host/'));
+          final uri = host.startsWith('.')
+              ? Uri.parse('https://pan.baidu.com/')
+              : Uri.parse('https://$host/');
+          final cookies = await WebViewCookieManager().getCookies(domain: uri);
+          debugPrint('[WebLogin] 域名 $host -> 找到 ${cookies.length} 个 cookie');
           for (final c in cookies) {
+            debugPrint('[WebLogin]   cookie: ${c.name}=${c.value.length > 30 ? "${c.value.substring(0, 30)}..." : c.value}');
             if (c.name.isNotEmpty && c.value.isNotEmpty) {
               allParts.add('${c.name}=${c.value}');
             }
           }
-        } catch (_) {}
+        } catch (e) {
+          debugPrint('[WebLogin] 读取域名 $host cookie 失败: $e');
+        }
       }
       if (allParts.isNotEmpty) {
         _currentCookie = allParts.join('; ');
+        debugPrint('[WebLogin] 合并后cookie长度=${_currentCookie.length}, 含BDUSS=${_currentCookie.contains("BDUSS")}');
         return;
       }
-    } catch (_) {}
+      debugPrint('[WebLogin] CookieManager 未找到任何 cookie');
+    } catch (e) {
+      debugPrint('[WebLogin] CookieManager 整体失败: $e');
+    }
     // 2) 兜底：document.cookie（读不到 HttpOnly）
     try {
       final cookies = await _controller.runJavaScriptReturningResult(
         'document.cookie',
       );
       final cookieStr = cookies.toString();
+      debugPrint('[WebLogin] document.cookie 兜底: ${cookieStr.length > 100 ? "${cookieStr.substring(0, 100)}..." : cookieStr}');
       if (cookieStr.isNotEmpty && cookieStr != '""' && cookieStr != "''") {
         _currentCookie = cookieStr;
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[WebLogin] document.cookie 兜底失败: $e');
+    }
   }
 
   /// 用户点击保存按钮 - 手动确认保存 cookie
