@@ -415,8 +415,13 @@ class BaiduClient extends BaseDrive {
     final ext = filename.contains('.')
         ? filename.substring(filename.lastIndexOf('.') + 1).toLowerCase()
         : '';
+    // 注意：百度 filemetas 的 target 必须传文件完整路径，故用 path 作为 fid，
+    // 这样目录跳转(listFiles(dir=fid))与下载(getDownloadInfo)都能共用。
+    final fid = path.isNotEmpty
+        ? path
+        : (json['fs_id']?.toString() ?? json['uk']?.toString() ?? '');
     return DriveFile(
-      fid: json['fs_id']?.toString() ?? json['uk']?.toString() ?? '',
+      fid: fid,
       fileName: filename.isNotEmpty ? filename : serverFilename,
       fileType: isDir ? 'folder' : ext,
       isDir: isDir,
@@ -460,8 +465,9 @@ class BaiduClient extends BaseDrive {
     if (fids.isEmpty) return [];
     final results = <DriveDownloadInfo>[];
 
-    // 先获取文件元数据，得到文件名和路径
-    String fileMetasJson = jsonEncode(fids.map((f) => toInt(f, fallback: 0)).toList());
+    // filemetas 的 target 必须传文件完整路径（实测 fs_id 返回 errno=12），
+    // fids 已在 _parseDriveFile 中定义为 path，故直接序列化即可。
+    String fileMetasJson = jsonEncode(fids);
     Map<String, dynamic> metaBody;
     try {
       metaBody = await _get('$_baseUrl/api/filemetas', params: {
@@ -498,7 +504,7 @@ class BaiduClient extends BaseDrive {
       }
     }
 
-    // 如果 dlink 方式未获取到，尝试 PCS 下载
+    // 如果 dlink 方式未获取到，尝试 PCS 下载（参数用文件路径）
     if (results.isEmpty) {
       for (final fid in fids) {
         try {
@@ -506,7 +512,7 @@ class BaiduClient extends BaseDrive {
             'method': 'download',
             'app_id': 250528,
             'bdstoken': _bdstoken,
-            'fs_id': fid,
+            'path': fid,
           });
           // PCS 下载接口返回重定向 URL
           final url = body['url']?.toString() ?? body['dlink']?.toString() ?? '';
