@@ -297,14 +297,22 @@ class BaiduClient extends BaseDrive {
       _rawCookie = credential;
       // 可能是完整 cookie（BDUSS=xxx; STOKEN=yyy），也可能是纯 BDUSS。
       // 从 cookie 中解析出 BDUSS / STOKEN，避免整体当 BDUSS 用导致鉴权失败。
-      final bduss = RegExp(r'(?:^|;|,\s*)BDUSS=([^;,\s]+)', caseSensitive: false)
-              .firstMatch(credential)
-              ?.group(1) ??
-          '';
-      final stoken = RegExp(r'(?:^|;|,\s*)STOKEN=([^;,\s]+)', caseSensitive: false)
-              .firstMatch(credential)
-              ?.group(1) ??
-          '';
+      // 注意：需精确区分 BDUSS 与 BDUSS_BFESS 等变体，故按分号拆分后精确比对 key。
+      String cookieValue(String keyName) {
+        for (final seg in credential.split(';')) {
+          final t = seg.trim();
+          final eq = t.indexOf('=');
+          if (eq <= 0) continue;
+          final k = t.substring(0, eq).trim();
+          if (k.toLowerCase() == keyName.toLowerCase()) {
+            final v = t.substring(eq + 1).trim();
+            if (v.isNotEmpty) return v;
+          }
+        }
+        return '';
+      }
+      final bduss = cookieValue('BDUSS');
+      final stoken = cookieValue('STOKEN');
       AppLogger.I.i('baidu', 'login 解析: BDUSS找到=${bduss.isNotEmpty} len=${bduss.length} STOKEN找到=${stoken.isNotEmpty} len=${stoken.length}');
       if (bduss.isNotEmpty) {
         return loginByCredentials(bduss, stoken);
@@ -376,16 +384,16 @@ class BaiduClient extends BaseDrive {
   @override
   Future<List<DriveFile>> listFiles(String pdirFid,
       {int page = 1, int size = 100}) async {
-    // 参考 APK 使用 yun.baidu.com/api/list 获取文件列表
-    final body = await _get('$_yunBaseUrl/api/list', params: {
+    // 实测 pan.baidu.com/api/list 返回 errno=0，yun.baidu.com 返回 errno=-7
+    final body = await _get('$_baseUrl/api/list', params: {
       'dir': pdirFid.isEmpty ? '/' : pdirFid,
       'page': page,
       'num': size,
-      'order': 'time',
-      'desc': 1,
+      'order': 'name',
+      'desc': 0,
       'bdstoken': _bdstoken,
-      'app_id': 250528,
       'clienttype': 0,
+      'app_id': 250528,
       'web': 1,
       'showempty': 0,
     });
@@ -423,8 +431,8 @@ class BaiduClient extends BaseDrive {
   @override
   Future<List<DriveFile>> searchFiles(String keyword,
       {int page = 1, int size = 50}) async {
-    // 参考 APK 使用 yun.baidu.com/api/list 的 key 参数搜索
-    final body = await _get('$_yunBaseUrl/api/list', params: {
+    // 与文件列表同域名，pan.baidu.com/api/list 支持 key 参数搜索
+    final body = await _get('$_baseUrl/api/list', params: {
       'key': keyword,
       'page': page,
       'num': size,
