@@ -342,14 +342,18 @@ class BaiduClient extends BaseDrive {
         'app_id': 250528,
         'web': 1,
       });
-      // 百度网盘 quota 接口返回用户信息
+      // 百度网盘 quota 接口返回容量信息，不含用户名
       final name = body['username']?.toString() ?? body['name']?.toString() ?? '';
       final avatar = body['avatar']?.toString() ?? '';
       final uid = body['uk']?.toString() ?? body['user_id']?.toString() ?? _bduss;
+      final total = toInt(body['total'], fallback: 0);
+      final used = toInt(body['used'], fallback: 0);
       _userInfo = DriveUserInfo(
         nickname: name,
         avatar: avatar,
         userId: uid,
+        totalSpace: total,
+        usedSpace: used,
       );
     } catch (_) {
       // 刷新用户信息失败时保持旧值
@@ -372,17 +376,17 @@ class BaiduClient extends BaseDrive {
   @override
   Future<List<DriveFile>> listFiles(String pdirFid,
       {int page = 1, int size = 100}) async {
-    final body = await _get('$_baseUrl/rest/2.0/xpan/multimedia', params: {
-      'method': 'list',
-      'access_token': '',
-      'app_id': 250528,
-      'web': 1,
-      'bdstoken': _bdstoken,
+    // 参考 APK 使用 yun.baidu.com/api/list 获取文件列表
+    final body = await _get('$_yunBaseUrl/api/list', params: {
       'dir': pdirFid.isEmpty ? '/' : pdirFid,
-      'start': (page - 1) * size,
-      'limit': size,
+      'page': page,
+      'num': size,
       'order': 'time',
       'desc': 1,
+      'bdstoken': _bdstoken,
+      'app_id': 250528,
+      'clienttype': 0,
+      'web': 1,
       'showempty': 0,
     });
 
@@ -419,19 +423,17 @@ class BaiduClient extends BaseDrive {
   @override
   Future<List<DriveFile>> searchFiles(String keyword,
       {int page = 1, int size = 50}) async {
-    // 百度网盘使用多媒体接口的搜索能力
-    final body = await _get('$_baseUrl/rest/2.0/xpan/multimedia', params: {
-      'method': 'search',
-      'access_token': '',
-      'app_id': 250528,
-      'web': 1,
-      'bdstoken': _bdstoken,
+    // 参考 APK 使用 yun.baidu.com/api/list 的 key 参数搜索
+    final body = await _get('$_yunBaseUrl/api/list', params: {
       'key': keyword,
-      'start': (page - 1) * size,
-      'limit': size,
-      'order': 'time',
-      'desc': 1,
+      'page': page,
+      'num': size,
       'recursion': 1,
+      'bdstoken': _bdstoken,
+      'app_id': 250528,
+      'clienttype': 0,
+      'web': 1,
+      'showempty': 0,
     });
 
     final list = body['list'];

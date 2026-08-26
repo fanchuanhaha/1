@@ -71,10 +71,18 @@ class DriveUserInfo {
   final String avatar;
   final String userId;
 
+  /// 总容量（字节），0 表示未返回
+  final int totalSpace;
+
+  /// 已用容量（字节）
+  final int usedSpace;
+
   DriveUserInfo({
     required this.nickname,
     required this.avatar,
     required this.userId,
+    this.totalSpace = 0,
+    this.usedSpace = 0,
   });
 }
 

@@ -56,6 +56,14 @@ class _DriveListPageState extends State<DriveListPage> {
         used = user.usedSpace;
         total = user.totalSpace;
       }
+    } else {
+      // 百度等其它网盘：从 DriveUserInfo 读取 totalSpace/usedSpace
+      final drive = _getDrive(type);
+      final info = drive?.userInfo;
+      if (info != null) {
+        used = info.usedSpace;
+        total = info.totalSpace;
+      }
     }
     if (total <= 0) return null;
     final usedClamped = used < 0 ? 0 : used;
