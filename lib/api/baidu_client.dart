@@ -385,8 +385,9 @@ class BaiduClient extends BaseDrive {
   Future<List<DriveFile>> listFiles(String pdirFid,
       {int page = 1, int size = 100}) async {
     // 实测 pan.baidu.com/api/list 返回 errno=0，yun.baidu.com 返回 errno=-7
+    // 通用前端以 '0' 表示根目录，必须映射为 '/'
     final body = await _get('$_baseUrl/api/list', params: {
-      'dir': pdirFid.isEmpty ? '/' : pdirFid,
+      'dir': (pdirFid.isEmpty || pdirFid == '0') ? '/' : pdirFid,
       'page': page,
       'num': size,
       'order': 'name',
