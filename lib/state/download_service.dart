@@ -6,10 +6,13 @@ import '../state/app_state.dart';
 import '../utils/app_logger.dart';
 
 class DownloadService {
-  /// 百度网盘下载直链使用的 PC 网页 UA（与登录请求一致，避免被风控）
-  static const String _baiduUa =
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      ' (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+  /// 百度网盘下载直链要求的 UA
+  ///
+  /// 必须用百度官方客户端 UA，不能用 Chrome UA：实测用 Chrome UA 访问
+  /// dlink 会返回 403 hitcode:119（user not authorized）被风控拦截；
+  /// 而用 netdisk 客户端 UA 会返回 302 重定向到真实下载 CDN（baidupcs.com），
+  /// 跟随该重定向才能完成下载。
+  static const String _baiduUa = 'netdisk;android;9.4.0.3';
 
   /// 把直链加入 Gopeed 下载队列，返回错误信息（null 表示成功）
   ///
