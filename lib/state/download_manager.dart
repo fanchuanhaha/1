@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
 import '../core/gopeed/gopeed_boot.dart';
 import '../core/gopeed/gopeed_models.dart';
+import '../utils/app_logger.dart';
 
 class DownloadManager extends ChangeNotifier {
   static DownloadManager? _instance;
@@ -13,6 +15,11 @@ class DownloadManager extends ChangeNotifier {
   Timer? _timer;
   bool _polling = false;
   bool _failed = false;
+
+  /// 已输出过日志的任务 id（避免 1.5s 轮询刷屏：error/done/running 只记一次）
+  final Set<String> _reportedError = {};
+  final Set<String> _reportedDone = {};
+  final Set<String> _reportedRunning = {};
 
   DownloadManager._();
 
@@ -36,6 +43,49 @@ class DownloadManager extends ChangeNotifier {
     if (!GopeedEngine.started) return;
     try {
       final list = await GopeedEngine.client.list();
+      for (final t in list) {
+        switch (t.status) {
+          case GopeedStatus.error:
+            if (_reportedError.add(t.id)) {
+              var detail = '任务失败 name=${t.name} id=${t.id} '
+                  'downloaded=${t.downloaded}/${t.size}';
+              if (t.error.isNotEmpty) detail += ' err=${t.error}';
+              AppLogger.I.e('download', detail);
+              // 打印引擎原始字段，便于定位 403/网络错误
+              final raw = t.raw;
+              if (raw != null) {
+                AppLogger.I.e(
+                    'download', '任务失败原始数据: ${_clip(jsonEncode(raw))}');
+              }
+            }
+            break;
+          case GopeedStatus.done:
+            if (_reportedDone.add(t.id)) {
+              AppLogger.I.i('download',
+                  '任务完成 name=${t.name} id=${t.id} size=${t.size}');
+            }
+            break;
+          case GopeedStatus.ready:
+          case GopeedStatus.wait:
+            if (_reportedRunning.add(t.id)) {
+              AppLogger.I.i(
+                  'download',
+                  '任务排队/开始 name=${t.name} id=${t.id} '
+                  'size=${t.size} status=${t.status.name}');
+            }
+            break;
+          case GopeedStatus.running:
+            if (_reportedRunning.add(t.id)) {
+              AppLogger.I.i(
+                  'download',
+                  '任务开始下载 name=${t.name} id=${t.id} '
+                  'size=${t.size} speed=${t.speed}B/s');
+            }
+            break;
+          case GopeedStatus.pause:
+            break;
+        }
+      }
       tasks
         ..clear()
         ..addAll(list);
@@ -43,7 +93,13 @@ class DownloadManager extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       _failed = true;
+      AppLogger.I.e('download', '引擎任务轮询失败: $e');
     }
+  }
+
+  static String _clip(String s, [int limit = 1600]) {
+    if (s.length <= limit) return s;
+    return '${s.substring(0, limit)}…[截断, 共${s.length}字符]';
   }
 
   List<GopeedTask> byStatus(GopeedStatus status) {

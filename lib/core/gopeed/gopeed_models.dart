@@ -59,6 +59,12 @@ class GopeedTask {
   final int speed;
   final int createdAt;
 
+  /// 引擎返回的错误描述（尽力解析，可能为空）
+  final String error;
+
+  /// 引擎返回的原始 JSON，供失败诊断
+  final Map<String, dynamic>? raw;
+
   GopeedTask({
     required this.id,
     required this.name,
@@ -67,6 +73,8 @@ class GopeedTask {
     required this.downloaded,
     required this.speed,
     required this.createdAt,
+    this.error = '',
+    this.raw,
   });
 
   double get progress =>
@@ -77,6 +85,13 @@ class GopeedTask {
     final res = (json['meta'] as Map<String, dynamic>?)?['res']
             as Map<String, dynamic>? ??
         const {};
+    String err = '';
+    final e = json['err'] ?? json['error'];
+    if (e is String && e.isNotEmpty) {
+      err = e;
+    } else if (e is Map) {
+      err = e['message']?.toString() ?? '';
+    }
     return GopeedTask(
       id: json['id']?.toString() ?? '',
       name: json['name']?.toString() ?? '',
@@ -85,6 +100,8 @@ class GopeedTask {
       downloaded: toInt(progress['downloaded']),
       speed: toInt(progress['speed']),
       createdAt: toInt(json['createdAt']),
+      error: err,
+      raw: json,
     );
   }
 }
