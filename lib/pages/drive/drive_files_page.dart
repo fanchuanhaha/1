@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../api/base_drive.dart';
+import '../../state/app_state.dart';
+import '../../state/download_manager.dart';
+import '../../state/download_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/format.dart';
 import '../../widgets/empty_view.dart';
@@ -143,34 +146,34 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
     });
   }
 
-  Future<void> _batchDownload() async {
-    if (_selected.isEmpty || _downloading) return;
+  void _singleDownload(DriveFile file) => _batchDownload([file.fid]);
+
+  Future<void> _batchDownload([List<String>? specific]) async {
+    final targets = specific ?? _selected.toList();
+    if ((specific == null && _selected.isEmpty) || _downloading) return;
     setState(() => _downloading = true);
     try {
-      final infos = await widget.drive.getDownloadInfo(_selected.toList());
+      final infos = await widget.drive.getDownloadInfo(targets);
       if (!mounted) return;
-      _toast('获取到 ${infos.length} 个下载链接');
+      var added = 0;
+      for (final info in infos) {
+        if (info.url.isEmpty) continue;
+        final err = await DownloadService.addDriveUrl(
+          widget.drive,
+          info,
+          connections: AppState.I.connections,
+        );
+        if (err == null) added++;
+      }
+      _toast(infos.isEmpty ? '未获取到下载地址' : '已添加 $added 个下载任务');
+      if (added > 0) DownloadManager.I.startPolling();
+      if (specific != null) return;
       _exitSelectMode();
     } catch (e) {
       if (!mounted) return;
-      _toast('批量下载失败: $e');
+      _toast('下载失败: $e');
     } finally {
       if (mounted) setState(() => _downloading = false);
-    }
-  }
-
-  Future<void> _singleDownload(DriveFile file) async {
-    try {
-      final infos = await widget.drive.getDownloadInfo([file.fid]);
-      if (!mounted) return;
-      if (infos.isEmpty) {
-        _toast('未获取到下载地址');
-      } else {
-        _toast('获取到 ${infos.length} 个下载链接');
-      }
-    } catch (e) {
-      if (!mounted) return;
-      _toast('下载失败: $e');
     }
   }
 
