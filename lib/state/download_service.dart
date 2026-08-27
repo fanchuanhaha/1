@@ -3,6 +3,7 @@ import '../api/drive_type.dart';
 import '../api/quark_client.dart';
 import '../core/gopeed/gopeed_boot.dart';
 import '../state/app_state.dart';
+import '../utils/app_logger.dart';
 
 class DownloadService {
   /// 百度网盘下载直链使用的 PC 网页 UA（与登录请求一致，避免被风控）
@@ -21,10 +22,15 @@ class DownloadService {
     String userAgent = QuarkClient.uaPc,
     int connections = 16,
   }) async {
+    AppLogger.I.i(
+        'download',
+        'addDirectUrl: name=$fileName urlHost=${_host(url)} '
+        'cookieLen=${cookie.length} referer=$referer connections=$connections');
     try {
       final dir = await AppState.I.effectiveDownloadDir();
+      AppLogger.I.i('download', 'addDirectUrl: 下载目录 dir=$dir');
       final client = await GopeedEngine.ensureStarted();
-      await client.create(
+      final id = await client.create(
         url: url,
         path: dir,
         name: fileName,
@@ -35,8 +41,10 @@ class DownloadService {
         },
         connections: connections,
       );
+      AppLogger.I.i('download', 'addDirectUrl: 已创建下载任务 id=$id url=$url');
       return null;
     } catch (e) {
+      AppLogger.I.e('download', 'addDirectUrl: 创建下载任务失败 url=$url 错误=$e');
       return '创建下载任务失败: $e';
     }
   }
@@ -63,8 +71,16 @@ class DownloadService {
     DriveDownloadInfo info, {
     int connections = 16,
   }) async {
+    if (info.url.isEmpty) {
+      AppLogger.I.w('download', 'addDriveUrl: 下载地址为空，跳过 type=${drive.type} fid=${info.fid}');
+      return '未获取到下载地址';
+    }
     final http = _httpFor(drive.type);
-    return addDirectUrl(
+    AppLogger.I.i(
+        'download',
+        'addDriveUrl: type=${drive.type.name} fid=${info.fid} '
+        'name=${info.fileName} redirectUrl=${_short(info.url)}');
+    final err = await addDirectUrl(
       url: info.url,
       fileName: info.fileName,
       cookie: drive.loginCookie ?? '',
@@ -72,6 +88,12 @@ class DownloadService {
       userAgent: http.ua,
       connections: connections,
     );
+    if (err == null) {
+      AppLogger.I.i('download', 'addDriveUrl: 入队成功 ${drive.type.name}/${info.fileName}');
+    } else {
+      AppLogger.I.e('download', 'addDriveUrl: 入队失败 ${drive.type.name}/${info.fileName} 原因=$err');
+    }
+    return err;
   }
 
   /// 根据 fid 直接下载网盘文件，返回错误信息（null 表示已加入队列）
@@ -111,5 +133,19 @@ class DownloadService {
     } catch (e) {
       return '创建 BT 任务失败: $e';
     }
+  }
+
+  static String _host(String url) {
+    try {
+      return Uri.parse(url).host;
+    } catch (_) {
+      return '(无法解析)';
+    }
+  }
+
+  /// 截短 URL 便于查看（保留主机 + 哈希片段）
+  static String _short(String url) {
+    final u = url.length > 90 ? '${url.substring(0, 90)}…' : url;
+    return u;
   }
 }
