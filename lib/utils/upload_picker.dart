@@ -56,7 +56,7 @@ class UploadPicker {
 
   /// 多选文件。返回空列表表示用户取消。
   static Future<List<UploadSource>> pickFiles() async {
-    final result = await FilePicker.pickFiles(
+    final result = await FilePicker.platform.pickFiles(
       allowMultiple: true,
       type: FileType.any,
       withData: false,
@@ -86,7 +86,7 @@ class UploadPicker {
   /// 选择文件夹并递归收集（保持目录结构）。
   /// Android 上路径不可读（未授予所有文件访问）时返回 needPermission。
   static Future<FolderPickResult> pickFolder() async {
-    final dirPath = await FilePicker.getDirectoryPath();
+    final dirPath = await FilePicker.platform.getDirectoryPath();
     if (dirPath == null || dirPath.isEmpty) {
       return const FolderPickResult(canceled: true);
     }

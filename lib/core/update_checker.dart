@@ -133,6 +133,6 @@ class UpdateChecker {
   static int? _buildNum(String tag) {
     final m = RegExp(r'build-?(\d+)', caseSensitive: false).firstMatch(tag) ??
         RegExp(r'(\d+)').firstMatch(tag);
-    return m == null ? null : int.tryParse(m[1]);
+    return m == null ? null : int.tryParse(m[1] ?? '');
   }
 }
