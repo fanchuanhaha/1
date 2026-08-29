@@ -608,16 +608,18 @@ class UcClient extends BaseDrive {
   }
 
   /// 移动文件
-  Future<void> moveFiles(List<String> fids, String toPdirFid) async {
+  Future<String?> moveFiles(List<String> fids, String toPdirFid) async {
     await _post('$_pcApi/file/move',
         params: _defaultParams,
         data: {'fids': fids, 'to_pdir_fid': toPdirFid, 'on_dup': 'rename'});
+    return null;
   }
 
   /// 重命名文件
-  Future<void> renameFile(String fid, String newName) async {
+  Future<String?> renameFile(String fid, String newName) async {
     await _post('$_pcApi/file/rename',
         params: _defaultParams, data: {'fid': fid, 'new_name': newName});
+    return null;
   }
 
   /// 获取会员信息

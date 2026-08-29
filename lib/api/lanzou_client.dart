@@ -13,7 +13,7 @@ import 'drive_type.dart';
 /// 文件列表：pc.woozooo.com/doupload.php（task=5 文件 / task=47 文件夹）
 /// 下载直链：share 信息(task=22) -> 分享页 -> ajaxm.php(downprocess) -> 304 直链
 /// 反爬：遇到 acw_sc__v2 封禁页时按算法计算 acw_sc__v2 cookie 后重试
-class LanzouClient implements BaseDrive {
+class LanzouClient extends BaseDrive {
   static const String uaPc =
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
   static const String uaMobile =

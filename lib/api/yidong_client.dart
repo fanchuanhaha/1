@@ -28,7 +28,7 @@ class YiDongException implements Exception {
 /// - 门户: https://caiyun.139.com
 /// - 登录页: https://e.dlife.cn/wap/mine/showIndex.do
 /// - 文件管理: 与 cloud.189.cn 类似
-class YiDongClient implements BaseDrive {
+class YiDongClient extends BaseDrive {
   // ---------------- 常量 ----------------
 
   static const String portalUrl = 'https://caiyun.139.com';

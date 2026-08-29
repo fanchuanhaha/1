@@ -518,8 +518,8 @@ class _InterfaceTile extends StatefulWidget {
   final bool enabled;
   final String password;
   final bool needsPassword;
-  final ValueChanged<bool> onEnabledChanged;
-  final ValueChanged<String> onPasswordChanged;
+  final Future<void> Function(bool) onEnabledChanged;
+  final Future<void> Function(String) onPasswordChanged;
 
   const _InterfaceTile({
     required this.icon,

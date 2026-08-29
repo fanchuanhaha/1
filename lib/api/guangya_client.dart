@@ -30,7 +30,7 @@ class GuangyaException implements Exception {
 /// 同时存在两套 API 版本:
 /// - /nd.bizuserres.s/v1/ — 主版本
 /// - /userres/v1/ — 备选版本
-class GuangyaClient implements BaseDrive {
+class GuangyaClient extends BaseDrive {
   // ---------------- 常量 ----------------
 
   static const String accountUrl = 'https://account.guangyapan.com';

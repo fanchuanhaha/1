@@ -20,7 +20,7 @@ class XunleiException implements Exception {
 }
 
 /// 迅雷网盘客户端
-class XunleiClient implements BaseDrive {
+class XunleiClient extends BaseDrive {
   // ---- API 端点 ----
   static const String _baseApi = 'https://api-pan.xunlei.com';
   static const String _fileList = '$_baseApi/drive/v1/files';

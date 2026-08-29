@@ -20,7 +20,7 @@ class PikPakException implements Exception {
 }
 
 /// PikPak 网盘客户端（基于 APK 反编译提取的 API 端点）
-class PikPakClient implements BaseDrive {
+class PikPakClient extends BaseDrive {
   // ---- API 端点 ----
   static const String _shareApi = 'https://api-drive.mypikpak.com/drive/v1/share';
   static const String _shareDetail = 'https://api-drive.mypikpak.com/drive/v1/share/detail';

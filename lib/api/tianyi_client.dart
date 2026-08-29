@@ -23,7 +23,7 @@ class TianyiException implements Exception {
 ///
 /// API 端点基于 APK 反编译提取，支持密码登录（含验证码/二次验证）、
 /// 文件管理、分享解析与转存。
-class TianyiClient implements BaseDrive {
+class TianyiClient extends BaseDrive {
   // ---------------- 常量 ----------------
 
   static const String portalUrl = 'https://cloud.189.cn';

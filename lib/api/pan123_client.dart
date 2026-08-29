@@ -23,7 +23,7 @@ class Pan123Exception implements Exception {
 ///
 /// 支持二维码登录、文件管理、分享解析与转存。
 /// API 端点基于 123云盘官方文档及抓包分析。
-class Pan123Client implements BaseDrive {
+class Pan123Client extends BaseDrive {
   // ---------------- 常量 ----------------
 
   // 登录接口域名：2026-06-30 迁移，旧 login.123pan.com 已返回 404
