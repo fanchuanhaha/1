@@ -757,22 +757,20 @@ class BaiduClient extends BaseDrive {
     return body;
   }
 
-  /// 创建分享链接
+  /// 创建分享链接（form 编码，fid_list 为 fs_id 的 JSON 字符串）
   Future<Map<String, dynamic>> createShareLink(
       List<String> paths, {String pwd = ''}) async {
-    final body = await _post('$_baseUrl/share/set', params: {
+    final body = await _postForm('$_baseUrl/share/set', params: {
       'bdstoken': _bdstoken,
+      'channel': 'chunlei',
       'clienttype': 0,
       'app_id': 250528,
       'web': 1,
-    }, data: {
+    }, fields: {
       'period': 0,
-      'schannel': 0,
+      'schannel': 4,
+      'channel_list': '[]',
       'pwd': pwd,
-      'cancel': 0,
-      'product': 0,
-      'plus': 0,
-      'second': 0,
       'fid_list': jsonEncode(paths),
     });
     return body;
@@ -840,20 +838,40 @@ class BaiduClient extends BaseDrive {
   }
 
   /// 统一的 filemanager 调用：entries 形如 {path, newname?}，返回 null 表示成功。
+  /// 手写 urlencoded 字符串（百度部分接口必须 form 编码，且不接受 JSON body）
+  static String _encodeForm(Map<String, dynamic> fields) {
+    final parts = <String>[];
+    fields.forEach((k, v) {
+      parts.add('$k=${Uri.encodeQueryComponent(v.toString())}');
+    });
+    return parts.join('&');
+  }
+
+  /// 以 application/x-www-form-urlencoded 提交，data 为手写编码字符串
+  Future<Map<String, dynamic>> _postForm(
+    String url, {
+    Map<String, dynamic>? params,
+    required Map<String, dynamic> fields,
+  }) async {
+    final body = await _request('POST', url,
+        params: params, data: _encodeForm(fields), isForm: true);
+    return _checkAndReturn(body);
+  }
+
   Future<String?> _runManager(String opera, List<Map<String, dynamic>> entries) async {
     try {
-      final body = await _post('$_baseUrl/api/filemanager', params: {
+      final body = await _postForm('$_baseUrl/api/filemanager', params: {
         'bdstoken': _bdstoken,
         'clienttype': 0,
         'app_id': 250528,
         'web': 1,
-      }, data: {
+      }, fields: {
         'opera': opera,
         'async': 1,
         'channel': 'chunlei',
         'ondup': 'newcopy',
         'filelist': jsonEncode(entries),
-      }, isForm: true);
+      });
       final errno = toInt(body['errno'], fallback: 0);
       if (errno != 0) {
         return body['errmsg']?.toString() ?? body['show_msg']?.toString() ?? '操作失败($errno)';

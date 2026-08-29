@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/gopeed/gopeed_models.dart';
+import '../../state/app_state.dart';
 import '../../state/download_manager.dart';
 import '../../state/upload_manager.dart';
 import '../../theme/app_theme.dart';
@@ -380,6 +381,8 @@ class _TasksPageState extends State<TasksPage>
                     case 'retry':
                       final err = await _dm.retryTask(task);
                       if (err != null) _toast(err);
+                    case 'open':
+                      await _openDownloaded(task);
                     case 'delete':
                       await _confirmDeleteDl(task);
                     case 'deleteFile':
@@ -393,6 +396,8 @@ class _TasksPageState extends State<TasksPage>
                     const PopupMenuItem(value: 'resume', child: Text('继续下载')),
                   if (failed)
                     const PopupMenuItem(value: 'retry', child: Text('重试')),
+                  if (done)
+                    const PopupMenuItem(value: 'open', child: Text('打开文件')),
                   const PopupMenuItem(value: 'delete', child: Text('删除任务')),
                   const PopupMenuItem(value: 'deleteFile', child: Text('删除任务和文件')),
                 ],
@@ -523,8 +528,18 @@ class _TasksPageState extends State<TasksPage>
     );
   }
 
-  Future<void> _confirmDeleteDl(GopeedTask task,
-      {bool deleteFile = false}) async {
+  /// 打开已下载的文件：交由系统选择应用打开
+  Future<void> _openDownloaded(GopeedTask task) async {
+    final dir = AppState.I.downloadDir;
+    final path =
+        dir.endsWith('/') || dir.endsWith('\\') ? '$dir${task.name}' : '$dir/${task.name}';
+    final ok = await AppState.I.openDownloadedFile(path);
+    if (!ok && mounted) {
+      _toast('无法打开「${task.name}」，文件可能已移动或路径不可访问');
+    }
+  }
+
+  Future<void> _confirmDeleteDl(GopeedTask task, {bool deleteFile = false}) async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(

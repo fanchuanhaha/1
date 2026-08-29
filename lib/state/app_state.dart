@@ -43,6 +43,18 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  /// 用系统方式打开本地文件（交由系统弹出「用哪个应用打开」选择器）。
+  /// 返回是否成功拉起某个应用。
+  Future<bool> openDownloadedFile(String path) async {
+    try {
+      final ok =
+          await _sysChannel.invokeMethod<bool>('openFile', {'path': path});
+      return ok ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// 夸克客户端（兼容旧代码）
   QuarkClient get quark => driveManager.quark;
 

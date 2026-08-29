@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- 根路径包含了外部存储的任意绝对路径，确保 Download 目录等均可访问 -->
+    <root-path name="root" path="." />
+    <external-path name="external" path="." />
+    <external-files-path name="external_files" path="." />
+    <files-path name="files" path="." />
+</paths>

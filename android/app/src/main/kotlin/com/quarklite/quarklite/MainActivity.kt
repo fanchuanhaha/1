@@ -7,7 +7,9 @@ import android.os.Build
 import android.os.Environment
 import android.os.PowerManager
 import android.provider.Settings
+import android.webkit.MimeTypeMap
 import androidx.annotation.NonNull
+import androidx.core.content.FileProvider
 import com.gopeed.libgopeed.Libgopeed
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -63,6 +65,7 @@ open class MainActivity : FlutterActivity() {
                         result.success(null)
                     }
                     "getSupportedAbis" -> result.success(Build.SUPPORTED_ABIS.toList())
+                    "openFile" -> result.success(openFile(call.argument<String>("path")))
                     else -> result.notImplemented()
                 }
             }
@@ -92,6 +95,39 @@ open class MainActivity : FlutterActivity() {
             }
         } else {
             requestPermissions(arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE), 0)
+        }
+    }
+
+    /// 用系统方式打开本地文件：ACTION_VIEW + FileProvider，交给系统选择应用。
+    /// 返回是否成功拉起某个应用。
+    private fun openFile(path: String?): Boolean {
+        if (path.isNullOrEmpty()) return false
+        val file = File(path)
+        if (!file.exists()) return false
+        val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", file)
+        val mime = MimeTypeMap.getSingleton()
+            .getMimeTypeFromExtension(file.extension.lowercase()) ?: "*/*"
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, mime)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        return try {
+            startActivity(intent)
+            true
+        } catch (e: Exception) {
+            try {
+                // MIME 类型不明确时回退到通配类型重试
+                val generic = Intent(Intent.ACTION_VIEW).apply {
+                    setDataAndType(uri, "*/*")
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                startActivity(generic)
+                true
+            } catch (_: Exception) {
+                false
+            }
         }
     }
 
