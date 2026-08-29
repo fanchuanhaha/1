@@ -3,6 +3,7 @@
 #include <cwchar>
 #include <optional>
 #include <shellapi.h>
+#include <windows.h>
 
 #include "flutter/generated_plugin_registrant.h"
 #include "resource.h"
@@ -35,6 +36,13 @@ bool FlutterWindow::OnCreate() {
       std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
           flutter_controller_->engine()->messenger(), "quarklite.com/window",
           &flutter::StandardMethodCodec::GetInstance());
+  // 窗口级文件拖放通道：把 Explorer 拖入的路径发给 Dart 端直接上传。
+  drop_channel_ =
+      std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
+          flutter_controller_->engine()->messenger(), "quarklite.com/drop",
+          &flutter::StandardMethodCodec::GetInstance());
+  // 接受文件拖放（WM_DROPFILES 来自 Explorer）。
+  DragAcceptFiles(GetHandle(), TRUE);
   window_channel_->SetMethodCallHandler(
       [this](const flutter::MethodCall<flutter::EncodableValue>& call,
              std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>
@@ -96,6 +104,12 @@ void FlutterWindow::OnDestroy() {
     tray_added_ = false;
   }
 
+  // 停止接收文件拖放，释放拖放相关资源。
+  DragAcceptFiles(GetHandle(), FALSE);
+  if (drop_channel_ != nullptr) {
+    drop_channel_ = nullptr;
+  }
+
   if (flutter_controller_) {
     flutter_controller_ = nullptr;
   }
@@ -126,6 +140,40 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
     case WM_FONTCHANGE:
       flutter_controller_->engine()->ReloadSystemFonts();
       break;
+    case WM_DROPFILES: {
+      // 拖放文件/文件夹：收集路径并发给 Dart（一次最多 kMaxDropPaths 项）。
+      // EncodableValue 的字符串槽位是 UTF-8 std::string，需把宽字符路径转码。
+      HDROP hdrop = reinterpret_cast<HDROP>(wparam);
+      UINT count = DragQueryFileW(hdrop, 0xFFFFFFFF, nullptr, 0);
+      count = count > kMaxDropPaths ? kMaxDropPaths : count;
+      std::vector<flutter::EncodableValue> paths;
+      for (UINT i = 0; i < count; i++) {
+        const UINT len = DragQueryFileW(hdrop, i, nullptr, 0);
+        if (len == 0) {
+          continue;
+        }
+        std::wstring wpath(len, L'\0');
+        DragQueryFileW(hdrop, i, wpath.data(), len + 1);
+        const int utf8Len = WideCharToMultiByte(
+            CP_UTF8, 0, wpath.c_str(), static_cast<int>(len), nullptr, 0,
+            nullptr, nullptr);
+        std::string utf8(utf8Len > 0 ? utf8Len : 0, '\0');
+        if (utf8Len > 0) {
+          WideCharToMultiByte(CP_UTF8, 0, wpath.c_str(),
+                              static_cast<int>(len), utf8.data(), utf8Len,
+                              nullptr, nullptr);
+        }
+        paths.emplace_back(flutter::EncodableValue(std::move(utf8)));
+      }
+      DragFinish(hdrop);
+      if (drop_channel_ != nullptr && !paths.empty()) {
+        drop_channel_->InvokeMethod(
+            "onDropped",
+            std::make_unique<flutter::EncodableValue>(
+                flutter::EncodableValue(std::move(paths))));
+      }
+      return 0;
+    }
     case WM_CLOSE:
       // 不直接关闭：交给 Dart 端按用户设置决定「最小化」还是「退出」。
       // Dart 端通过 quarklite.com/window 通道调用 minimize / exit。

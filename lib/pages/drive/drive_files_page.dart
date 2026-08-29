@@ -196,8 +196,8 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
           if (_selectMode)
             TextButton(
               onPressed: _selectAllFiles,
-              child: const Text('全选',
-                  style: TextStyle(color: AppColors.accent)),
+              child: Text('全选',
+                  style: TextStyle(color: AppColors.of(context).accent)),
             ),
         ],
       ),
@@ -214,8 +214,8 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
                   children: [
                     for (var i = 0; i < _crumbs.length; i++) ...[
                       if (i > 0)
-                        const Icon(Icons.chevron_right_rounded,
-                            size: 16, color: AppColors.textSecondary),
+                        Icon(Icons.chevron_right_rounded,
+                            size: 16, color: AppColors.of(context).textSecondary),
                       InkWell(
                         onTap: () => _toBreadcrumb(i),
                         child: Padding(
@@ -226,8 +226,8 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
                             style: TextStyle(
                               fontSize: 13,
                               color: i == _crumbs.length - 1
-                                  ? AppColors.accent
-                                  : AppColors.textSecondary,
+                                  ? AppColors.of(context).accent
+                                  : AppColors.of(context).textSecondary,
                             ),
                           ),
                         ),
@@ -248,24 +248,24 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
     final count = _selected.length;
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: Color(0xFF12121A),
-        border: Border(top: BorderSide(color: AppColors.divider, width: 0.5)),
+        border: Border(top: BorderSide(color: AppColors.of(context).divider, width: 0.5)),
       ),
       child: SafeArea(
         top: false,
         child: Row(
           children: [
             Text('已选 $count 项',
-                style: const TextStyle(
-                    color: AppColors.textPrimary, fontSize: 14)),
+                style: TextStyle(
+                    color: AppColors.of(context).textPrimary, fontSize: 14)),
             const Spacer(),
             FilledButton.icon(
               onPressed: _downloading || count == 0 ? null : _batchDownload,
               style: FilledButton.styleFrom(
-                backgroundColor: AppColors.accent,
+                backgroundColor: AppColors.of(context).accent,
                 foregroundColor: Colors.white,
-                disabledBackgroundColor: AppColors.accentDeep,
+                disabledBackgroundColor: AppColors.of(context).accentDeep,
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12)),
               ),
@@ -332,7 +332,7 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: selected ? AppColors.accentDeep : AppColors.card,
+          color: selected ? AppColors.of(context).accentDeep : AppColors.of(context).card,
           borderRadius: BorderRadius.circular(14),
         ),
         child: Row(
@@ -347,8 +347,8 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
                     file.fileName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        color: AppColors.textPrimary,
+                    style: TextStyle(
+                        color: AppColors.of(context).textPrimary,
                         fontSize: 14,
                         fontWeight: FontWeight.w500),
                   ),
@@ -357,8 +357,8 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
                     file.isDir
                         ? '文件夹'
                         : '${formatBytes(file.size)}  ·  ${formatDateTime(file.updatedAt)}',
-                    style: const TextStyle(
-                        color: AppColors.textSecondary, fontSize: 12),
+                    style: TextStyle(
+                        color: AppColors.of(context).textSecondary, fontSize: 12),
                   ),
                 ],
               ),
@@ -368,12 +368,12 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
                 selected
                     ? Icons.check_circle_rounded
                     : Icons.radio_button_unchecked_rounded,
-                color: selected ? AppColors.accent : AppColors.textSecondary,
+                color: selected ? AppColors.of(context).accent : AppColors.of(context).textSecondary,
                 size: 22,
               )
             else
-              const Icon(Icons.chevron_right_rounded,
-                  color: AppColors.textSecondary, size: 20),
+              Icon(Icons.chevron_right_rounded,
+                  color: AppColors.of(context).textSecondary, size: 20),
           ],
         ),
       ),
@@ -397,20 +397,20 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                    color: AppColors.textPrimary,
+                style: TextStyle(
+                    color: AppColors.of(context).textPrimary,
                     fontSize: 15,
                     fontWeight: FontWeight.w600),
               ),
             ),
             const SizedBox(height: 4),
             Text(formatBytes(file.size),
-                style: const TextStyle(
-                    color: AppColors.textSecondary, fontSize: 12)),
+                style: TextStyle(
+                    color: AppColors.of(context).textSecondary, fontSize: 12)),
             const SizedBox(height: 16),
             ListTile(
-              leading: const Icon(Icons.download_rounded,
-                  color: AppColors.accent),
+              leading: Icon(Icons.download_rounded,
+                  color: AppColors.of(context).accent),
               title: const Text('立即下载'),
               subtitle: const Text('提取直链，多线程不限速下载'),
               onTap: () {

@@ -17,7 +17,7 @@ class FileIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final icon = _icon();
-    final color = isDir ? AppColors.accent : _color();
+    final color = isDir ? AppColors.of(context).accent : _color(context);
     return Container(
       width: size,
       height: size,
@@ -59,12 +59,12 @@ class FileIcon extends StatelessWidget {
   bool _any(String name, List<String> exts) =>
       exts.any((e) => name.endsWith('.$e'));
 
-  Color _color() {
+  Color _color(BuildContext context) {
     final lower = name.toLowerCase();
-    if (_any(lower, ['mp4', 'mkv', 'avi'])) return AppColors.orange;
+    if (_any(lower, ['mp4', 'mkv', 'avi'])) return AppColors.of(context).orange;
     if (_any(lower, ['mp3', 'flac'])) return const Color(0xFFB57BFF);
     if (_any(lower, ['zip', 'rar', '7z'])) return const Color(0xFF43C6AC);
-    if (lower.endsWith('.torrent')) return AppColors.green;
-    return AppColors.accent;
+    if (lower.endsWith('.torrent')) return AppColors.of(context).green;
+    return AppColors.of(context).accent;
   }
 }

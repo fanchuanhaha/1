@@ -10,6 +10,7 @@ import 'pages/drive/drive_list_page.dart';
 import 'pages/drive/drive_page.dart';
 import 'pages/me/me_page.dart';
 import 'pages/parse/parse_page.dart';
+import 'pages/uploads/uploads_page.dart';
 import 'state/app_state.dart';
 import 'state/download_manager.dart';
 import 'theme/app_theme.dart';
@@ -77,13 +78,31 @@ class _QuarkLiteAppState extends State<QuarkLiteApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Quarklite',
-      debugShowCheckedModeBanner: false,
-      navigatorKey: widget.navigatorKey,
-      theme: AppTheme.dark(),
-      home: _ready ? const RootPage() : _BootView(error: _bootError),
+    return ListenableBuilder(
+      listenable: AppState.I,
+      builder: (context, _) {
+        return MaterialApp(
+          title: 'Quarklite',
+          debugShowCheckedModeBanner: false,
+          navigatorKey: widget.navigatorKey,
+          theme: AppTheme.light(),
+          darkTheme: AppTheme.dark(),
+          themeMode: _resolveThemeMode(AppState.I.themeMode),
+          home: _ready ? const RootPage() : _BootView(error: _bootError),
+        );
+      },
     );
+  }
+
+  ThemeMode _resolveThemeMode(String mode) {
+    switch (mode) {
+      case 'light':
+        return ThemeMode.light;
+      case 'system':
+        return ThemeMode.system;
+      default:
+        return ThemeMode.dark;
+    }
   }
 }
 
@@ -101,8 +120,8 @@ class _BootView extends StatelessWidget {
             : Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.error_outline,
-                      color: AppColors.red, size: 48),
+                  Icon(Icons.error_outline,
+                      color: AppColors.of(context).red, size: 48),
                   const SizedBox(height: 16),
                   const Text('下载引擎启动失败', style: TextStyle(fontSize: 16)),
                   const SizedBox(height: 8),
@@ -111,8 +130,9 @@ class _BootView extends StatelessWidget {
                     child: Text(
                       error!,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
-                          color: AppColors.textSecondary, fontSize: 12),
+                      style: TextStyle(
+                          color: AppColors.of(context).textSecondary,
+                          fontSize: 12),
                     ),
                   ),
                 ],
@@ -134,6 +154,7 @@ class _RootPageState extends State<RootPage> {
     ParsePage(),
     DriveListPage(),
     DownloadsPage(),
+    UploadsPage(),
     MePage(),
   ];
 
@@ -214,19 +235,23 @@ class _BottomBar extends StatelessWidget {
       (Icons.link_rounded, '解析'),
       (Icons.folder_rounded, '网盘'),
       (Icons.download_rounded, '下载'),
+      (Icons.cloud_upload_outlined, '上传'),
       (Icons.person_outline_rounded, '我的'),
     ];
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: Color(0xFF12121A),
-        border: Border(top: BorderSide(color: AppColors.divider, width: 0.5)),
+        border:
+            Border(top: BorderSide(color: AppColors.of(context).divider, width: 0.5)),
       ),
       child: SafeArea(
         top: false,
         child: Row(
           children: List.generate(items.length, (i) {
             final selected = i == index;
-            final color = selected ? AppColors.accent : AppColors.textSecondary;
+            final color = selected
+                ? AppColors.of(context).accent
+                : AppColors.of(context).textSecondary;
             return Expanded(
               child: InkWell(
                 onTap: () => onTap(i),
@@ -240,11 +265,11 @@ class _BottomBar extends StatelessWidget {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 14, vertical: 3),
                           decoration: BoxDecoration(
-                            color: AppColors.accentDeep,
+                            color: AppColors.of(context).accentDeep,
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Icon(items[i].$1,
-                              size: 22, color: AppColors.accent),
+                              size: 22, color: AppColors.of(context).accent),
                         )
                       else
                         Icon(items[i].$1, size: 22, color: color),

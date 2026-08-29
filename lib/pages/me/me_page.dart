@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../core/update_checker.dart';
 import '../../state/app_state.dart';
+import '../../state/upload_manager.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/app_logger.dart';
 
@@ -37,58 +39,78 @@ class MePage extends StatelessWidget {
   Widget _buildSettingsCard(BuildContext context, AppState app) {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.card,
+        color: AppColors.of(context).card,
         borderRadius: BorderRadius.circular(18),
       ),
       child: Column(
         children: [
           ListTile(
-            leading: const Icon(Icons.folder_rounded, color: AppColors.accent),
+            leading: Icon(Icons.folder_rounded, color: AppColors.of(context).accent),
             title: const Text('下载目录'),
             subtitle: Text(app.downloadDir,
                 maxLines: 1, overflow: TextOverflow.ellipsis),
-            trailing: const Icon(Icons.chevron_right_rounded,
-                color: AppColors.textSecondary),
+            trailing: Icon(Icons.chevron_right_rounded,
+                color: AppColors.of(context).textSecondary),
             onTap: () => _editDownloadDir(context, app),
           ),
           const Divider(height: 1, indent: 56),
           ListTile(
             leading:
-                const Icon(Icons.speed_rounded, color: AppColors.accent),
+                Icon(Icons.speed_rounded, color: AppColors.of(context).accent),
             title: const Text('下载连接数'),
             subtitle: Text('每个任务 ${app.connections} 线程并发下载'),
-            trailing: const Icon(Icons.chevron_right_rounded,
-                color: AppColors.textSecondary),
+            trailing: Icon(Icons.chevron_right_rounded,
+                color: AppColors.of(context).textSecondary),
             onTap: () => _editConnections(context, app),
           ),
           const Divider(height: 1, indent: 56),
           ListTile(
-            leading: const Icon(Icons.storage_rounded, color: AppColors.accent),
+            leading: Icon(Icons.cloud_upload_rounded,
+                color: AppColors.of(context).accent),
+            title: const Text('上传并行数'),
+            subtitle: Text('同时上传 ${app.uploadParallelism} 个文件'),
+            trailing: Icon(Icons.chevron_right_rounded,
+                color: AppColors.of(context).textSecondary),
+            onTap: () => _editUploadParallelism(context, app),
+          ),
+          const Divider(height: 1, indent: 56),
+          ListTile(
+            leading: Icon(Icons.storage_rounded, color: AppColors.of(context).accent),
             title: const Text('存储权限'),
             subtitle: const Text('访问下载目录所需权限'),
-            trailing: const Icon(Icons.chevron_right_rounded,
-                color: AppColors.textSecondary),
+            trailing: Icon(Icons.chevron_right_rounded,
+                color: AppColors.of(context).textSecondary),
             onTap: () => app.openAllFilesAccess(),
           ),
           const Divider(height: 1, indent: 56),
           ListTile(
-            leading: const Icon(Icons.battery_saver_rounded,
-                color: AppColors.accent),
+            leading: Icon(Icons.battery_saver_rounded,
+                color: AppColors.of(context).accent),
             title: const Text('后台运行'),
             subtitle: const Text('允许忽略电池优化，锁屏后仍持续下载'),
-            trailing: const Icon(Icons.chevron_right_rounded,
-                color: AppColors.textSecondary),
+            trailing: Icon(Icons.chevron_right_rounded,
+                color: AppColors.of(context).textSecondary),
             onTap: () => app.requestIgnoreBattery(),
           ),
           const Divider(height: 1, indent: 56),
           ListTile(
-            leading: const Icon(Icons.close_fullscreen_rounded,
-                color: AppColors.accent),
+            leading: Icon(Icons.close_fullscreen_rounded,
+                color: AppColors.of(context).accent),
             title: const Text('关闭窗口时'),
             subtitle: Text(_closeActionLabel(app.closeAction)),
-            trailing: const Icon(Icons.chevron_right_rounded,
-                color: AppColors.textSecondary),
+            trailing: Icon(Icons.chevron_right_rounded,
+                color: AppColors.of(context).textSecondary),
             onTap: () => _editCloseAction(context, app),
+          ),
+          const Divider(height: 1, indent: 56),
+          ListTile(
+            leading:
+                Icon(Icons.dark_mode_rounded, color: AppColors.of(context).accent),
+            title: const Text('深色模式'),
+            subtitle: Text(_themeModeLabel(app.themeMode)),
+            trailing: Icon(Icons.chevron_right_rounded,
+                color: AppColors.of(context).textSecondary),
+            onTap: () => _editThemeMode(context, app),
           ),
         ],
       ),
@@ -98,24 +120,35 @@ class MePage extends StatelessWidget {
   Widget _buildAboutCard(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.card,
+        color: AppColors.of(context).card,
         borderRadius: BorderRadius.circular(18),
       ),
       child: Column(
         children: [
           ListTile(
-            leading: const Icon(Icons.bug_report_rounded,
-                color: AppColors.accent),
+            leading: Icon(Icons.bug_report_rounded,
+                color: AppColors.of(context).accent),
             title: const Text('日志'),
             subtitle: const Text('查看/复制运行日志，排查容量与文件加载问题'),
-            trailing: const Icon(Icons.chevron_right_rounded,
-                color: AppColors.textSecondary),
+            trailing: Icon(Icons.chevron_right_rounded,
+                color: AppColors.of(context).textSecondary),
             onTap: () => _showLog(context),
           ),
           const Divider(height: 1, indent: 56),
           ListTile(
-            leading: const Icon(Icons.info_outline_rounded,
-                color: AppColors.accent),
+            leading: Icon(Icons.system_update_alt_rounded,
+                color: AppColors.of(context).accent),
+            title: const Text('检查更新'),
+            subtitle: const Text('查看 GitHub Releases 是否有新版本'),
+            trailing: Icon(Icons.chevron_right_rounded,
+                color: AppColors.of(context).textSecondary),
+            onTap: () =>
+                UpdateChecker.checkAndPrompt(context, manual: true),
+          ),
+          const Divider(height: 1, indent: 56),
+          ListTile(
+            leading: Icon(Icons.info_outline_rounded,
+                color: AppColors.of(context).accent),
             title: const Text('关于'),
             subtitle: const Text('Quarklite v1.1.3  ·  基于 Gopeed 下载引擎'),
             onTap: () => _showAbout(context),
@@ -140,24 +173,24 @@ class MePage extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('日志文件位置：',
-                    style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                Text('日志文件位置：',
+                    style: TextStyle(fontSize: 12, color: AppColors.of(context).textSecondary)),
                 SelectableText(path,
-                    style: const TextStyle(fontSize: 12, color: AppColors.accent)),
+                    style: TextStyle(fontSize: 12, color: AppColors.of(context).accent)),
                 const SizedBox(height: 12),
                 Container(
                   width: double.infinity,
                   height: 220,
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: AppColors.cardLight,
+                    color: AppColors.of(context).cardLight,
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: SingleChildScrollView(
                     child: SelectableText(
                       content,
-                      style: const TextStyle(
-                          fontSize: 11, color: AppColors.textSecondary, height: 1.5),
+                      style: TextStyle(
+                          fontSize: 11, color: AppColors.of(context).textSecondary, height: 1.5),
                     ),
                   ),
                 ),
@@ -170,10 +203,10 @@ class MePage extends StatelessWidget {
               child: const Text('关闭'),
             ),
             TextButton.icon(
-              icon: const Icon(Icons.delete_sweep_rounded,
-                  size: 18, color: AppColors.red),
-              label: const Text('清空日志',
-                  style: TextStyle(color: AppColors.red)),
+              icon: Icon(Icons.delete_sweep_rounded,
+                  size: 18, color: AppColors.of(context).red),
+              label: Text('清空日志',
+                  style: TextStyle(color: AppColors.of(context).red)),
               onPressed: () async {
                 await AppLogger.I.clear();
                 content = await AppLogger.I.readLog();
@@ -209,7 +242,7 @@ class MePage extends StatelessWidget {
         title: const Text('下载目录'),
         content: TextField(
           controller: controller,
-          style: const TextStyle(color: AppColors.textPrimary),
+          style: TextStyle(color: AppColors.of(context).textPrimary),
           decoration: const InputDecoration(
               hintText: '/storage/emulated/0/Download/Quarklite'),
         ),
@@ -246,6 +279,57 @@ class MePage extends StatelessWidget {
     }
   }
 
+  String _themeModeLabel(String mode) {
+    switch (mode) {
+      case 'light':
+        return '浅色';
+      case 'system':
+        return '跟随系统';
+      default:
+        return '深色（默认）';
+    }
+  }
+
+  void _editThemeMode(BuildContext context, AppState app) {
+    final options = <(String, String)>[
+      ('dark', '深色（默认）'),
+      ('light', '浅色'),
+      ('system', '跟随系统'),
+    ];
+    showDialog(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('深色模式'),
+        children: [
+          for (final (value, label) in options)
+            SimpleDialogOption(
+              onPressed: () async {
+                await app.setThemeMode(value);
+                if (ctx.mounted) Navigator.pop(ctx);
+              },
+              child: Row(
+                children: [
+                  Icon(
+                    value == app.themeMode
+                        ? Icons.radio_button_checked_rounded
+                        : Icons.radio_button_off_rounded,
+                    color: value == app.themeMode
+                        ? AppColors.of(context).accent
+                        : AppColors.of(context).textSecondary,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(label, style: const TextStyle(fontSize: 14)),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   void _editCloseAction(BuildContext context, AppState app) {
     final options = <(String, String)>[
       ('ask_once', '首次询问后记住（默认）'),
@@ -271,8 +355,8 @@ class MePage extends StatelessWidget {
                         ? Icons.radio_button_checked_rounded
                         : Icons.radio_button_off_rounded,
                     color: value == app.closeAction
-                        ? AppColors.accent
-                        : AppColors.textSecondary,
+                        ? AppColors.of(context).accent
+                        : AppColors.of(context).textSecondary,
                     size: 20,
                   ),
                   const SizedBox(width: 12),
@@ -308,8 +392,8 @@ class MePage extends StatelessWidget {
                         ? Icons.radio_button_checked_rounded
                         : Icons.radio_button_off_rounded,
                     color: n == app.connections
-                        ? AppColors.accent
-                        : AppColors.textSecondary,
+                        ? AppColors.of(context).accent
+                        : AppColors.of(context).textSecondary,
                     size: 20,
                   ),
                   const SizedBox(width: 12),
@@ -317,6 +401,50 @@ class MePage extends StatelessWidget {
                 ],
               ),
             ),
+        ],
+      ),
+    );
+  }
+
+  void _editUploadParallelism(BuildContext context, AppState app) {
+    final options = [1, 2, 3, 4];
+    showDialog(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('上传并行数'),
+        children: [
+          for (final n in options)
+            SimpleDialogOption(
+              onPressed: () async {
+                await app.setUploadParallelism(n);
+                // 上传管理器立即获取新值（老的任务跑完按新并行数补充）
+                UploadManager.I.overrideParallelism = 0;
+                if (ctx.mounted) Navigator.pop(ctx);
+              },
+              child: Row(
+                children: [
+                  Icon(
+                    n == app.uploadParallelism
+                        ? Icons.radio_button_checked_rounded
+                        : Icons.radio_button_off_rounded,
+                    color: n == app.uploadParallelism
+                        ? AppColors.of(context).accent
+                        : AppColors.of(context).textSecondary,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 12),
+                  Text('同时上传 $n 个文件', style: const TextStyle(fontSize: 14)),
+                ],
+              ),
+            ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 4, 24, 16),
+            child: Text(
+              '并行数越高上传越快，但可能使页面卡顿或触发接口限流；默认为 1，请按网络与设备性能自行取舍。',
+              style: TextStyle(
+                  fontSize: 12, color: AppColors.of(context).textSecondary),
+            ),
+          ),
         ],
       ),
     );

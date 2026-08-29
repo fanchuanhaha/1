@@ -18,7 +18,7 @@ class ImportDownloadSheet extends StatefulWidget {
     return showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppColors.card,
+      backgroundColor: AppColors.of(context).card,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -149,15 +149,15 @@ class _ImportDownloadSheetState extends State<ImportDownloadSheet> {
       keyboardType: numeric ? TextInputType.number : TextInputType.text,
       inputFormatters:
           numeric ? [FilteringTextInputFormatter.digitsOnly] : null,
-      style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+      style: TextStyle(color: AppColors.of(context).textPrimary, fontSize: 14),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle:
-            const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+        hintStyle: TextStyle(
+            color: AppColors.of(context).textSecondary, fontSize: 13),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         filled: true,
-        fillColor: AppColors.cardLight,
+        fillColor: AppColors.of(context).cardLight,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
@@ -183,9 +183,9 @@ class _ImportDownloadSheetState extends State<ImportDownloadSheet> {
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
             ),
             const SizedBox(height: 4),
-            const Center(
+            Center(
               child: Text('每行一个 URL，可用 | 指定文件名',
-                  style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                  style: TextStyle(color: AppColors.of(context).textSecondary, fontSize: 12)),
             ),
             const SizedBox(height: 16),
             _field(_textController, 'https://example.com/file.apk\nhttps://example.com/a.zip | 自定义名.zip',
@@ -196,13 +196,13 @@ class _ImportDownloadSheetState extends State<ImportDownloadSheet> {
               child: Row(
                 children: [
                   Text(_advancedVisible ? '收起高级设置' : '展开高级设置',
-                      style: const TextStyle(
-                          color: AppColors.accent, fontSize: 13)),
+                      style: TextStyle(
+                          color: AppColors.of(context).accent, fontSize: 13)),
                   Icon(
                     _advancedVisible
                         ? Icons.keyboard_arrow_up_rounded
                         : Icons.keyboard_arrow_down_rounded,
-                    color: AppColors.accent,
+                    color: AppColors.of(context).accent,
                     size: 18,
                   ),
                 ],
@@ -237,8 +237,8 @@ class _ImportDownloadSheetState extends State<ImportDownloadSheet> {
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 13),
                     ),
-                    child: const Text('取消',
-                        style: TextStyle(color: AppColors.textSecondary)),
+                    child: Text('取消',
+                        style: TextStyle(color: AppColors.of(context).textSecondary)),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -266,8 +266,8 @@ class _ImportDownloadSheetState extends State<ImportDownloadSheet> {
   }
 
   Widget _sectionTitle(String s) => Text(s,
-      style: const TextStyle(
-          color: AppColors.textSecondary,
+      style: TextStyle(
+          color: AppColors.of(context).textSecondary,
           fontSize: 11,
           fontWeight: FontWeight.w600));
 

@@ -115,7 +115,7 @@ class _DriveListPageState extends State<DriveListPage> {
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.card,
+        backgroundColor: AppColors.of(context).card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text('${type.label} Cookie'),
         content: SizedBox(
@@ -123,8 +123,8 @@ class _DriveListPageState extends State<DriveListPage> {
           child: SingleChildScrollView(
             child: SelectableText(
               (cookie == null || cookie.isEmpty) ? '（未登录，无 Cookie）' : cookie,
-              style: const TextStyle(
-                color: AppColors.textPrimary,
+              style: TextStyle(
+                color: AppColors.of(context).textPrimary,
                 fontSize: 12,
                 height: 1.5,
               ),
@@ -172,7 +172,7 @@ class _DriveListPageState extends State<DriveListPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.card,
+        backgroundColor: AppColors.of(context).card,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('退出登录'),
         content: Text('确定要退出 ${type.label} 吗？'),
@@ -207,7 +207,7 @@ class _DriveListPageState extends State<DriveListPage> {
       listenable: Listenable.merge([AppState.I, DriveManager.I]),
       builder: (context, _) {
         return Scaffold(
-          backgroundColor: AppColors.bg,
+          backgroundColor: AppColors.of(context).bg,
           appBar: AppBar(
             title: const Text('我的网盘'),
           ),
@@ -232,7 +232,7 @@ class _DriveListPageState extends State<DriveListPage> {
     final capacity = capInfo?.text ?? '';
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.card,
+        color: AppColors.of(context).card,
         borderRadius: BorderRadius.circular(16),
       ),
       clipBehavior: Clip.antiAlias,
@@ -252,12 +252,12 @@ class _DriveListPageState extends State<DriveListPage> {
                   errorBuilder: (_, __, ___) => Container(
                     width: 44,
                     height: 44,
-                    color: AppColors.cardLight,
+                    color: AppColors.of(context).cardLight,
                     alignment: Alignment.center,
-                    child: const Icon(
+                    child: Icon(
                       Icons.cloud_rounded,
                       size: 26,
-                      color: AppColors.textSecondary,
+                      color: AppColors.of(context).textSecondary,
                     ),
                   ),
                 ),
@@ -273,8 +273,8 @@ class _DriveListPageState extends State<DriveListPage> {
                         Flexible(
                           child: Text(
                             type.label,
-                            style: const TextStyle(
-                              color: AppColors.textPrimary,
+                            style: TextStyle(
+                              color: AppColors.of(context).textPrimary,
                               fontSize: 16,
                               fontWeight: FontWeight.w600,
                             ),
@@ -291,16 +291,16 @@ class _DriveListPageState extends State<DriveListPage> {
                           ),
                           decoration: BoxDecoration(
                             color: loggedIn
-                                ? AppColors.green.withOpacity(0.15)
-                                : AppColors.cardLight,
+                                ? AppColors.of(context).green.withOpacity(0.15)
+                                : AppColors.of(context).cardLight,
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
                             loggedIn ? '已登录' : '未登录',
                             style: TextStyle(
                               color: loggedIn
-                                  ? AppColors.green
-                                  : AppColors.textSecondary,
+                                  ? AppColors.of(context).green
+                                  : AppColors.of(context).textSecondary,
                               fontSize: 10,
                               fontWeight: FontWeight.w600,
                             ),
@@ -318,8 +318,8 @@ class _DriveListPageState extends State<DriveListPage> {
                               ? capacity
                               : (nickname ?? ''))
                           : '剩余容量: --',
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
+                      style: TextStyle(
+                        color: AppColors.of(context).textSecondary,
                         fontSize: 12,
                       ),
                       maxLines: 1,
@@ -333,11 +333,11 @@ class _DriveListPageState extends State<DriveListPage> {
                         child: LinearProgressIndicator(
                           value: capInfo.fraction,
                           minHeight: 5,
-                          backgroundColor: AppColors.cardLight,
+                          backgroundColor: AppColors.of(context).cardLight,
                           valueColor: AlwaysStoppedAnimation(
                             capInfo.fraction >= 0.9
                                 ? Colors.orangeAccent
-                                : AppColors.accent,
+                                : AppColors.of(context).accent,
                           ),
                         ),
                       ),
@@ -348,11 +348,11 @@ class _DriveListPageState extends State<DriveListPage> {
               // 右侧：菜单按钮
               PopupMenuButton<String>(
                 padding: EdgeInsets.zero,
-                icon: const Icon(
+                icon: Icon(
                   Icons.more_vert_rounded,
-                  color: AppColors.textSecondary,
+                  color: AppColors.of(context).textSecondary,
                 ),
-                color: AppColors.card,
+                color: AppColors.of(context).card,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -364,11 +364,11 @@ class _DriveListPageState extends State<DriveListPage> {
                   }
                 },
                 itemBuilder: (_) => [
-                  const PopupMenuItem(
+                  PopupMenuItem(
                     value: 'cookie',
                     child: Row(
                       children: [
-                        Icon(Icons.key_rounded, size: 18, color: AppColors.textPrimary),
+                        Icon(Icons.key_rounded, size: 18, color: AppColors.of(context).textPrimary),
                         SizedBox(width: 10),
                         Text('查看Cookie'),
                       ],

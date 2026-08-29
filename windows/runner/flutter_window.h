@@ -36,6 +36,13 @@ class FlutterWindow : public Win32Window {
   // Window control channel: Dart 决定关闭/最小化行为。
   std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> window_channel_;
 
+  // 窗口级文件拖放通道：Windows 上把拖入的路径（文件/文件夹，可多个）
+  // 转成 EncodableList 发给 Dart 端直接上传。
+  std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> drop_channel_;
+
+  // 拖放路径最大数量限制（避免恶意拖入过多文件导致崩溃）。
+  static constexpr UINT kMaxDropPaths = 20;
+
   // 系统托盘图标（关闭窗口最小化到托盘后，从这里恢复/退出）。
   NOTIFYICONDATAW tray_icon_{};
 

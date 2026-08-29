@@ -142,11 +142,11 @@ class _PasswordLoginPageState extends State<PasswordLoginPage> {
           TextButton.icon(
             onPressed: _submitting ? null : _onSave,
             icon: _submitting
-                ? const SizedBox(
+                ? SizedBox(
                     width: 16,
                     height: 16,
                     child: CircularProgressIndicator(
-                        strokeWidth: 2, color: AppColors.accent),
+                        strokeWidth: 2, color: AppColors.of(context).accent),
                   )
                 : const Icon(Icons.save_rounded, size: 18),
             label: Text(
@@ -154,7 +154,7 @@ class _PasswordLoginPageState extends State<PasswordLoginPage> {
               style: const TextStyle(fontWeight: FontWeight.w600),
             ),
             style: TextButton.styleFrom(
-              foregroundColor: AppColors.accent,
+              foregroundColor: AppColors.of(context).accent,
               padding: const EdgeInsets.symmetric(horizontal: 12),
             ),
           ),
@@ -171,19 +171,19 @@ class _PasswordLoginPageState extends State<PasswordLoginPage> {
                 width: 72,
                 height: 72,
                 decoration: BoxDecoration(
-                  color: AppColors.accentDeep,
+                  color: AppColors.of(context).accentDeep,
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: const Icon(Icons.lock_outline_rounded,
-                    color: AppColors.accent, size: 36),
+                child: Icon(Icons.lock_outline_rounded,
+                    color: AppColors.of(context).accent, size: 36),
               ),
             ),
             const SizedBox(height: 24),
-            const Text(
+            Text(
               '账号密码登录',
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: AppColors.textPrimary,
+                color: AppColors.of(context).textPrimary,
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
               ),
@@ -193,8 +193,8 @@ class _PasswordLoginPageState extends State<PasswordLoginPage> {
               Text(
                 _status!,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                    color: AppColors.textSecondary, fontSize: 13),
+                style: TextStyle(
+                    color: AppColors.of(context).textSecondary, fontSize: 13),
               ),
             ],
             const SizedBox(height: 32),
@@ -202,13 +202,13 @@ class _PasswordLoginPageState extends State<PasswordLoginPage> {
             // 账号输入
             TextField(
               controller: _usernameController,
-              style: const TextStyle(color: AppColors.textPrimary, fontSize: 15),
+              style: TextStyle(color: AppColors.of(context).textPrimary, fontSize: 15),
               decoration: InputDecoration(
                 labelText: _isPhoneLogin ? '手机号' : '账号',
                 hintText: _isPhoneLogin ? '输入手机号' : '输入邮箱/账号',
                 prefixIcon: Icon(
                   _isPhoneLogin ? Icons.phone_android_rounded : Icons.person_rounded,
-                  color: AppColors.textSecondary,
+                  color: AppColors.of(context).textSecondary,
                 ),
               ),
               keyboardType: _isPhoneLogin ? TextInputType.phone : TextInputType.emailAddress,
@@ -218,11 +218,11 @@ class _PasswordLoginPageState extends State<PasswordLoginPage> {
             // 密码输入
             TextField(
               controller: _passwordController,
-              style: const TextStyle(color: AppColors.textPrimary, fontSize: 15),
-              decoration: const InputDecoration(
+              style: TextStyle(color: AppColors.of(context).textPrimary, fontSize: 15),
+              decoration: InputDecoration(
                 labelText: '密码',
                 hintText: '输入密码',
-                prefixIcon: Icon(Icons.lock_rounded, color: AppColors.textSecondary),
+                prefixIcon: Icon(Icons.lock_rounded, color: AppColors.of(context).textSecondary),
               ),
               obscureText: true,
             ),
@@ -232,12 +232,12 @@ class _PasswordLoginPageState extends State<PasswordLoginPage> {
             if (_needCaptcha) ...[
               TextField(
                 controller: _captchaController,
-                style: const TextStyle(color: AppColors.textPrimary, fontSize: 15),
-                decoration: const InputDecoration(
+                style: TextStyle(color: AppColors.of(context).textPrimary, fontSize: 15),
+                decoration: InputDecoration(
                   labelText: '验证码',
                   hintText: '输入验证码',
                   prefixIcon:
-                      Icon(Icons.text_fields_rounded, color: AppColors.textSecondary),
+                      Icon(Icons.text_fields_rounded, color: AppColors.of(context).textSecondary),
                 ),
               ),
               const SizedBox(height: 16),
@@ -248,17 +248,17 @@ class _PasswordLoginPageState extends State<PasswordLoginPage> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: AppColors.accentDeep.withOpacity(0.3),
+                  color: AppColors.of(context).accentDeep.withOpacity(0.3),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Row(
+                child: Row(
                   children: [
-                    Icon(Icons.info_outline, size: 16, color: AppColors.accent),
+                    Icon(Icons.info_outline, size: 16, color: AppColors.of(context).accent),
                     SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         '需要验证码，请查看网页版登录页面获取验证码',
-                        style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                        style: TextStyle(color: AppColors.of(context).textSecondary, fontSize: 12),
                       ),
                     ),
                   ],

@@ -58,7 +58,7 @@ void showDownloadAddedToast(BuildContext context, String msg) {
         duration: const Duration(seconds: 3),
         action: SnackBarAction(
           label: '查看',
-          textColor: AppColors.accent,
+          textColor: AppColors.of(context).accent,
           onPressed: () => AppState.I.tabIndex.value = 2,
         ),
       ),

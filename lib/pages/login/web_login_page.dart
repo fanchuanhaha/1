@@ -260,7 +260,7 @@ class _WebLoginPageState extends State<WebLoginPage> {
           child: TextField(
             controller: controller,
             maxLines: 6,
-            style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+            style: TextStyle(color: AppColors.of(context).textPrimary, fontSize: 13),
             decoration: const InputDecoration(
               hintText: '从浏览器复制 Cookie 粘贴到这里',
               hintStyle: TextStyle(fontSize: 13),
@@ -321,7 +321,7 @@ class _WebLoginPageState extends State<WebLoginPage> {
             icon: const Icon(Icons.save_rounded, size: 18),
             label: const Text('保存', style: TextStyle(fontWeight: FontWeight.w600)),
             style: TextButton.styleFrom(
-              foregroundColor: AppColors.accent,
+              foregroundColor: AppColors.of(context).accent,
               padding: const EdgeInsets.symmetric(horizontal: 12),
             ),
           ),
@@ -333,22 +333,22 @@ class _WebLoginPageState extends State<WebLoginPage> {
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            color: AppColors.accentDeep.withOpacity(0.3),
+            color: AppColors.of(context).accentDeep.withOpacity(0.3),
             child: Row(
               children: [
-                const Icon(Icons.info_outline, size: 16, color: AppColors.accent),
+                Icon(Icons.info_outline, size: 16, color: AppColors.of(context).accent),
                 const SizedBox(width: 8),
-                const Expanded(
+                Expanded(
                   child: Text(
                     '登录后点击右上角「保存」获取凭证',
-                    style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                    style: TextStyle(color: AppColors.of(context).textSecondary, fontSize: 12),
                   ),
                 ),
                 TextButton(
                   onPressed: _manualPaste,
                   child: const Text('手动粘贴', style: TextStyle(fontSize: 11)),
                   style: TextButton.styleFrom(
-                    foregroundColor: AppColors.accent,
+                    foregroundColor: AppColors.of(context).accent,
                     padding: const EdgeInsets.symmetric(horizontal: 8),
                     minimumSize: Size.zero,
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,

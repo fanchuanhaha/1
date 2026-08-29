@@ -1,14 +1,20 @@
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../api/drive_type.dart';
 import '../../api/quark_models.dart';
 import '../../state/app_state.dart';
 import '../../state/download_manager.dart';
 import '../../state/download_service.dart';
+import '../../state/upload_manager.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/app_logger.dart';
 import '../../utils/format.dart';
 import '../../utils/permission.dart';
+import '../../utils/upload_picker.dart';
 import '../../widgets/empty_view.dart';
 import '../../widgets/file_icon.dart';
 import 'album_page.dart';
@@ -44,6 +50,9 @@ class _DrivePageState extends State<DrivePage>
   final Set<String> _selected = {};
   bool _downloading = false;
 
+  /// Windows 窗口级拖放通道：把 explorer 拖入的文件/文件夹路径交给上传
+  static const _dropChannel = MethodChannel('quarklite.com/drop');
+
   @override
   bool get wantKeepAlive => true;
 
@@ -51,6 +60,9 @@ class _DrivePageState extends State<DrivePage>
   void initState() {
     super.initState();
     AppState.I.addListener(_onLoginChanged);
+    if (!kIsWeb && Platform.isWindows) {
+      _dropChannel.setMethodCallHandler(_onDrop);
+    }
     _load();
   }
 
@@ -58,6 +70,83 @@ class _DrivePageState extends State<DrivePage>
   void dispose() {
     AppState.I.removeListener(_onLoginChanged);
     super.dispose();
+  }
+
+  /// 窗口拖放回调：按文件/文件夹分流后上传到当前网盘目录
+  Future<dynamic> _onDrop(MethodCall call) async {
+    if (call.method != 'onDropped') return null;
+    if (!AppState.I.isLoggedIn) {
+      _toast('请先登录夸克账号');
+      return null;
+    }
+    final raw = call.arguments as List<dynamic>?;
+    if (raw == null || raw.isEmpty) return null;
+    final paths = raw.map((e) => e.toString()).toList();
+    if (!mounted) return null;
+    // 过滤不存在的路径，按文件/文件夹分流后直接上传到当前网盘目录
+    final files = <UploadSource>[];
+    final folders = <String>[];
+    for (final p in paths) {
+      try {
+        if (FileSystemEntity.isDirectorySync(p)) {
+          folders.add(p);
+        } else if (FileSystemEntity.isFileSync(p)) {
+          final f = File(p);
+          final st = await f.stat();
+          files.add(UploadSource(
+            path: p,
+            name: _basename(p),
+            size: st.size,
+            modified: st.modified.millisecondsSinceEpoch,
+          ));
+        }
+      } catch (_) {
+        // 单个路径不可访问时跳过
+      }
+    }
+    if (files.isEmpty && folders.isEmpty) return null;
+    if (folders.isNotEmpty) {
+      await _uploadDraggedFolders(folders);
+    } else {
+      UploadManager.I.addFiles(files, _pdirFid);
+      _toast('已加入 ${files.length} 个上传任务，可在「上传」页查看进度');
+    }
+    return null;
+  }
+
+  static String _basename(String path) {
+    final norm = path.replaceAll('\\', '/');
+    final idx = norm.lastIndexOf('/');
+    return idx < 0 ? norm : norm.substring(idx + 1);
+  }
+
+  /// 拖入文件夹：递归收集（复用 UploadPicker 深度/数量上限），作为批次上传
+  Future<void> _uploadDraggedFolders(List<String> folders) async {
+    var total = 0;
+    for (final f in folders) {
+      final root = Directory(f);
+      if (!await root.exists()) continue;
+      final collected = <UploadSource>[];
+      final empties = <String>[];
+      try {
+        await _walkDrag(root, '', collected, empties, depth: 0);
+      } catch (_) {}
+      if (collected.isEmpty && empties.isEmpty) {
+        _toast('「${_basename(f)}」为空或不可读');
+        continue;
+      }
+      total += collected.length;
+      // 每个拖入的文件夹作为独立批次上传（各自建同名根目录）
+      UploadManager.I.addFolderBatch(
+        files: collected,
+        emptyDirs: empties,
+        targetDirFid: _pdirFid,
+        rootFolderName: _basename(f),
+      );
+    }
+    if (total > 0) {
+      _toast('已加入 $total 个上传任务，可在「上传」页查看进度');
+    }
   }
 
   void _onLoginChanged() {
@@ -249,30 +338,46 @@ class _DrivePageState extends State<DrivePage>
             ? [
                 TextButton(
                   onPressed: _selectAllFiles,
-                  child: const Text('全选',
-                      style: TextStyle(color: AppColors.accent)),
+                  child: Text('全选',
+                      style: TextStyle(color: AppColors.of(context).accent)),
                 ),
                 IconButton(
                   onPressed: _exitSelectMode,
-                  icon: const Icon(Icons.close_rounded,
-                      color: AppColors.accent),
+                  icon: Icon(Icons.close_rounded,
+                      color: AppColors.of(context).accent),
                 ),
               ]
             : [
+                PopupMenuButton<String>(
+                  icon: Icon(Icons.upload_file_rounded,
+                      color: AppColors.of(context).accent),
+                  tooltip: '上传',
+                  onSelected: (v) {
+                    if (v == 'file') {
+                      _pickUploadFiles();
+                    } else if (v == 'folder') {
+                      _pickUploadFolder();
+                    }
+                  },
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(value: 'file', child: Text('上传文件')),
+                    PopupMenuItem(value: 'folder', child: Text('上传文件夹')),
+                  ],
+                ),
                 IconButton(
                   onPressed: () => Navigator.of(context).push(
                     MaterialPageRoute(builder: (_) => const AlbumPage()),
                   ),
-                  icon: const Icon(Icons.photo_library_rounded,
-                      color: AppColors.accent),
+                  icon: Icon(Icons.photo_library_rounded,
+                      color: AppColors.of(context).accent),
                   tooltip: '相册',
                 ),
                 IconButton(
                   onPressed: () => Navigator.of(context).push(
                     MaterialPageRoute(builder: (_) => const SearchPage()),
                   ),
-                  icon: const Icon(Icons.search_rounded,
-                      color: AppColors.accent),
+                  icon: Icon(Icons.search_rounded,
+                      color: AppColors.of(context).accent),
                   tooltip: '搜索',
                 ),
                 IconButton(
@@ -285,13 +390,13 @@ class _DrivePageState extends State<DrivePage>
                     _files = [];
                     _load();
                   },
-                  icon: const Icon(Icons.home_rounded,
-                      color: AppColors.accent),
+                  icon: Icon(Icons.home_rounded,
+                      color: AppColors.of(context).accent),
                 ),
                 IconButton(
                   onPressed: _load,
-                  icon: const Icon(Icons.refresh_rounded,
-                      color: AppColors.accent),
+                  icon: Icon(Icons.refresh_rounded,
+                      color: AppColors.of(context).accent),
                 ),
               ],
       ),
@@ -307,8 +412,8 @@ class _DrivePageState extends State<DrivePage>
                   children: [
                     for (var i = 0; i < _crumbs.length; i++) ...[
                       if (i > 0)
-                        const Icon(Icons.chevron_right_rounded,
-                            size: 16, color: AppColors.textSecondary),
+                        Icon(Icons.chevron_right_rounded,
+                            size: 16, color: AppColors.of(context).textSecondary),
                       InkWell(
                         onTap: () => _toBreadcrumb(i),
                         child: Padding(
@@ -319,8 +424,8 @@ class _DrivePageState extends State<DrivePage>
                             style: TextStyle(
                               fontSize: 13,
                               color: i == _crumbs.length - 1
-                                  ? AppColors.accent
-                                  : AppColors.textSecondary,
+                                  ? AppColors.of(context).accent
+                                  : AppColors.of(context).textSecondary,
                             ),
                           ),
                         ),
@@ -341,24 +446,24 @@ class _DrivePageState extends State<DrivePage>
     final count = _selected.length;
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: Color(0xFF12121A),
-        border: Border(top: BorderSide(color: AppColors.divider, width: 0.5)),
+        border: Border(top: BorderSide(color: AppColors.of(context).divider, width: 0.5)),
       ),
       child: SafeArea(
         top: false,
         child: Row(
           children: [
             Text('已选 $count 项',
-                style: const TextStyle(
-                    color: AppColors.textPrimary, fontSize: 14)),
+                style: TextStyle(
+                    color: AppColors.of(context).textPrimary, fontSize: 14)),
             const Spacer(),
             FilledButton.icon(
               onPressed: _downloading || count == 0 ? null : _batchDownload,
               style: FilledButton.styleFrom(
-                backgroundColor: AppColors.accent,
+                backgroundColor: AppColors.of(context).accent,
                 foregroundColor: Colors.white,
-                disabledBackgroundColor: AppColors.accentDeep,
+                disabledBackgroundColor: AppColors.of(context).accentDeep,
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12)),
               ),
@@ -429,7 +534,7 @@ class _DrivePageState extends State<DrivePage>
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: selected ? AppColors.accentDeep : AppColors.card,
+          color: selected ? AppColors.of(context).accentDeep : AppColors.of(context).card,
           borderRadius: BorderRadius.circular(14),
         ),
         child: Row(
@@ -444,8 +549,8 @@ class _DrivePageState extends State<DrivePage>
                     file.fileName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        color: AppColors.textPrimary,
+                    style: TextStyle(
+                        color: AppColors.of(context).textPrimary,
                         fontSize: 14,
                         fontWeight: FontWeight.w500),
                   ),
@@ -454,8 +559,8 @@ class _DrivePageState extends State<DrivePage>
                     file.isDir
                         ? '文件夹'
                         : '${formatBytes(file.size)}  ·  ${formatDateTime(file.updatedAt)}',
-                    style: const TextStyle(
-                        color: AppColors.textSecondary, fontSize: 12),
+                    style: TextStyle(
+                        color: AppColors.of(context).textSecondary, fontSize: 12),
                   ),
                 ],
               ),
@@ -465,12 +570,12 @@ class _DrivePageState extends State<DrivePage>
                 selected
                     ? Icons.check_circle_rounded
                     : Icons.radio_button_unchecked_rounded,
-                color: selected ? AppColors.accent : AppColors.textSecondary,
+                color: selected ? AppColors.of(context).accent : AppColors.of(context).textSecondary,
                 size: 22,
               )
             else
-              const Icon(Icons.chevron_right_rounded,
-                  color: AppColors.textSecondary, size: 20),
+              Icon(Icons.chevron_right_rounded,
+                  color: AppColors.of(context).textSecondary, size: 20),
           ],
         ),
       ),
@@ -494,19 +599,19 @@ class _DrivePageState extends State<DrivePage>
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                    color: AppColors.textPrimary,
+                style: TextStyle(
+                    color: AppColors.of(context).textPrimary,
                     fontSize: 15,
                     fontWeight: FontWeight.w600),
               ),
             ),
             const SizedBox(height: 4),
             Text(formatBytes(file.size),
-                style: const TextStyle(
-                    color: AppColors.textSecondary, fontSize: 12)),
+                style: TextStyle(
+                    color: AppColors.of(context).textSecondary, fontSize: 12)),
             const SizedBox(height: 16),
             ListTile(
-              leading: const Icon(Icons.download_rounded, color: AppColors.accent),
+              leading: Icon(Icons.download_rounded, color: AppColors.of(context).accent),
               title: const Text('立即下载'),
               subtitle: const Text('提取直链，多线程不限速下载'),
               onTap: () {
@@ -574,5 +679,94 @@ class _DrivePageState extends State<DrivePage>
   void _toast(String msg) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  // ---------------- 上传 ----------------
+
+  Future<void> _pickUploadFiles() async {
+    if (!AppState.I.isLoggedIn) {
+      _toast('请先登录夸克账号');
+      return;
+    }
+    final sources = await UploadPicker.pickFiles();
+    if (sources.isEmpty) return;
+    UploadManager.I.addFiles(sources, _pdirFid);
+    _toast('已加入 ${sources.length} 个上传任务，可在「上传」页查看进度');
+  }
+
+  Future<void> _pickUploadFolder() async {
+    if (!AppState.I.isLoggedIn) {
+      _toast('请先登录夸克账号');
+      return;
+    }
+    final app = AppState.I;
+    if (Platform.isAndroid && !await app.canWriteDownload()) {
+      _toast('上传文件夹需要「所有文件访问」权限');
+      app.openAllFilesAccess();
+      return;
+    }
+    final result = await UploadPicker.pickFolder();
+    if (result.canceled) return;
+    if (result.needPermission) {
+      _toast('需要「所有文件访问」权限');
+      app.openAllFilesAccess();
+      return;
+    }
+    if (result.error != null) {
+      _toast(result.error!);
+      return;
+    }
+    if (result.files.isEmpty && result.emptyDirs.isEmpty) {
+      _toast('所选文件夹为空或不可读');
+      return;
+    }
+    UploadManager.I.addFolderBatch(
+      files: result.files,
+      emptyDirs: result.emptyDirs,
+      targetDirFid: _pdirFid,
+      rootFolderName: result.rootName,
+    );
+    _toast('已加入 ${result.files.length} 个上传任务，可在「上传」页查看进度');
+  }
+}
+
+/// 拖入文件夹的递归遍历：收集文件与空目录（复用 UploadPicker 的规则）。
+/// 限制深度/数量，超大目录自动截断避免卡死。
+Future<void> _walkDrag(
+  Directory dir,
+  String rel,
+  List<UploadSource> files,
+  List<String> emptyDirs, {
+  required int depth,
+}) async {
+  if (depth > UploadPicker.maxDepth || files.length >= UploadPicker.maxFiles) {
+    return;
+  }
+  final children = <FileSystemEntity>[];
+  await for (final e in dir.list(followLinks: false)) {
+    children.add(e);
+  }
+  if (children.isEmpty) {
+    if (rel.isNotEmpty) emptyDirs.add(rel);
+    return;
+  }
+  for (final e in children) {
+    if (files.length >= UploadPicker.maxFiles) break;
+    final name = _DrivePageState._basename(e.path);
+    if (e is Directory) {
+      final childRel = rel.isEmpty ? name : '$rel/$name';
+      await _walkDrag(e, childRel, files, emptyDirs, depth: depth + 1);
+    } else if (e is File) {
+      try {
+        final st = await e.stat();
+        files.add(UploadSource(
+          path: e.path,
+          name: name,
+          size: st.size,
+          modified: st.modified.millisecondsSinceEpoch,
+          relDir: rel,
+        ));
+      } catch (_) {}
+    }
   }
 }

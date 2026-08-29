@@ -109,7 +109,7 @@ class _SearchPageState extends State<SearchPage> {
           margin: const EdgeInsets.only(right: 16),
           padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
-            color: AppColors.card,
+            color: AppColors.of(context).card,
             borderRadius: BorderRadius.circular(10),
           ),
           child: TextField(
@@ -118,11 +118,11 @@ class _SearchPageState extends State<SearchPage> {
             onChanged: _onChanged,
             onSubmitted: _search,
             style:
-                const TextStyle(color: AppColors.textPrimary, fontSize: 14),
-            decoration: const InputDecoration(
+                TextStyle(color: AppColors.of(context).textPrimary, fontSize: 14),
+            decoration: InputDecoration(
               hintText: '搜索文件名或照片内容',
               hintStyle:
-                  TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                  TextStyle(color: AppColors.of(context).textSecondary, fontSize: 13),
               border: InputBorder.none,
               enabledBorder: InputBorder.none,
               focusedBorder: InputBorder.none,
@@ -137,7 +137,7 @@ class _SearchPageState extends State<SearchPage> {
               _controller.clear();
               _search('');
             },
-            icon: const Icon(Icons.close_rounded, color: AppColors.accent),
+            icon: Icon(Icons.close_rounded, color: AppColors.of(context).accent),
           ),
         ],
         bottom: PreferredSize(
@@ -167,14 +167,14 @@ class _SearchPageState extends State<SearchPage> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
         decoration: BoxDecoration(
-          color: selected ? AppColors.accent : AppColors.card,
+          color: selected ? AppColors.of(context).accent : AppColors.of(context).card,
           borderRadius: BorderRadius.circular(16),
         ),
         child: Text(
           label,
           style: TextStyle(
             fontSize: 12,
-            color: selected ? Colors.white : AppColors.textSecondary,
+            color: selected ? Colors.white : AppColors.of(context).textSecondary,
             fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
           ),
         ),
@@ -249,7 +249,7 @@ class _SearchPageState extends State<SearchPage> {
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: AppColors.card,
+          color: AppColors.of(context).card,
           borderRadius: BorderRadius.circular(14),
         ),
         child: Row(
@@ -264,8 +264,8 @@ class _SearchPageState extends State<SearchPage> {
                     file.fileName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        color: AppColors.textPrimary,
+                    style: TextStyle(
+                        color: AppColors.of(context).textPrimary,
                         fontSize: 14,
                         fontWeight: FontWeight.w500),
                   ),
@@ -274,14 +274,14 @@ class _SearchPageState extends State<SearchPage> {
                     file.isDir
                         ? '文件夹'
                         : '${formatBytes(file.size)}  ·  ${formatDateTime(file.updatedAt)}',
-                    style: const TextStyle(
-                        color: AppColors.textSecondary, fontSize: 12),
+                    style: TextStyle(
+                        color: AppColors.of(context).textSecondary, fontSize: 12),
                   ),
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right_rounded,
-                color: AppColors.textSecondary, size: 20),
+            Icon(Icons.chevron_right_rounded,
+                color: AppColors.of(context).textSecondary, size: 20),
           ],
         ),
       ),
@@ -305,19 +305,19 @@ class _SearchPageState extends State<SearchPage> {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                    color: AppColors.textPrimary,
+                style: TextStyle(
+                    color: AppColors.of(context).textPrimary,
                     fontSize: 15,
                     fontWeight: FontWeight.w600),
               ),
             ),
             const SizedBox(height: 4),
             Text(formatBytes(file.size),
-                style: const TextStyle(
-                    color: AppColors.textSecondary, fontSize: 12)),
+                style: TextStyle(
+                    color: AppColors.of(context).textSecondary, fontSize: 12)),
             const SizedBox(height: 16),
             ListTile(
-              leading: const Icon(Icons.download_rounded, color: AppColors.accent),
+              leading: Icon(Icons.download_rounded, color: AppColors.of(context).accent),
               title: const Text('立即下载'),
               subtitle: const Text('提取直链，多线程不限速下载'),
               onTap: () {

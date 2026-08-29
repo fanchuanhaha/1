@@ -50,10 +50,10 @@ class _LoginPageState extends State<LoginPage> {
           if (_loginSuccess)
             TextButton.icon(
               onPressed: () => Navigator.of(context).pop(true),
-              icon: const Icon(Icons.check_circle_rounded, size: 18, color: AppColors.green),
-              label: const Text(
+              icon: Icon(Icons.check_circle_rounded, size: 18, color: AppColors.of(context).green),
+              label: Text(
                 '返回保存',
-                style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.green),
+                style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.of(context).green),
               ),
             ),
         ],
@@ -98,10 +98,10 @@ class _LoginPageState extends State<LoginPage> {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: AppColors.card,
+                  color: AppColors.of(context).card,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(Icons.cloud_rounded, color: AppColors.textSecondary, size: 28),
+                child: Icon(Icons.cloud_rounded, color: AppColors.of(context).textSecondary, size: 28),
               ),
             ),
           ),
@@ -111,8 +111,8 @@ class _LoginPageState extends State<LoginPage> {
             children: [
               Text(
                 _selectedDrive.label,
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
+                style: TextStyle(
+                  color: AppColors.of(context).textPrimary,
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
                 ),
@@ -121,7 +121,7 @@ class _LoginPageState extends State<LoginPage> {
               Text(
                 _loginSuccess ? '已登录' : '未登录',
                 style: TextStyle(
-                  color: _loginSuccess ? AppColors.green : AppColors.textSecondary,
+                  color: _loginSuccess ? AppColors.of(context).green : AppColors.of(context).textSecondary,
                   fontSize: 13,
                 ),
               ),
@@ -140,7 +140,7 @@ class _LoginPageState extends State<LoginPage> {
         // 用户头像
         CircleAvatar(
           radius: 40,
-          backgroundColor: AppColors.green.withOpacity(0.15),
+          backgroundColor: AppColors.of(context).green.withOpacity(0.15),
           child: _avatar != null && _avatar!.isNotEmpty
               ? ClipOval(
                   child: Image.network(
@@ -148,24 +148,24 @@ class _LoginPageState extends State<LoginPage> {
                     width: 80,
                     height: 80,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => const Icon(
+                    errorBuilder: (_, __, ___) => Icon(
                       Icons.person_rounded,
                       size: 48,
-                      color: AppColors.green,
+                      color: AppColors.of(context).green,
                     ),
                   ),
                 )
-              : const Icon(
+              : Icon(
                   Icons.person_rounded,
                   size: 48,
-                  color: AppColors.green,
+                  color: AppColors.of(context).green,
                 ),
         ),
         const SizedBox(height: 16),
         Text(
           _nickname ?? '${_selectedDrive.label}用户',
-          style: const TextStyle(
-            color: AppColors.textPrimary,
+          style: TextStyle(
+            color: AppColors.of(context).textPrimary,
             fontSize: 20,
             fontWeight: FontWeight.w600,
           ),
@@ -174,18 +174,18 @@ class _LoginPageState extends State<LoginPage> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
           decoration: BoxDecoration(
-            color: AppColors.green.withOpacity(0.15),
+            color: AppColors.of(context).green.withOpacity(0.15),
             borderRadius: BorderRadius.circular(20),
           ),
-          child: const Row(
+          child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.check_circle_rounded, size: 16, color: AppColors.green),
+              Icon(Icons.check_circle_rounded, size: 16, color: AppColors.of(context).green),
               SizedBox(width: 6),
               Text(
                 '登录成功',
                 style: TextStyle(
-                  color: AppColors.green,
+                  color: AppColors.of(context).green,
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
                 ),
@@ -199,29 +199,29 @@ class _LoginPageState extends State<LoginPage> {
           width: double.infinity,
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: AppColors.card,
+            color: AppColors.of(context).card,
             borderRadius: BorderRadius.circular(16),
           ),
-          child: const Column(
+          child: Column(
             children: [
               Row(
                 children: [
-                  Icon(Icons.storage_rounded, size: 16, color: AppColors.textSecondary),
+                  Icon(Icons.storage_rounded, size: 16, color: AppColors.of(context).textSecondary),
                   SizedBox(width: 8),
                   Text(
                     '容量: --',
-                    style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                    style: TextStyle(color: AppColors.of(context).textSecondary, fontSize: 13),
                   ),
                 ],
               ),
               SizedBox(height: 8),
               Row(
                 children: [
-                  Icon(Icons.check_circle_outline_rounded, size: 16, color: AppColors.green),
+                  Icon(Icons.check_circle_outline_rounded, size: 16, color: AppColors.of(context).green),
                   SizedBox(width: 8),
                   Text(
                     '已登录，可正常使用网盘功能',
-                    style: TextStyle(color: AppColors.green, fontSize: 13),
+                    style: TextStyle(color: AppColors.of(context).green, fontSize: 13),
                   ),
                 ],
               ),
@@ -240,7 +240,7 @@ class _LoginPageState extends State<LoginPage> {
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
             ),
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.green,
+              backgroundColor: AppColors.of(context).green,
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),
@@ -261,7 +261,7 @@ class _LoginPageState extends State<LoginPage> {
             icon: Icons.qr_code_scanner_rounded,
             title: '扫码登录',
             subtitle: '使用夸克 App 扫码登录',
-            color: AppColors.accent,
+            color: AppColors.of(context).accent,
             onTap: () => _openPage(const _QrLoginPage()),
           ),
           _MethodItem(
@@ -286,14 +286,14 @@ class _LoginPageState extends State<LoginPage> {
             icon: Icons.sms_rounded,
             title: '手机号验证码登录',
             subtitle: '使用手机号 + 短信验证码登录（参考原版）',
-            color: AppColors.green,
+            color: AppColors.of(context).green,
             onTap: () => _openPage(const _AliSmsCodeLoginPage()),
           ),
           _MethodItem(
             icon: Icons.vpn_key_rounded,
             title: 'Refresh Token',
             subtitle: '使用阿里云盘 refresh_token 登录',
-            color: AppColors.accent,
+            color: AppColors.of(context).accent,
             onTap: () => _openPage(const _AliTokenLoginPage()),
           ),
           _MethodItem(
@@ -311,7 +311,7 @@ class _LoginPageState extends State<LoginPage> {
             icon: Icons.vpn_key_rounded,
             title: 'BDUSS + STOKEN',
             subtitle: '粘贴百度网盘 BDUSS 和 STOKEN',
-            color: AppColors.accent,
+            color: AppColors.of(context).accent,
             onTap: () => _openPage(const _BaiduTokenLoginPage()),
           ),
           _MethodItem(
@@ -336,7 +336,7 @@ class _LoginPageState extends State<LoginPage> {
             icon: Icons.lock_rounded,
             title: '账号密码登录',
             subtitle: '使用手机号 + 密码登录',
-            color: AppColors.accent,
+            color: AppColors.of(context).accent,
             onTap: () => _openPage(PasswordLoginPage(driveType: DriveType.tianyi)),
           ),
           _MethodItem(
@@ -354,7 +354,7 @@ class _LoginPageState extends State<LoginPage> {
             icon: Icons.lock_rounded,
             title: '账号密码登录',
             subtitle: '使用邮箱 + 密码登录',
-            color: AppColors.accent,
+            color: AppColors.of(context).accent,
             onTap: () => _openPage(PasswordLoginPage(driveType: DriveType.pan123)),
           ),
           _MethodItem(
@@ -379,7 +379,7 @@ class _LoginPageState extends State<LoginPage> {
             icon: Icons.lock_rounded,
             title: '账号密码登录',
             subtitle: '在应用内登录蓝奏云，遇滑动验证请完成后点保存',
-            color: AppColors.accent,
+            color: AppColors.of(context).accent,
             onTap: () => _openWebLogin(DriveType.lanzou),
           ),
           _MethodItem(
@@ -397,7 +397,7 @@ class _LoginPageState extends State<LoginPage> {
             icon: Icons.lock_rounded,
             title: '账号密码登录',
             subtitle: '使用迅雷账号和密码登录',
-            color: AppColors.accent,
+            color: AppColors.of(context).accent,
             onTap: () => _openPage(PasswordLoginPage(driveType: DriveType.xunlei)),
           ),
           _MethodItem(
@@ -441,11 +441,11 @@ class _LoginPageState extends State<LoginPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Padding(
+        Padding(
           padding: EdgeInsets.only(left: 4, bottom: 12),
           child: Text('选择登录方式',
               style: TextStyle(
-                  color: AppColors.textSecondary,
+                  color: AppColors.of(context).textSecondary,
                   fontSize: 13,
                   fontWeight: FontWeight.w500)),
         ),
@@ -573,11 +573,11 @@ class _DriveSelector extends StatelessWidget {
               width: 68,
               decoration: BoxDecoration(
                 color: isSelected
-                    ? AppColors.accent.withOpacity(0.15)
-                    : AppColors.card,
+                    ? AppColors.of(context).accent.withOpacity(0.15)
+                    : AppColors.of(context).card,
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
-                  color: isSelected ? AppColors.accent : AppColors.divider,
+                  color: isSelected ? AppColors.of(context).accent : AppColors.of(context).divider,
                   width: 1.5,
                 ),
               ),
@@ -590,10 +590,10 @@ class _DriveSelector extends StatelessWidget {
                       type.iconAsset,
                       width: 28,
                       height: 28,
-                      errorBuilder: (_, __, ___) => const Icon(
+                      errorBuilder: (_, __, ___) => Icon(
                         Icons.cloud_outlined,
                         size: 28,
-                        color: AppColors.textSecondary,
+                        color: AppColors.of(context).textSecondary,
                       ),
                     ),
                   ),
@@ -602,8 +602,8 @@ class _DriveSelector extends StatelessWidget {
                     type.label,
                     style: TextStyle(
                       color: isSelected
-                          ? AppColors.accent
-                          : AppColors.textSecondary,
+                          ? AppColors.of(context).accent
+                          : AppColors.of(context).textSecondary,
                       fontSize: 10,
                       fontWeight:
                           isSelected ? FontWeight.w600 : FontWeight.normal,
@@ -649,7 +649,7 @@ class _MethodCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.card,
+      color: AppColors.of(context).card,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: item.onTap,
@@ -674,8 +674,8 @@ class _MethodCard extends StatelessWidget {
                   children: [
                     Text(
                       item.title,
-                      style: const TextStyle(
-                        color: AppColors.textPrimary,
+                      style: TextStyle(
+                        color: AppColors.of(context).textPrimary,
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
                       ),
@@ -683,16 +683,16 @@ class _MethodCard extends StatelessWidget {
                     const SizedBox(height: 3),
                     Text(
                       item.subtitle,
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
+                      style: TextStyle(
+                        color: AppColors.of(context).textSecondary,
                         fontSize: 12,
                       ),
                     ),
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right_rounded,
-                  color: AppColors.textSecondary, size: 22),
+              Icon(Icons.chevron_right_rounded,
+                  color: AppColors.of(context).textSecondary, size: 22),
             ],
           ),
         ),
@@ -810,27 +810,27 @@ class _QrLoginPageState extends State<_QrLoginPage> {
                   ),
                 )
               else
-                const Icon(Icons.qr_code_2_rounded,
-                    size: 120, color: AppColors.cardLight),
+                Icon(Icons.qr_code_2_rounded,
+                    size: 120, color: AppColors.of(context).cardLight),
               const SizedBox(height: 20),
               Text(
                 _status ?? '',
-                style: const TextStyle(
-                    color: AppColors.textSecondary, fontSize: 13),
+                style: TextStyle(
+                    color: AppColors.of(context).textSecondary, fontSize: 13),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 8),
-              const Text(
+              Text(
                 '二维码 5 分钟内有效，请用夸克 App「扫一扫」登录',
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                style: TextStyle(color: AppColors.of(context).textSecondary, fontSize: 11),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 20),
               OutlinedButton(
                 onPressed: _refresh,
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.accent,
-                  side: const BorderSide(color: AppColors.accent),
+                  foregroundColor: AppColors.of(context).accent,
+                  side: BorderSide(color: AppColors.of(context).accent),
                   padding:
                       const EdgeInsets.symmetric(horizontal: 28, vertical: 10),
                 ),
@@ -876,11 +876,11 @@ class _CookieLoginFormState extends State<_CookieLoginForm> {
           TextButton.icon(
             onPressed: _submitting ? null : _submit,
             icon: _submitting
-                ? const SizedBox(
+                ? SizedBox(
                     width: 16,
                     height: 16,
                     child: CircularProgressIndicator(
-                        strokeWidth: 2, color: AppColors.accent),
+                        strokeWidth: 2, color: AppColors.of(context).accent),
                   )
                 : const Icon(Icons.save_rounded, size: 18),
             label: Text(
@@ -888,7 +888,7 @@ class _CookieLoginFormState extends State<_CookieLoginForm> {
               style: const TextStyle(fontWeight: FontWeight.w600),
             ),
             style: TextButton.styleFrom(
-              foregroundColor: AppColors.accent,
+              foregroundColor: AppColors.of(context).accent,
               padding: const EdgeInsets.symmetric(horizontal: 12),
             ),
           ),
@@ -902,7 +902,7 @@ class _CookieLoginFormState extends State<_CookieLoginForm> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: AppColors.card,
+                color: AppColors.of(context).card,
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Column(
@@ -910,13 +910,13 @@ class _CookieLoginFormState extends State<_CookieLoginForm> {
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.info_outline,
-                          size: 16, color: AppColors.accent),
+                      Icon(Icons.info_outline,
+                          size: 16, color: AppColors.of(context).accent),
                       const SizedBox(width: 8),
                       Text(
                         '如何获取 ${widget.driveType.label} Cookie？',
-                        style: const TextStyle(
-                          color: AppColors.textPrimary,
+                        style: TextStyle(
+                          color: AppColors.of(context).textPrimary,
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
                         ),
@@ -924,13 +924,13 @@ class _CookieLoginFormState extends State<_CookieLoginForm> {
                     ],
                   ),
                   const SizedBox(height: 10),
-                  const Text(
+                  Text(
                     '1. 打开网盘网页版并登录\n'
                     '2. 按 F12 打开开发者工具\n'
                     '3. 在 Network 中找到任意请求\n'
                     '4. 复制 Request Headers 中的 Cookie 值',
                     style: TextStyle(
-                      color: AppColors.textSecondary,
+                      color: AppColors.of(context).textSecondary,
                       fontSize: 12,
                       height: 1.6,
                     ),
@@ -939,10 +939,10 @@ class _CookieLoginFormState extends State<_CookieLoginForm> {
               ),
             ),
             const SizedBox(height: 20),
-            const Text(
+            Text(
               'Cookie',
               style: TextStyle(
-                color: AppColors.textPrimary,
+                color: AppColors.of(context).textPrimary,
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
               ),
@@ -954,7 +954,7 @@ class _CookieLoginFormState extends State<_CookieLoginForm> {
                 maxLines: null,
                 expands: true,
                 style:
-                    const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+                    TextStyle(color: AppColors.of(context).textPrimary, fontSize: 13),
                 decoration: const InputDecoration(
                   hintText: '粘贴 Cookie',
                   hintStyle: TextStyle(fontSize: 13),
@@ -1042,11 +1042,11 @@ class _AliTokenLoginPageState extends State<_AliTokenLoginPage> {
           TextButton.icon(
             onPressed: _submitting ? null : _submit,
             icon: _submitting
-                ? const SizedBox(
+                ? SizedBox(
                     width: 16,
                     height: 16,
                     child: CircularProgressIndicator(
-                        strokeWidth: 2, color: AppColors.accent),
+                        strokeWidth: 2, color: AppColors.of(context).accent),
                   )
                 : const Icon(Icons.save_rounded, size: 18),
             label: Text(
@@ -1054,7 +1054,7 @@ class _AliTokenLoginPageState extends State<_AliTokenLoginPage> {
               style: const TextStyle(fontWeight: FontWeight.w600),
             ),
             style: TextButton.styleFrom(
-              foregroundColor: AppColors.accent,
+              foregroundColor: AppColors.of(context).accent,
               padding: const EdgeInsets.symmetric(horizontal: 12),
             ),
           ),
@@ -1068,21 +1068,21 @@ class _AliTokenLoginPageState extends State<_AliTokenLoginPage> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: AppColors.card,
+                color: AppColors.of(context).card,
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: const Column(
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
                       Icon(Icons.info_outline,
-                          size: 16, color: AppColors.accent),
+                          size: 16, color: AppColors.of(context).accent),
                       SizedBox(width: 8),
                       Text(
                         '如何获取 refresh_token？',
                         style: TextStyle(
-                          color: AppColors.textPrimary,
+                          color: AppColors.of(context).textPrimary,
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
                         ),
@@ -1097,7 +1097,7 @@ class _AliTokenLoginPageState extends State<_AliTokenLoginPage> {
                     '   JSON.parse(localStorage.getItem("token"))?.refresh_token\n'
                     '4. 复制输出的 refresh_token 值',
                     style: TextStyle(
-                      color: AppColors.textSecondary,
+                      color: AppColors.of(context).textSecondary,
                       fontSize: 12,
                       height: 1.6,
                     ),
@@ -1106,10 +1106,10 @@ class _AliTokenLoginPageState extends State<_AliTokenLoginPage> {
               ),
             ),
             const SizedBox(height: 20),
-            const Text(
+            Text(
               'Refresh Token',
               style: TextStyle(
-                color: AppColors.textPrimary,
+                color: AppColors.of(context).textPrimary,
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
               ),
@@ -1118,7 +1118,7 @@ class _AliTokenLoginPageState extends State<_AliTokenLoginPage> {
             TextField(
               controller: _controller,
               maxLines: 3,
-              style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+              style: TextStyle(color: AppColors.of(context).textPrimary, fontSize: 13),
               decoration: const InputDecoration(
                 hintText: '粘贴 refresh_token',
                 hintStyle: TextStyle(fontSize: 13),
@@ -1325,18 +1325,18 @@ class _AliSmsCodeLoginPageState extends State<_AliSmsCodeLoginPage> {
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            color: AppColors.accentDeep.withOpacity(0.3),
+            color: AppColors.of(context).accentDeep.withOpacity(0.3),
             child: Row(
               children: [
-                const Icon(Icons.sms_rounded, size: 16, color: AppColors.green),
+                Icon(Icons.sms_rounded, size: 16, color: AppColors.of(context).green),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     _status.isNotEmpty
                         ? _status
                         : '在下方页面输入手机号，点击「获取验证码」，登录成功后自动完成',
-                    style: const TextStyle(
-                        color: AppColors.textSecondary, fontSize: 12),
+                    style: TextStyle(
+                        color: AppColors.of(context).textSecondary, fontSize: 12),
                   ),
                 ),
               ],
@@ -1381,11 +1381,11 @@ class _BaiduTokenLoginPageState extends State<_BaiduTokenLoginPage> {
           TextButton.icon(
             onPressed: _submitting ? null : _submit,
             icon: _submitting
-                ? const SizedBox(
+                ? SizedBox(
                     width: 16,
                     height: 16,
                     child: CircularProgressIndicator(
-                        strokeWidth: 2, color: AppColors.accent),
+                        strokeWidth: 2, color: AppColors.of(context).accent),
                   )
                 : const Icon(Icons.save_rounded, size: 18),
             label: Text(
@@ -1393,7 +1393,7 @@ class _BaiduTokenLoginPageState extends State<_BaiduTokenLoginPage> {
               style: const TextStyle(fontWeight: FontWeight.w600),
             ),
             style: TextButton.styleFrom(
-              foregroundColor: AppColors.accent,
+              foregroundColor: AppColors.of(context).accent,
               padding: const EdgeInsets.symmetric(horizontal: 12),
             ),
           ),
@@ -1407,21 +1407,21 @@ class _BaiduTokenLoginPageState extends State<_BaiduTokenLoginPage> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: AppColors.card,
+                color: AppColors.of(context).card,
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: const Column(
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
                       Icon(Icons.info_outline,
-                          size: 16, color: AppColors.accent),
+                          size: 16, color: AppColors.of(context).accent),
                       SizedBox(width: 8),
                       Text(
                         '如何获取 BDUSS 和 STOKEN？',
                         style: TextStyle(
-                          color: AppColors.textPrimary,
+                          color: AppColors.of(context).textPrimary,
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
                         ),
@@ -1435,7 +1435,7 @@ class _BaiduTokenLoginPageState extends State<_BaiduTokenLoginPage> {
                     '3. 在 Application > Cookies 中\n'
                     '   找到 BDUSS 和 STOKEN 的值',
                     style: TextStyle(
-                      color: AppColors.textSecondary,
+                      color: AppColors.of(context).textSecondary,
                       fontSize: 12,
                       height: 1.6,
                     ),
@@ -1444,10 +1444,10 @@ class _BaiduTokenLoginPageState extends State<_BaiduTokenLoginPage> {
               ),
             ),
             const SizedBox(height: 20),
-            const Text(
+            Text(
               'BDUSS',
               style: TextStyle(
-                color: AppColors.textPrimary,
+                color: AppColors.of(context).textPrimary,
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
               ),
@@ -1456,17 +1456,17 @@ class _BaiduTokenLoginPageState extends State<_BaiduTokenLoginPage> {
             TextField(
               controller: _bdussController,
               maxLines: 2,
-              style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+              style: TextStyle(color: AppColors.of(context).textPrimary, fontSize: 13),
               decoration: const InputDecoration(
                 hintText: '粘贴 BDUSS',
                 hintStyle: TextStyle(fontSize: 13),
               ),
             ),
             const SizedBox(height: 16),
-            const Text(
+            Text(
               'STOKEN',
               style: TextStyle(
-                color: AppColors.textPrimary,
+                color: AppColors.of(context).textPrimary,
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
               ),
@@ -1475,7 +1475,7 @@ class _BaiduTokenLoginPageState extends State<_BaiduTokenLoginPage> {
             TextField(
               controller: _stokenController,
               maxLines: 2,
-              style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+              style: TextStyle(color: AppColors.of(context).textPrimary, fontSize: 13),
               decoration: const InputDecoration(
                 hintText: '粘贴 STOKEN（可选，部分功能需要）',
                 hintStyle: TextStyle(fontSize: 13),

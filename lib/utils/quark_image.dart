@@ -35,7 +35,7 @@ class QuarkImage extends StatelessWidget {
       placeholder: (_, _) =>
           placeholder?.call(context) ??
           Container(
-            color: AppColors.card,
+            color: AppColors.of(context).card,
             child: const Center(
               child: SizedBox(
                 width: 18,
@@ -45,7 +45,7 @@ class QuarkImage extends StatelessWidget {
             ),
           ),
       errorWidget: (_, _, _) => Container(
-        color: AppColors.card,
+        color: AppColors.of(context).card,
         child: Center(
           child: FileIcon(isDir: false, name: fileName ?? '', size: 36),
         ),

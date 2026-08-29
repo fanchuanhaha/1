@@ -58,11 +58,11 @@ class _DownloadsPageState extends State<DownloadsPage>
                             fontSize: 24, fontWeight: FontWeight.w800)),
                     const Spacer(),
                     if (dm.hasEngineError)
-                      const Icon(Icons.error_outline,
-                          color: AppColors.red, size: 20),
+                      Icon(Icons.error_outline,
+                          color: AppColors.of(context).red, size: 20),
                     PopupMenuButton<String>(
-                      icon: const Icon(Icons.more_horiz_rounded,
-                          color: AppColors.accent, size: 26),
+                      icon: Icon(Icons.more_horiz_rounded,
+                          color: AppColors.of(context).accent, size: 26),
                       onSelected: (v) async {
                         switch (v) {
                           case 'import':
@@ -131,14 +131,14 @@ class _DownloadsPageState extends State<DownloadsPage>
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
         decoration: BoxDecoration(
-          color: selected ? AppColors.accent : AppColors.card,
+          color: selected ? AppColors.of(context).accent : AppColors.of(context).card,
           borderRadius: BorderRadius.circular(20),
         ),
         child: Text(
           selected ? '$label $count' : label,
           style: TextStyle(
             fontSize: 13,
-            color: selected ? Colors.white : AppColors.textSecondary,
+            color: selected ? Colors.white : AppColors.of(context).textSecondary,
             fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
           ),
         ),
@@ -154,7 +154,7 @@ class _DownloadsPageState extends State<DownloadsPage>
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.card,
+        color: AppColors.of(context).card,
         borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
@@ -172,16 +172,16 @@ class _DownloadsPageState extends State<DownloadsPage>
                       task.name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          color: AppColors.textPrimary,
+                      style: TextStyle(
+                          color: AppColors.of(context).textPrimary,
                           fontSize: 13,
                           fontWeight: FontWeight.w500),
                     ),
                     const SizedBox(height: 3),
                     Text(
                       _subtitle(task),
-                      style: const TextStyle(
-                          color: AppColors.textSecondary, fontSize: 11),
+                      style: TextStyle(
+                          color: AppColors.of(context).textSecondary, fontSize: 11),
                     ),
                   ],
                 ),
@@ -190,8 +190,8 @@ class _DownloadsPageState extends State<DownloadsPage>
               const SizedBox(width: 4),
               _buildControlButton(task),
               PopupMenuButton<String>(
-                icon: const Icon(Icons.more_vert_rounded,
-                    color: AppColors.textSecondary, size: 18),
+                icon: Icon(Icons.more_vert_rounded,
+                    color: AppColors.of(context).textSecondary, size: 18),
                 onSelected: (v) async {
                   switch (v) {
                     case 'pause':
@@ -222,7 +222,7 @@ class _DownloadsPageState extends State<DownloadsPage>
               child: LinearProgressIndicator(
                 value: task.progress,
                 minHeight: 5,
-                backgroundColor: AppColors.bg,
+                backgroundColor: AppColors.of(context).bg,
               ),
             ),
             const SizedBox(height: 6),
@@ -230,15 +230,15 @@ class _DownloadsPageState extends State<DownloadsPage>
               children: [
                 Text(
                   '${formatBytes(task.downloaded)} / ${formatBytes(task.size)}',
-                  style: const TextStyle(
-                      color: AppColors.textSecondary, fontSize: 11),
+                  style: TextStyle(
+                      color: AppColors.of(context).textSecondary, fontSize: 11),
                 ),
                 const Spacer(),
                 if (task.status == GopeedStatus.running)
                   Text(
                     formatSpeed(task.speed),
-                    style: const TextStyle(
-                        color: AppColors.accent, fontSize: 11),
+                    style: TextStyle(
+                        color: AppColors.of(context).accent, fontSize: 11),
                   ),
               ],
             ),
@@ -265,11 +265,11 @@ class _DownloadsPageState extends State<DownloadsPage>
 
   Widget _buildStatusBadge(GopeedTask task) {
     final (color, text) = switch (task.status) {
-      GopeedStatus.done => (AppColors.green, '完成'),
-      GopeedStatus.error => (AppColors.red, '失败'),
-      GopeedStatus.pause => (AppColors.orange, '暂停'),
-      GopeedStatus.running => (AppColors.accent, '下载中'),
-      _ => (AppColors.textSecondary, '排队'),
+      GopeedStatus.done => (AppColors.of(context).green, '完成'),
+      GopeedStatus.error => (AppColors.of(context).red, '失败'),
+      GopeedStatus.pause => (AppColors.of(context).orange, '暂停'),
+      GopeedStatus.running => (AppColors.of(context).accent, '下载中'),
+      _ => (AppColors.of(context).textSecondary, '排队'),
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -303,17 +303,17 @@ class _DownloadsPageState extends State<DownloadsPage>
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(
-          color: AppColors.accent.withValues(alpha: 0.14),
+          color: AppColors.of(context).accent.withValues(alpha: 0.14),
           borderRadius: BorderRadius.circular(16),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: AppColors.accent, size: 16),
+            Icon(icon, color: AppColors.of(context).accent, size: 16),
             const SizedBox(width: 2),
             Text(label,
                 style:
-                    const TextStyle(color: AppColors.accent, fontSize: 11)),
+                    TextStyle(color: AppColors.of(context).accent, fontSize: 11)),
           ],
         ),
       ),

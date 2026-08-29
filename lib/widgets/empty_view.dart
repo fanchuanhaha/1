@@ -26,20 +26,20 @@ class EmptyView extends StatelessWidget {
             width: 88,
             height: 88,
             decoration: BoxDecoration(
-              color: AppColors.card,
+              color: AppColors.of(context).card,
               borderRadius: BorderRadius.circular(28),
             ),
-            child: Icon(icon, size: 42, color: AppColors.textSecondary),
+            child: Icon(icon, size: 42, color: AppColors.of(context).textSecondary),
           ),
           const SizedBox(height: 20),
           Text(text,
-              style: const TextStyle(
-                  color: AppColors.textSecondary, fontSize: 15)),
+              style: TextStyle(
+                  color: AppColors.of(context).textSecondary, fontSize: 15)),
           if (subText != null) ...[
             const SizedBox(height: 6),
             Text(subText!,
-                style:
-                    const TextStyle(color: AppColors.divider, fontSize: 12)),
+                style: TextStyle(
+                    color: AppColors.of(context).divider, fontSize: 12)),
           ],
           if (action != null) ...[
             const SizedBox(height: 20),

@@ -17,6 +17,8 @@ class AppState extends ChangeNotifier {
   static const _kDownloadDir = 'download_dir';
   static const _kConnections = 'connections';
   static const _kCloseAction = 'window_close_action';
+  static const _kThemeMode = 'theme_mode';
+  static const _kUploadParallelism = 'upload_parallelism';
 
   static AppState? _instance;
   static AppState get I => _instance ??= AppState._();
@@ -49,6 +51,10 @@ class AppState extends ChangeNotifier {
   String downloadDir = '';
   int connections = 16;
   String closeAction = 'ask_once';
+  String themeMode = 'dark';
+
+  /// 同时上传任务数（默认 1：一次一个文件，减少接口限流与内存占用）
+  int uploadParallelism = 1;
 
   Timer? _sessionTimer;
 
@@ -63,6 +69,8 @@ class AppState extends ChangeNotifier {
           prefs.getString(_kDownloadDir) ?? '/storage/emulated/0/Download/Quarklite';
       connections = prefs.getInt(_kConnections) ?? 16;
       closeAction = prefs.getString(_kCloseAction) ?? 'ask_once';
+      themeMode = prefs.getString(_kThemeMode) ?? 'dark';
+      uploadParallelism = prefs.getInt(_kUploadParallelism) ?? 1;
       notifyListeners();
     });
   }
@@ -92,6 +100,22 @@ class AppState extends ChangeNotifier {
     closeAction = action;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kCloseAction, action);
+    notifyListeners();
+  }
+
+  /// 主题模式：'dark' / 'light' / 'system'
+  Future<void> setThemeMode(String mode) async {
+    themeMode = mode;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kThemeMode, mode);
+    notifyListeners();
+  }
+
+  /// 设置同时上传任务数（持久化；立即生效由 UploadManager 下一次 kick 读取）
+  Future<void> setUploadParallelism(int n) async {
+    uploadParallelism = n;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_kUploadParallelism, n);
     notifyListeners();
   }
 

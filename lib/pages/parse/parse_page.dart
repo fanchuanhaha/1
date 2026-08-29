@@ -371,9 +371,9 @@ class _ParsePageState extends State<ParsePage> {
                           style: const TextStyle(
                               fontSize: 30, fontWeight: FontWeight.w800)),
                       const SizedBox(height: 2),
-                      const Text('下午好，解析分享链接',
+                      Text('下午好，解析分享链接',
                           style: TextStyle(
-                              color: AppColors.accent, fontSize: 14)),
+                              color: AppColors.of(context).accent, fontSize: 14)),
                     ],
                   ),
                 ),
@@ -383,17 +383,17 @@ class _ParsePageState extends State<ParsePage> {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     decoration: BoxDecoration(
-                      color: AppColors.accentDeep,
+                      color: AppColors.of(context).accentDeep,
                       borderRadius: BorderRadius.circular(20),
                     ),
-                    child: const Row(
+                    child: Row(
                       children: [
                         Icon(Icons.history_rounded,
-                            color: AppColors.accent, size: 18),
+                            color: AppColors.of(context).accent, size: 18),
                         SizedBox(width: 6),
                         Text('历史',
                             style: TextStyle(
-                                color: AppColors.accent, fontSize: 13)),
+                                color: AppColors.of(context).accent, fontSize: 13)),
                       ],
                     ),
                   ),
@@ -408,11 +408,11 @@ class _ParsePageState extends State<ParsePage> {
                 _buildInputCard(),
                 if (_history.isNotEmpty) ...[
                   const SizedBox(height: 20),
-                  const Padding(
+                  Padding(
                     padding: EdgeInsets.only(left: 4, bottom: 10),
                     child: Text('解析记录',
                         style: TextStyle(
-                            color: AppColors.textSecondary, fontSize: 13)),
+                            color: AppColors.of(context).textSecondary, fontSize: 13)),
                   ),
                   ..._history.map(_buildHistoryItem),
                 ],
@@ -428,7 +428,7 @@ class _ParsePageState extends State<ParsePage> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.card,
+        color: AppColors.of(context).card,
         borderRadius: BorderRadius.circular(18),
       ),
       child: Column(
@@ -440,16 +440,16 @@ class _ParsePageState extends State<ParsePage> {
                 width: 34,
                 height: 34,
                 decoration: BoxDecoration(
-                  color: AppColors.accentDeep,
+                  color: AppColors.of(context).accentDeep,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.paste_rounded,
-                    color: AppColors.accent, size: 19),
+                child: Icon(Icons.paste_rounded,
+                    color: AppColors.of(context).accent, size: 19),
               ),
               const SizedBox(width: 10),
-              const Text('粘贴内容',
+              Text('粘贴内容',
                   style: TextStyle(
-                      color: AppColors.textPrimary,
+                      color: AppColors.of(context).textPrimary,
                       fontSize: 15,
                       fontWeight: FontWeight.w600)),
               
@@ -460,7 +460,7 @@ class _ParsePageState extends State<ParsePage> {
             controller: _urlController,
             maxLines: 3,
             minLines: 2,
-            style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+            style: TextStyle(color: AppColors.of(context).textPrimary, fontSize: 14),
             decoration: const InputDecoration(
               hintText: '粘贴分享链接或包含链接的文本（自动识别网盘）',
             ),
@@ -468,7 +468,7 @@ class _ParsePageState extends State<ParsePage> {
           const SizedBox(height: 10),
           TextField(
             controller: _pwdController,
-            style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+            style: TextStyle(color: AppColors.of(context).textPrimary, fontSize: 14),
             decoration: const InputDecoration(
               hintText: '提取码（自动识别，可手动修改）',
             ),
@@ -480,7 +480,7 @@ class _ParsePageState extends State<ParsePage> {
               maxLines: 2,
               minLines: 1,
               style:
-                  const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+                  TextStyle(color: AppColors.of(context).textPrimary, fontSize: 14),
               decoration: const InputDecoration(
                 hintText: '磁力链接或种子文件地址（magnet: 开头）',
               ),
@@ -493,9 +493,9 @@ class _ParsePageState extends State<ParsePage> {
                 child: OutlinedButton(
                   onPressed: () => setState(() => _btMode = !_btMode),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: _btMode ? AppColors.accent : AppColors.textSecondary,
-                    backgroundColor: _btMode ? AppColors.accentDeep : AppColors.bg,
-                    side: BorderSide(color: _btMode ? AppColors.accent : AppColors.divider),
+                    foregroundColor: _btMode ? AppColors.of(context).accent : AppColors.of(context).textSecondary,
+                    backgroundColor: _btMode ? AppColors.of(context).accentDeep : AppColors.of(context).bg,
+                    side: BorderSide(color: _btMode ? AppColors.of(context).accent : AppColors.of(context).divider),
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12)),
@@ -509,8 +509,8 @@ class _ParsePageState extends State<ParsePage> {
                   onPressed: _parsing ? null : _parse,
                   style: FilledButton.styleFrom(
                     backgroundColor: _parsing
-                        ? AppColors.accentDeep
-                        : AppColors.accent,
+                        ? AppColors.of(context).accentDeep
+                        : AppColors.of(context).accent,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(
@@ -548,7 +548,7 @@ class _ParsePageState extends State<ParsePage> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
-            color: AppColors.card,
+            color: AppColors.of(context).card,
             borderRadius: BorderRadius.circular(14),
           ),
           child: Row(
@@ -557,11 +557,11 @@ class _ParsePageState extends State<ParsePage> {
                 width: 36,
                 height: 36,
                 decoration: BoxDecoration(
-                  color: AppColors.accentDeep,
+                  color: AppColors.of(context).accentDeep,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.link_rounded,
-                    color: AppColors.accent, size: 18),
+                child: Icon(Icons.link_rounded,
+                    color: AppColors.of(context).accent, size: 18),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -571,21 +571,21 @@ class _ParsePageState extends State<ParsePage> {
                     Text(url,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            color: AppColors.textPrimary, fontSize: 13)),
+                        style: TextStyle(
+                            color: AppColors.of(context).textPrimary, fontSize: 13)),
                     const SizedBox(height: 3),
                     Text(
                       pwd.isEmpty ? '无提取码' : '提取码: $pwd',
-                      style: const TextStyle(
-                          color: AppColors.textSecondary, fontSize: 11),
+                      style: TextStyle(
+                          color: AppColors.of(context).textSecondary, fontSize: 11),
                     ),
                   ],
                 ),
               ),
               IconButton(
                 onPressed: () => _removeHistory(url),
-                icon: const Icon(Icons.close_rounded,
-                    color: AppColors.textSecondary, size: 18),
+                icon: Icon(Icons.close_rounded,
+                    color: AppColors.of(context).textSecondary, size: 18),
               ),
             ],
           ),
@@ -626,8 +626,8 @@ class _ParsePageState extends State<ParsePage> {
                 shrinkWrap: true,
                 children: _history.map((e) {
                   return ListTile(
-                    leading: const Icon(Icons.link_rounded,
-                        color: AppColors.accent),
+                    leading: Icon(Icons.link_rounded,
+                        color: AppColors.of(context).accent),
                     title: Text(e['url'] ?? '',
                         maxLines: 1, overflow: TextOverflow.ellipsis),
                     subtitle: Text(e['pwd'] == null || e['pwd']!.isEmpty

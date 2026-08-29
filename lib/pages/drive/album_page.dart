@@ -158,12 +158,12 @@ class _AlbumPageState extends State<AlbumPage> {
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const SearchPage()),
             ),
-            icon: const Icon(Icons.search_rounded, color: AppColors.accent),
+            icon: Icon(Icons.search_rounded, color: AppColors.of(context).accent),
             tooltip: '搜索照片内容',
           ),
           IconButton(
             onPressed: _loading ? null : _loadFirst,
-            icon: const Icon(Icons.refresh_rounded, color: AppColors.accent),
+            icon: Icon(Icons.refresh_rounded, color: AppColors.of(context).accent),
             tooltip: '刷新',
           ),
         ],
@@ -208,7 +208,7 @@ class _AlbumPageState extends State<AlbumPage> {
             '${liveCount > 0 ? '  ·  动态照片 $liveCount 张' : ''}'
             '${_imgHasMore ? '  ·  上滑加载更多' : ''}',
             style:
-                const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                TextStyle(color: AppColors.of(context).textSecondary, fontSize: 12),
           ),
         ),
         Expanded(
@@ -258,7 +258,7 @@ class _AlbumPageState extends State<AlbumPage> {
             QuarkImage(photo.thumbnail, fileName: photo.fileName)
           else
             Container(
-              color: AppColors.card,
+              color: AppColors.of(context).card,
               child: Center(
                 child:
                     FileIcon(isDir: false, name: photo.fileName, size: 36),
