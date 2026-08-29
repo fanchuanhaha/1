@@ -697,7 +697,8 @@ class BaiduClient extends BaseDrive {
 
   /// 获取文件元数据（支持批量）
   Future<List<Map<String, dynamic>>> getFileMetas(List<String> fsIds) async {
-    final target = jsonEncode(fsIds.map((e) => toInt(e, fallback: 0)).toList());
+    // 百度 filemetas 的 target 必须传文件完整路径（实测 fs_id 返回 errno=12）
+    final target = jsonEncode(fsIds.toList());
     final body = await _get('$_baseUrl/api/filemetas', params: {
       'bdstoken': _bdstoken,
       'target': target,
@@ -858,7 +859,9 @@ class BaiduClient extends BaseDrive {
     final entries = fids
         .map((p) => {
               'path': p,
-              'newname': '$toDirFid/${p.split('/').last}',
+              // 百度 move：dest 为目标目录，newname 仅文件名（与路径拼接会导致参数错误）
+              'dest': toDirFid,
+              'newname': p.split('/').last,
             })
         .toList();
     return _runManager('move', entries);
