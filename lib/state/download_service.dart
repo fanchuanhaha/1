@@ -17,31 +17,39 @@ class DownloadService {
   /// 把直链加入 Gopeed 下载队列，返回错误信息（null 表示成功）
   ///
   /// [referer] / [userAgent] 供不同网盘传入专属请求头（百度等需要，否则容易 403）。
+  /// [path] 可覆盖下载目录；[extraHeaders] 若提供则完全替换默认请求头（用于「自定义下载」）。
   static Future<String?> addDirectUrl({
     required String url,
     required String fileName,
     required String cookie,
     String referer = 'https://pan.quark.cn/',
     String userAgent = QuarkClient.uaPc,
+    String? path,
+    Map<String, String>? extraHeaders,
     int connections = 16,
   }) async {
     AppLogger.I.i(
         'download',
         'addDirectUrl: name=$fileName urlHost=${_host(url)} '
-        'cookieLen=${cookie.length} referer=$referer connections=$connections');
+        'cookieLen=${cookie.length} referer=$referer connections=$connections '
+        'path=$path');
     try {
-      final dir = await AppState.I.effectiveDownloadDir();
+      final dir = (path != null && path.isNotEmpty)
+          ? path
+          : await AppState.I.effectiveDownloadDir();
       AppLogger.I.i('download', 'addDirectUrl: 下载目录 dir=$dir');
       final client = await GopeedEngine.ensureStarted();
+      final headers = extraHeaders ??
+          {
+            if (cookie.isNotEmpty) 'Cookie': cookie,
+            'Referer': referer,
+            'User-Agent': userAgent,
+          };
       final id = await client.create(
         url: url,
         path: dir,
         name: fileName,
-        headers: {
-          if (cookie.isNotEmpty) 'Cookie': cookie,
-          'Referer': referer,
-          'User-Agent': userAgent,
-        },
+        headers: headers,
         connections: connections,
       );
       AppLogger.I.i('download', 'addDirectUrl: 已创建下载任务 id=$id url=$url');
@@ -50,6 +58,16 @@ class DownloadService {
       AppLogger.I.e('download', 'addDirectUrl: 创建下载任务失败 url=$url 错误=$e');
       return '创建下载任务失败: $e';
     }
+  }
+
+  /// 从 URL 推断文件名（无显式文件名时用）
+  static String inferFileName(String url) {
+    try {
+      final u = Uri.parse(url);
+      final seg = u.pathSegments.isNotEmpty ? u.pathSegments.last : '';
+      if (seg.isNotEmpty && (seg.contains('.') || seg.isNotEmpty)) return seg;
+    } catch (_) {}
+    return '';
   }
 
   /// 按网盘类型解析下载直链的专属请求头（Referer / UA / Cookie）

@@ -6,6 +6,7 @@ import '../../theme/app_theme.dart';
 import '../../utils/format.dart';
 import '../../widgets/empty_view.dart';
 import '../../widgets/file_icon.dart';
+import 'import_download_sheet.dart';
 
 class DownloadsPage extends StatefulWidget {
   const DownloadsPage({super.key});
@@ -64,6 +65,9 @@ class _DownloadsPageState extends State<DownloadsPage>
                           color: AppColors.accent, size: 26),
                       onSelected: (v) async {
                         switch (v) {
+                          case 'import':
+                            final msg = await ImportDownloadSheet.show(context);
+                            if (msg != null && mounted) _toast(msg);
                           case 'pauseAll':
                             await dm.pauseAllActive();
                             _toast('已全部暂停');
@@ -73,6 +77,7 @@ class _DownloadsPageState extends State<DownloadsPage>
                         }
                       },
                       itemBuilder: (_) => const [
+                        PopupMenuItem(value: 'import', child: Text('自定义下载')),
                         PopupMenuItem(value: 'pauseAll', child: Text('全部暂停')),
                         PopupMenuItem(value: 'clearDone', child: Text('清除已完成')),
                       ],
@@ -182,6 +187,8 @@ class _DownloadsPageState extends State<DownloadsPage>
                 ),
               ),
               _buildStatusBadge(task),
+              const SizedBox(width: 4),
+              _buildControlButton(task),
               PopupMenuButton<String>(
                 icon: const Icon(Icons.more_vert_rounded,
                     color: AppColors.textSecondary, size: 18),
@@ -272,6 +279,44 @@ class _DownloadsPageState extends State<DownloadsPage>
       ),
       child: Text(text,
           style: TextStyle(color: color, fontSize: 11)),
+    );
+  }
+
+  /// 每个任务卡片旁直接显示「暂停/继续」控制按钮（无需再点菜单）
+  Widget _buildControlButton(GopeedTask task) {
+    final paused = task.status == GopeedStatus.pause;
+    final active = task.status == GopeedStatus.running ||
+        task.status == GopeedStatus.wait ||
+        task.status == GopeedStatus.ready;
+    if (!paused && !active) return const SizedBox.shrink();
+    final icon = paused ? Icons.play_arrow_rounded : Icons.pause_rounded;
+    final label = paused ? '继续' : '暂停';
+    return InkWell(
+      onTap: () async {
+        if (paused) {
+          await DownloadManager.I.resumeTask(task);
+        } else {
+          await DownloadManager.I.pauseTask(task);
+        }
+      },
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: AppColors.accent.withValues(alpha: 0.14),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: AppColors.accent, size: 16),
+            const SizedBox(width: 2),
+            Text(label,
+                style:
+                    const TextStyle(color: AppColors.accent, fontSize: 11)),
+          ],
+        ),
+      ),
     );
   }
 
