@@ -62,6 +62,7 @@ open class MainActivity : FlutterActivity() {
                         requestIgnoreBattery()
                         result.success(null)
                     }
+                    "getSupportedAbis" -> result.success(Build.SUPPORTED_ABIS.toList())
                     else -> result.notImplemented()
                 }
             }

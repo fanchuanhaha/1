@@ -158,6 +158,15 @@ abstract class BaseDrive {
   /// 是否支持文件管理操作（分享/重命名/移动/复制/删除）
   bool get supportsFileOps => false;
 
+  /// 是否支持生成分享链接
+  bool get supportsShare => false;
+
+  /// 是否支持重命名
+  bool get supportsRename => false;
+
+  /// 是否支持移动
+  bool get supportsMove => false;
+
   /// 创建分享链接，返回分享结果（链接 + 提取码）。异常或失败抛 [StateError]。
   Future<DriveShareResult> shareFiles(List<String> fids) {
     throw StateError('当前网盘不支持创建分享链接');

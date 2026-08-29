@@ -483,7 +483,7 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
                 _singleDownload(file);
               },
             ),
-            if (widget.drive.supportsFileOps) ...[
+            if (widget.drive.supportsShare) ...[
               const Divider(height: 1),
               ListTile(
                 leading: Icon(Icons.link_rounded,
@@ -495,6 +495,8 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
                   _shareFile(file);
                 },
               ),
+            ],
+            if (widget.drive.supportsRename) ...[
               ListTile(
                 leading: Icon(Icons.drive_file_rename_outline_rounded,
                     color: AppColors.of(context).accent),
@@ -504,6 +506,8 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
                   _renameFile(file);
                 },
               ),
+            ],
+            if (widget.drive.supportsMove) ...[
               ListTile(
                 leading: Icon(Icons.drive_file_move_rounded,
                     color: AppColors.of(context).accent),

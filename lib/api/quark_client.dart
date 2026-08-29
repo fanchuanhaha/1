@@ -414,6 +414,36 @@ class QuarkClient {
     throw QuarkException(-1, '创建文件夹失败: $fileName');
   }
 
+  /// 重命名文件/文件夹，返回 null 表示成功，否则返回错误信息。
+  Future<String?> renameFile(String fid, String newName) async {
+    try {
+      await _post('$driveApi/file/rename', params: _ucParams, data: {
+        'file_name': newName,
+        'fid': fid,
+      });
+      return null;
+    } on QuarkException catch (e) {
+      return '重命名失败: ${e.message}';
+    } catch (e) {
+      return '重命名失败: $e';
+    }
+  }
+
+  /// 移动文件/文件夹到目标目录，返回 null 表示成功，否则返回错误信息。
+  Future<String?> moveFiles(List<String> fids, String toPdirFid) async {
+    try {
+      await _post('$driveApi/file/move', params: _ucParams, data: {
+        'fid_list': fids,
+        'to_pdir_fid': toPdirFid,
+      });
+      return null;
+    } on QuarkException catch (e) {
+      return '移动失败: ${e.message}';
+    } catch (e) {
+      return '移动失败: $e';
+    }
+  }
+
   /// 上传预申请：返回 OSS 分片上传会话（含秒传标记）
   Future<QuarkUploadSession> uploadPre({
     required String pdirFid,

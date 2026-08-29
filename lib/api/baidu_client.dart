@@ -788,6 +788,15 @@ class BaiduClient extends BaseDrive {
   @override
   bool get supportsFileOps => true;
 
+  @override
+  bool get supportsShare => true;
+
+  @override
+  bool get supportsRename => true;
+
+  @override
+  bool get supportsMove => true;
+
   /// 把 fids（百度下为文件完整路径）统一转成 fs_id 数字列表（供分享等接口使用）。
   Future<List<int>> _fidsToFsIds(List<String> fids) async {
     if (fids.isEmpty) return [];

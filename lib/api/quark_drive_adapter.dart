@@ -149,5 +149,19 @@ class QuarkDriveAdapter extends BaseDrive {
   }
 
   @override
+  bool get supportsRename => true;
+
+  @override
+  bool get supportsMove => true;
+
+  @override
+  Future<String?> renameFile(String fid, String newName) =>
+      _client.renameFile(fid, newName);
+
+  @override
+  Future<String?> moveFiles(List<String> fids, String toPdirFid) =>
+      _client.moveFiles(fids, toPdirFid);
+
+  @override
   void dispose() {}
 }

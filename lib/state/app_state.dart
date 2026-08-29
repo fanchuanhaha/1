@@ -32,6 +32,17 @@ class AppState extends ChangeNotifier {
   /// 网盘驱动管理器
   final DriveManager driveManager = DriveManager.I;
 
+  /// 设备支持的 CPU 架构（Android ABI 列表，如 [arm64-v8a]）；非 Android 返回空
+  Future<List<String>> getSupportedAbis() async {
+    try {
+      final list =
+          await _sysChannel.invokeListMethod<String>('getSupportedAbis');
+      return list ?? const [];
+    } catch (_) {
+      return const [];
+    }
+  }
+
   /// 夸克客户端（兼容旧代码）
   QuarkClient get quark => driveManager.quark;
 
