@@ -76,6 +76,13 @@ class GopeedClient {
     await _dio.put('/tasks/$id/continue');
   }
 
+  /// 重试（重新开始）一个已失败 / 已完成 / 已暂停的任务，返回新任务 id。
+  Future<String> restore(String id) async {
+    final resp = await _dio.post('/tasks/$id/restore');
+    final data = _check(resp);
+    return data?.toString() ?? '';
+  }
+
   Future<void> remove(String id, {bool force = true}) async {
     await _dio.delete('/tasks/$id', queryParameters: {'force': force});
   }

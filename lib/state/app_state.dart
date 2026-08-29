@@ -20,6 +20,10 @@ class AppState extends ChangeNotifier {
   static const _kThemeMode = 'theme_mode';
   static const _kUploadParallelism = 'upload_parallelism';
 
+  // ---- 第三方接口配置（「野鸡百度加速」等，预留多接口扩展） ----
+  static const _kBaiduAccelEnabled = 'baidu_accel_enabled';
+  static const _kBaiduAccelPassword = 'baidu_accel_password';
+
   static AppState? _instance;
   static AppState get I => _instance ??= AppState._();
 
@@ -56,6 +60,16 @@ class AppState extends ChangeNotifier {
   /// 同时上传任务数（默认 1：一次一个文件，减少接口限流与内存占用）
   int uploadParallelism = 1;
 
+  /// 是否开启「野鸡百度加速」接口
+  bool baiduAccelEnabled = false;
+
+  /// 「野鸡百度加速」接口的解析密码（站点公告提供的解析密码）
+  String baiduAccelPassword = '';
+
+  /// 是否应使用百度加速接口下载百度网盘文件
+  bool get isBaiduAccelOn =>
+      baiduAccelEnabled && driveManager.getDrive(DriveType.baidu)?.hasLogin == true;
+
   Timer? _sessionTimer;
 
   Future<void> init() async {
@@ -71,6 +85,8 @@ class AppState extends ChangeNotifier {
       closeAction = prefs.getString(_kCloseAction) ?? 'ask_once';
       themeMode = prefs.getString(_kThemeMode) ?? 'dark';
       uploadParallelism = prefs.getInt(_kUploadParallelism) ?? 1;
+      baiduAccelEnabled = prefs.getBool(_kBaiduAccelEnabled) ?? false;
+      baiduAccelPassword = prefs.getString(_kBaiduAccelPassword) ?? '';
       notifyListeners();
     });
   }
@@ -116,6 +132,22 @@ class AppState extends ChangeNotifier {
     uploadParallelism = n;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_kUploadParallelism, n);
+    notifyListeners();
+  }
+
+  /// 设置是否开启「野鸡百度加速」接口
+  Future<void> setBaiduAccelEnabled(bool on) async {
+    baiduAccelEnabled = on;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kBaiduAccelEnabled, on);
+    notifyListeners();
+  }
+
+  /// 设置「野鸡百度加速」接口的解析密码
+  Future<void> setBaiduAccelPassword(String pwd) async {
+    baiduAccelPassword = pwd.trim();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kBaiduAccelPassword, baiduAccelPassword);
     notifyListeners();
   }
 

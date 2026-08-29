@@ -5,12 +5,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'core/gopeed/gopeed_boot.dart';
-import 'pages/downloads/downloads_page.dart';
 import 'pages/drive/drive_list_page.dart';
 import 'pages/drive/drive_page.dart';
 import 'pages/me/me_page.dart';
 import 'pages/parse/parse_page.dart';
-import 'pages/uploads/uploads_page.dart';
+import 'pages/tasks/tasks_page.dart';
 import 'state/app_state.dart';
 import 'state/download_manager.dart';
 import 'theme/app_theme.dart';
@@ -153,8 +152,7 @@ class _RootPageState extends State<RootPage> {
   static const _pages = [
     ParsePage(),
     DriveListPage(),
-    DownloadsPage(),
-    UploadsPage(),
+    TasksPage(),
     MePage(),
   ];
 
@@ -234,8 +232,7 @@ class _BottomBar extends StatelessWidget {
     final items = [
       (Icons.link_rounded, '解析'),
       (Icons.folder_rounded, '网盘'),
-      (Icons.download_rounded, '下载'),
-      (Icons.cloud_upload_outlined, '上传'),
+      (Icons.inventory_2_rounded, '任务'),
       (Icons.person_outline_rounded, '我的'),
     ];
     return Container(

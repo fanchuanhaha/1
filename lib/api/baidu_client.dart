@@ -782,6 +782,99 @@ class BaiduClient extends BaseDrive {
     return body;
   }
 
+  // ──────────────────── 文件管理操作实现（BaseDrive） ────────────────────
+
+  @override
+  bool get supportsFileOps => true;
+
+  /// 把 fids（百度下为文件完整路径）统一转成 fs_id 数字列表（供分享等接口使用）。
+  Future<List<int>> _fidsToFsIds(List<String> fids) async {
+    if (fids.isEmpty) return [];
+    final metas = await getFileMetas(fids);
+    return metas
+        .map((m) => toInt(m['fs_id']))
+        .where((v) => v > 0)
+        .toList();
+  }
+
+  @override
+  Future<DriveShareResult> shareFiles(List<String> fids) async {
+    if (fids.isEmpty) throw StateError('请先选择文件');
+    final fsIds = await _fidsToFsIds(fids);
+    if (fsIds.isEmpty) throw StateError('未能获取文件信息，请重试');
+    // 无提取码保护，便于「野鸡百度加速」接口直接解析
+    final body = await createShareLink(fsIds.map((e) => e.toString()).toList(),
+        pwd: '');
+    final errno = toInt(body['errno'], fallback: 0);
+    if (body.containsKey('errno') && errno != 0) {
+      throw StateError(body['errmsg']?.toString() ?? '创建分享链接失败($errno)');
+    }
+    var link = body['link']?.toString() ?? '';
+    if (link.isEmpty) {
+      final surl = body['surl']?.toString() ?? body['shortlink']?.toString() ?? '';
+      if (surl.isNotEmpty) link = 'https://pan.baidu.com/s/$surl';
+    }
+    if (link.isEmpty) throw StateError('创建分享链接失败：未返回分享地址');
+    return DriveShareResult(
+      url: link,
+      pwd: body['pwd']?.toString() ?? '',
+      surl: body['surl']?.toString() ?? body['shortlink']?.toString() ?? '',
+    );
+  }
+
+  /// 统一的 filemanager 调用：entries 形如 {path, newname?}，返回 null 表示成功。
+  Future<String?> _runManager(String opera, List<Map<String, dynamic>> entries) async {
+    try {
+      final body = await _post('$_baseUrl/api/filemanager', params: {
+        'bdstoken': _bdstoken,
+        'clienttype': 0,
+        'app_id': 250528,
+        'web': 1,
+      }, data: {
+        'opera': opera,
+        'async': 0,
+        'ondup': 'newcopy',
+        'filelist': jsonEncode(entries),
+      });
+      final errno = toInt(body['errno'], fallback: 0);
+      if (errno != 0) {
+        return body['errmsg']?.toString() ?? body['show_msg']?.toString() ?? '操作失败($errno)';
+      }
+      return null;
+    } catch (e) {
+      return '操作失败: $e';
+    }
+  }
+
+  @override
+  Future<String?> renameFile(String fid, String newName) {
+    return _runManager('rename', [
+      {'path': fid, 'newname': newName},
+    ]);
+  }
+
+  @override
+  Future<String?> moveFiles(List<String> fids, String toDirFid) {
+    final entries = fids
+        .map((p) => {
+              'path': p,
+              'newname': '$toDirFid/${p.split('/').last}',
+            })
+        .toList();
+    return _runManager('move', entries);
+  }
+
+  @override
+  Future<String?> copyFiles(List<String> fids, String toDirFid) {
+    final entries = fids
+        .map((p) => {
+              'path': p,
+              'newname': '$toDirFid/${p.split('/').last}',
+            })
+        .toList();
+    return _runManager('copy', entries);
+  }
+
   /// 获取配额（空间使用情况）
   Future<Map<String, dynamic>> getQuota() async {
     final body = await _get('$_yunBaseUrl/api/quota', params: {

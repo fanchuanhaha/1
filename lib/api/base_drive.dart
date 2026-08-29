@@ -152,6 +152,48 @@ abstract class BaseDrive {
   /// 转存分享文件
   Future<void> saveShare(DriveShareSession session, List<DriveShareFile> files, String toPdirFid);
 
+  // ──────────────────── 文件管理操作（分享 / 重命名 / 移动等） ────────────────────
+  // 默认不支持；对应网盘（如百度）通过覆写实现，UI 用 [supportsFileOps] 判断是否展示。
+
+  /// 是否支持文件管理操作（分享/重命名/移动/复制/删除）
+  bool get supportsFileOps => false;
+
+  /// 创建分享链接，返回分享结果（链接 + 提取码）。异常或失败抛 [StateError]。
+  Future<DriveShareResult> shareFiles(List<String> fids) {
+    throw StateError('当前网盘不支持创建分享链接');
+  }
+
+  /// 重命名文件/文件夹，返回 null 表示成功，否则返回错误信息。
+  Future<String?> renameFile(String fid, String newName) {
+    return Future.value('当前网盘不支持重命名');
+  }
+
+  /// 移动文件/文件夹到目标目录，返回 null 表示成功，否则返回错误信息。
+  Future<String?> moveFiles(List<String> fids, String toDirFid) {
+    return Future.value('当前网盘不支持移动');
+  }
+
+  /// 复制文件/文件夹到目标目录，返回 null 表示成功，否则返回错误信息。
+  Future<String?> copyFiles(List<String> fids, String toDirFid) {
+    return Future.value('当前网盘不支持复制');
+  }
+
   /// 释放资源
   void dispose();
+}
+
+/// 创建分享链接的返回结果
+class DriveShareResult {
+  /// 完整分享链接，如 https://pan.baidu.com/s/xxx?pwd=xxxx
+  final String url;
+
+  /// 提取码（可能为空）
+  final String pwd;
+
+  /// 分享短码（surl）
+  final String surl;
+
+  DriveShareResult({required this.url, this.pwd = '', this.surl = ''});
+
+  bool get hasPwd => pwd.isNotEmpty;
 }

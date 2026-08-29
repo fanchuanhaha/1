@@ -28,6 +28,8 @@ class MePage extends StatelessWidget {
               ),
               _buildSettingsCard(context, app),
               const SizedBox(height: 16),
+              _buildInterfaceCard(context, app),
+              const SizedBox(height: 16),
               _buildAboutCard(context),
             ],
           ),
@@ -111,6 +113,39 @@ class MePage extends StatelessWidget {
             trailing: Icon(Icons.chevron_right_rounded,
                 color: AppColors.of(context).textSecondary),
             onTap: () => _editThemeMode(context, app),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 「接口」设置卡片：目前内置「野鸡百度加速」，预留后续新增接口。
+  /// 结构为接口列表，每个接口可展开，包含开启开关与密码配置。
+  Widget _buildInterfaceCard(BuildContext context, AppState app) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.of(context).card,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
+            child: Text('接口',
+                style: TextStyle(
+                    color: AppColors.of(context).textSecondary, fontSize: 12)),
+          ),
+          const Divider(height: 1),
+          _InterfaceTile(
+            icon: Icons.bolt_rounded,
+            name: '野鸡百度加速',
+            desc: '百度网盘下载走第三方解析直链',
+            enabled: app.baiduAccelEnabled,
+            password: app.baiduAccelPassword,
+            needsPassword: true,
+            onEnabledChanged: (on) => app.setBaiduAccelEnabled(on),
+            onPasswordChanged: (p) => app.setBaiduAccelPassword(p),
           ),
         ],
       ),
@@ -470,6 +505,191 @@ class MePage extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// 「接口」列表中的单个可展开项：头部为图标/名称/描述 + 开启开关，
+/// 展开后露出密码配置与说明。结构可复用，便于后续新增更多接口。
+class _InterfaceTile extends StatefulWidget {
+  final IconData icon;
+  final String name;
+  final String desc;
+  final bool enabled;
+  final String password;
+  final bool needsPassword;
+  final ValueChanged<bool> onEnabledChanged;
+  final ValueChanged<String> onPasswordChanged;
+
+  const _InterfaceTile({
+    required this.icon,
+    required this.name,
+    required this.desc,
+    required this.enabled,
+    required this.password,
+    required this.onEnabledChanged,
+    required this.onPasswordChanged,
+    this.needsPassword = false,
+  });
+
+  @override
+  State<_InterfaceTile> createState() => _InterfaceTileState();
+}
+
+class _InterfaceTileState extends State<_InterfaceTile> {
+  bool _expanded = false;
+
+  void _toggleExpand() => setState(() => _expanded = !_expanded);
+
+  /// 切换开关：开启时若需要密码但尚未填写，则先引导填写密码。
+  Future<void> _toggleEnabled() async {
+    if (widget.enabled) {
+      await widget.onEnabledChanged(false);
+      return;
+    }
+    if (widget.needsPassword && widget.password.isEmpty) {
+      await _editPassword(enableAfterSave: true);
+      return;
+    }
+    await widget.onEnabledChanged(true);
+  }
+
+  Future<void> _editPassword({bool enableAfterSave = false}) async {
+    final controller = TextEditingController(text: widget.password);
+    if (!mounted) return;
+    final saved = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('「${widget.name}」解析密码'),
+        content: TextField(
+          controller: controller,
+          obscureText: true,
+          decoration: const InputDecoration(
+            hintText: '请输入站点公告提供的解析密码',
+            labelText: '解析密码',
+          ),
+          style: TextStyle(color: AppColors.of(ctx).textPrimary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('保存'),
+          ),
+        ],
+      ),
+    );
+    if (saved == null || saved.isEmpty) return;
+    await widget.onPasswordChanged(saved);
+    if (enableAfterSave && !widget.enabled) {
+      await widget.onEnabledChanged(true);
+    }
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('解析密码已保存')));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = AppColors.of(context).accent;
+    final textSecondary = AppColors.of(context).textSecondary;
+    return Column(
+      children: [
+        InkWell(
+          onTap: _toggleExpand,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: widget.enabled
+                        ? accent.withValues(alpha: 0.15)
+                        : AppColors.of(context).cardLight,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(widget.icon,
+                      color: widget.enabled ? accent : textSecondary, size: 22),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(widget.name,
+                          style: const TextStyle(
+                              fontSize: 15, fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 2),
+                      Text(
+                        widget.enabled
+                            ? '已开启'
+                            : (widget.needsPassword && widget.password.isEmpty
+                                ? '未配置解析密码'
+                                : '未开启'),
+                        style: TextStyle(color: textSecondary, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+                Switch(
+                  value: widget.enabled,
+                  activeColor: accent,
+                  onChanged: (_) => _toggleEnabled(),
+                ),
+                Icon(
+                  _expanded ? Icons.expand_less_rounded : Icons.expand_more_rounded,
+                  color: textSecondary,
+                ),
+              ],
+            ),
+          ),
+        ),
+        AnimatedCrossFade(
+          duration: const Duration(milliseconds: 200),
+          crossFadeState:
+              _expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+          firstChild: const SizedBox(width: double.infinity),
+          secondChild: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (widget.needsPassword) ...[
+                  Text('说明：下载百度网盘文件前，会先对该文件创建公开分享链接，再由该接口解析出加速直链下载。该接口需要填写解析密码才能使用。',
+                      style: TextStyle(fontSize: 12, color: textSecondary, height: 1.5)),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          widget.password.isEmpty ? '解析密码：未设置' : '解析密码：${widget.password}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 12, color: textSecondary),
+                        ),
+                      ),
+                      TextButton.icon(
+                        onPressed: () => _editPassword(),
+                        icon: const Icon(Icons.edit_rounded, size: 16),
+                        label: const Text('修改密码'),
+                      ),
+                    ],
+                  ),
+                ] else
+                  Text(widget.desc,
+                      style: TextStyle(fontSize: 12, color: textSecondary)),
+              ],
+            ),
+          ),
+        ),
+        const Divider(height: 1),
+      ],
     );
   }
 }

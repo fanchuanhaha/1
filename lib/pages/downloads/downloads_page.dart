@@ -198,6 +198,9 @@ class _DownloadsPageState extends State<DownloadsPage>
                       await DownloadManager.I.pauseTask(task);
                     case 'resume':
                       await DownloadManager.I.resumeTask(task);
+                    case 'retry':
+                      final err = await DownloadManager.I.retryTask(task);
+                      if (err != null) _toast(err);
                     case 'delete':
                       await _confirmDelete(task);
                     case 'deleteFile':
@@ -209,6 +212,8 @@ class _DownloadsPageState extends State<DownloadsPage>
                     const PopupMenuItem(value: 'pause', child: Text('暂停')),
                   if (paused)
                     const PopupMenuItem(value: 'resume', child: Text('继续下载')),
+                  if (failed)
+                    const PopupMenuItem(value: 'retry', child: Text('重试')),
                   const PopupMenuItem(value: 'delete', child: Text('删除任务')),
                   const PopupMenuItem(value: 'deleteFile', child: Text('删除任务和文件')),
                 ],
@@ -282,12 +287,40 @@ class _DownloadsPageState extends State<DownloadsPage>
     );
   }
 
-  /// 每个任务卡片旁直接显示「暂停/继续」控制按钮（无需再点菜单）
+  /// 每个任务卡片旁直接显示「暂停/继续/重试」控制按钮（无需再点菜单）
   Widget _buildControlButton(GopeedTask task) {
     final paused = task.status == GopeedStatus.pause;
+    final failed = task.status == GopeedStatus.error;
     final active = task.status == GopeedStatus.running ||
         task.status == GopeedStatus.wait ||
         task.status == GopeedStatus.ready;
+    if (failed) {
+      return InkWell(
+        onTap: () async {
+          final err = await DownloadManager.I.retryTask(task);
+          if (err != null) _toast(err);
+        },
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: AppColors.of(context).accent.withValues(alpha: 0.14),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.refresh_rounded,
+                  color: AppColors.of(context).accent, size: 16),
+              const SizedBox(width: 2),
+              Text('重试',
+                  style: TextStyle(
+                      color: AppColors.of(context).accent, fontSize: 11)),
+            ],
+          ),
+        ),
+      );
+    }
     if (!paused && !active) return const SizedBox.shrink();
     final icon = paused ? Icons.play_arrow_rounded : Icons.pause_rounded;
     final label = paused ? '继续' : '暂停';

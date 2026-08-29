@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../api/base_drive.dart';
+import '../../api/baidu_accel_service.dart';
+import '../../api/drive_type.dart';
 import '../../state/app_state.dart';
 import '../../state/download_manager.dart';
 import '../../state/download_service.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/app_logger.dart';
 import '../../utils/format.dart';
 import '../../widgets/empty_view.dart';
 import '../../widgets/file_icon.dart';
@@ -148,12 +152,73 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
 
   void _singleDownload(DriveFile file) => _batchDownload([file.fid]);
 
+  /// 当前驱动是否为百度网盘且已开启「野鸡百度加速」接口
+  bool get _useAccel =>
+      widget.drive.type == DriveType.baidu && AppState.I.isBaiduAccelOn;
+
+  /// 解析下载信息：开启百度加速接口时，先对文件创建公开分享链接，再由
+  /// 第三方接口解析出加速直链；任一环节失败则回退用网盘原生方式获取直链。
+  Future<List<DriveDownloadInfo>> _resolveDownloadInfo(
+      List<String> fids) async {
+    if (!_useAccel) return widget.drive.getDownloadInfo(fids);
+
+    final accel = BaiduAccelService.I;
+    final password = AppState.I.baiduAccelPassword;
+    final results = <DriveDownloadInfo>[];
+    for (final fid in fids) {
+      final matched = _files.where((f) => f.fid == fid).toList();
+      final fileName =
+          matched.isNotEmpty ? matched.first.fileName : '$fid';
+      try {
+        final share = await widget.drive.shareFiles([fid]);
+        final fileList =
+            await accel.getFileList(url: share.url, parsePassword: password);
+        // 根据文件名定位 fs_id；若分享目录只有一个文件则直接用其 fs_id
+        String fsId = fileList.list
+            .where((f) => !f.isDir && f.serverFilename == fileName)
+            .map((f) => f.fsId)
+            .firstOrNull ??
+            fileList.list.where((f) => !f.isDir).map((f) => f.fsId).firstOrNull ??
+            '';
+        if (fsId.isEmpty) {
+          AppLogger.I.w('drive_files', 'fid=$fid 未匹配到加速文件，回退普通下载');
+          results.addAll(await widget.drive.getDownloadInfo([fid]));
+          continue;
+        }
+        final urlMap = await accel.getDownloadLinks(
+          fileList: fileList,
+          fsIds: [fsId],
+          surl: share.surl,
+          pwd: share.pwd,
+          parsePassword: password,
+        );
+        final urls = urlMap[fsId];
+        if (urls == null || urls.isEmpty) {
+          results.addAll(await widget.drive.getDownloadInfo([fid]));
+          continue;
+        }
+        final size =
+            matched.isNotEmpty ? matched.first.size : 0;
+        results.add(DriveDownloadInfo(
+          url: urls.first,
+          fileName: fileName,
+          size: size,
+          fid: fid,
+        ));
+      } catch (e) {
+        AppLogger.I.w('drive_files', '百度加速解析失败，回退普通下载 $fid: $e');
+        results.addAll(await widget.drive.getDownloadInfo([fid]));
+      }
+    }
+    return results;
+  }
+
   Future<void> _batchDownload([List<String>? specific]) async {
     final targets = specific ?? _selected.toList();
     if ((specific == null && _selected.isEmpty) || _downloading) return;
     setState(() => _downloading = true);
     try {
-      final infos = await widget.drive.getDownloadInfo(targets);
+      final infos = await _resolveDownloadInfo(targets);
       if (!mounted) return;
       var added = 0;
       for (final info in infos) {
@@ -418,6 +483,38 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
                 _singleDownload(file);
               },
             ),
+            if (widget.drive.supportsFileOps) ...[
+              const Divider(height: 1),
+              ListTile(
+                leading: Icon(Icons.link_rounded,
+                    color: AppColors.of(context).accent),
+                title: const Text('分享链接'),
+                subtitle: const Text('生成公开分享链接并复制'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _shareFile(file);
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.drive_file_rename_outline_rounded,
+                    color: AppColors.of(context).accent),
+                title: const Text('重命名'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _renameFile(file);
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.drive_file_move_rounded,
+                    color: AppColors.of(context).accent),
+                title: const Text('移动到'),
+                subtitle: const Text('选择目标文件夹，移动该文件'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _moveFile(file);
+                },
+              ),
+            ],
             const SizedBox(height: 8),
           ],
         ),
@@ -428,5 +525,292 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
   void _toast(String msg) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  // ---------------- 文件管理操作：分享 / 重命名 / 移动 ----------------
+
+  Future<void> _shareFile(DriveFile file) async {
+    try {
+      final result = await widget.drive.shareFiles([file.fid]);
+      await Clipboard.setData(ClipboardData(text: result.url));
+      if (!mounted) return;
+      showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('分享链接已生成并复制'),
+          content: SelectableText(
+            result.hasPwd ? '${result.url}?pwd=${result.pwd}' : result.url,
+            style: TextStyle(color: AppColors.of(context).textSecondary),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('关闭')),
+          ],
+        ),
+      );
+    } catch (e) {
+      _toast('分享失败: $e');
+    }
+  }
+
+  Future<void> _renameFile(DriveFile file) async {
+    final controller = TextEditingController(text: file.fileName);
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('重命名'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLines: 1,
+          style: TextStyle(color: AppColors.of(ctx).textPrimary),
+          decoration: const InputDecoration(labelText: '新名称'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('确定'),
+          ),
+        ],
+      ),
+    );
+    if (newName == null || newName.isEmpty || newName == file.fileName) return;
+    final err = await widget.drive.renameFile(file.fid, newName);
+    if (!mounted) return;
+    if (err != null) {
+      _toast(err);
+    } else {
+      _toast('已重命名为「$newName」');
+      _load();
+    }
+  }
+
+  Future<void> _moveFile(DriveFile file) async {
+    final toDirFid = await _FolderPicker.show(context, drive: widget.drive);
+    if (toDirFid == null || toDirFid.isEmpty) return;
+    if (toDirFid == file.pdirFid) {
+      _toast('已在目标文件夹中');
+      return;
+    }
+    final err = await widget.drive.moveFiles([file.fid], toDirFid);
+    if (!mounted) return;
+    if (err != null) {
+      _toast(err);
+    } else {
+      _toast('已移动「${file.fileName}」');
+      _load();
+    }
+  }
+}
+
+/// 移动/复制文件时的目标文件夹选择器：从网盘根目录逐级浏览文件夹，
+/// 点击「移动至此」返回当前目录 fid。返回 null 表示用户取消。
+class _FolderPicker extends StatefulWidget {
+  final BaseDrive drive;
+
+  const _FolderPicker({required this.drive});
+
+  /// 弹出文件夹选择，返回选中的目录 fid（取消返回 null）。
+  static Future<String?> show(BuildContext context, {required BaseDrive drive}) {
+    return showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.of(context).card,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (_) => FractionallySizedBox(
+        heightFactor: 0.75,
+        child: _FolderPicker(drive: drive),
+      ),
+    );
+  }
+
+  @override
+  State<_FolderPicker> createState() => _FolderPickerState();
+}
+
+class _FolderPickerState extends State<_FolderPicker> {
+  final List<(String, String)> _crumbs = [('0', '根目录')];
+  String _currentFid = '0';
+  bool _loading = false;
+  List<DriveFile> _dirs = [];
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final files = await widget.drive.listFiles(_currentFid);
+      if (mounted) {
+        setState(() {
+          _dirs = files.where((f) => f.isDir).toList();
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _error = e.toString();
+        });
+      }
+    }
+  }
+
+  void _enterDir(DriveFile dir) {
+    setState(() {
+      _crumbs.add((_currentFid, dir.fileName));
+      _currentFid = dir.fid;
+      _dirs = [];
+      _loading = true;
+    });
+    _load();
+  }
+
+  void _goTo(int index) {
+    if (index >= _crumbs.length - 1) return;
+    setState(() {
+      _crumbs.removeRange(index + 1, _crumbs.length);
+      _currentFid = _crumbs.last.$1;
+      _dirs = [];
+    });
+    _load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
+          child: Row(
+            children: [
+              const Expanded(
+                child: Text('选择目标文件夹',
+                    style: TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.w700)),
+              ),
+              IconButton(
+                onPressed: () => Navigator.pop(context),
+                icon: Icon(Icons.close_rounded,
+                    color: AppColors.of(context).textSecondary),
+              ),
+            ],
+          ),
+        ),
+        // 面包屑
+        SizedBox(
+          height: 32,
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                for (var i = 0; i < _crumbs.length; i++) ...[
+                  if (i > 0)
+                    Icon(Icons.chevron_right_rounded,
+                        size: 15, color: AppColors.of(context).textSecondary),
+                  InkWell(
+                    onTap: () => _goTo(i),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 3),
+                      child: Text(
+                        _crumbs[i].$2,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: i == _crumbs.length - 1
+                              ? AppColors.of(context).accent
+                              : AppColors.of(context).textSecondary,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+        const Divider(height: 1),
+        // 目录列表
+        Expanded(
+          child: _loading
+              ? const Center(child: CircularProgressIndicator())
+              : _error != null
+                  ? EmptyView(
+                      icon: Icons.cloud_off_rounded,
+                      text: '加载失败',
+                      subText: _error!,
+                      action: OutlinedButton(
+                          onPressed: _load, child: const Text('重试')),
+                    )
+                  : _dirs.isEmpty
+                      ? const EmptyView(
+                          icon: Icons.folder_open_rounded,
+                          text: '当前目录没有子文件夹')
+                      : ListView.separated(
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                          itemCount: _dirs.length,
+                          separatorBuilder: (_, _) =>
+                              const SizedBox(height: 6),
+                          itemBuilder: (_, i) {
+                            final d = _dirs[i];
+                            return InkWell(
+                              onTap: () => _enterDir(d),
+                              borderRadius: BorderRadius.circular(10),
+                              child: Row(
+                                children: [
+                                  FileIcon(isDir: true, name: d.fileName),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(d.fileName,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                            color: AppColors.of(context)
+                                                .textPrimary,
+                                            fontSize: 14)),
+                                  ),
+                                  Icon(Icons.chevron_right_rounded,
+                                      color: AppColors.of(context)
+                                          .textSecondary),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+        ),
+        const Divider(height: 1),
+        SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+            child: SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: () => Navigator.pop(context, _currentFid),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.of(context).accent,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                icon: const Icon(Icons.drive_file_move_rounded, size: 18),
+                label: const Text('移动至此'),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }

@@ -131,6 +131,20 @@ class DownloadManager extends ChangeNotifier {
     }
   }
 
+  /// 重试已失败（或已完成/暂停）的任务：让引擎用原参数重新开始下载。
+  /// 返回 null 表示成功，否则返回错误信息。
+  Future<String?> retryTask(GopeedTask task) async {
+    try {
+      await GopeedEngine.client.restore(task.id);
+      return null;
+    } catch (e) {
+      AppLogger.I.e('download', '重试任务失败 id=${task.id} name=${task.name} 错误=$e');
+      return '重试失败: $e';
+    } finally {
+      await _poll();
+    }
+  }
+
   Future<void> removeTask(GopeedTask task, {bool deleteFile = false}) async {
     try {
       await GopeedEngine.client.remove(task.id, force: deleteFile);
