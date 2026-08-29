@@ -619,11 +619,82 @@ class _DrivePageState extends State<DrivePage>
                 _downloadFile(file);
               },
             ),
+            const Divider(height: 1),
+            ListTile(
+              leading: Icon(Icons.drive_file_rename_outline_rounded,
+                  color: AppColors.of(context).accent),
+              title: const Text('重命名'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _renameFile(file);
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.drive_file_move_rounded,
+                  color: AppColors.of(context).accent),
+              title: const Text('移动到'),
+              subtitle: const Text('选择目标文件夹，移动该文件'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _moveFile(file);
+              },
+            ),
             const SizedBox(height: 8),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _renameFile(QuarkFile file) async {
+    final controller = TextEditingController(text: file.fileName);
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('重命名'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLines: 1,
+          style: TextStyle(color: AppColors.of(ctx).textPrimary),
+          decoration: const InputDecoration(labelText: '新名称'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('确定'),
+          ),
+        ],
+      ),
+    );
+    if (newName == null || newName.isEmpty || newName == file.fileName) return;
+    final err = await AppState.I.quark.renameFile(file.fid, newName);
+    if (!mounted) return;
+    _showSnack(err == null ? '已重命名为「$newName」' : err);
+    if (err == null) _load();
+  }
+
+  Future<void> _moveFile(QuarkFile file) async {
+    final toDirFid = await showQuarkFolderPicker(
+      context: context,
+      listDir: (fid) => AppState.I.quark.listFiles(fid),
+    );
+    if (toDirFid == null || toDirFid.isEmpty) return;
+    if (toDirFid == file.pdirFid) {
+      _showSnack('已在目标文件夹中');
+      return;
+    }
+    final err = await AppState.I.quark.moveFiles([file.fid], toDirFid);
+    if (!mounted) return;
+    _showSnack(err == null ? '已移动「${file.fileName}」' : err);
+    if (err == null) _load();
+  }
+
+  void _showSnack(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(msg)));
   }
 
   Future<void> _downloadFile(QuarkFile file) async {
@@ -768,5 +839,161 @@ Future<void> _walkDrag(
         ));
       } catch (_) {}
     }
+  }
+}
+
+/// 夸克「移动/复制」目标文件夹选择器：从根目录逐级浏览子文件夹，
+/// 点击「移动至此」返回当前目录 fid，取消返回 null。
+Future<String?> showQuarkFolderPicker({
+  required BuildContext context,
+  required Future<List<QuarkFile>> Function(String fid) listDir,
+}) {
+  return showModalBottomSheet<String>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: AppColors.of(context).card,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+    ),
+    builder: (_) => FractionallySizedBox(
+      heightFactor: 0.75,
+      child: _QuarkFolderPicker(listDir: listDir),
+    ),
+  );
+}
+
+class _QuarkFolderPicker extends StatefulWidget {
+  final Future<List<QuarkFile>> Function(String fid) listDir;
+  const _QuarkFolderPicker({required this.listDir});
+
+  @override
+  State<_QuarkFolderPicker> createState() => _QuarkFolderPickerState();
+}
+
+class _QuarkFolderPickerState extends State<_QuarkFolderPicker> {
+  final List<(String, String)> _crumbs = [('0', '根目录')];
+  String _currentFid = '0';
+  bool _loading = false;
+  List<QuarkFile> _dirs = [];
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final files = await widget.listDir(_currentFid);
+      if (mounted) {
+        setState(() {
+          _dirs = files.where((f) => f.isDir).toList();
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _error = e.toString();
+        });
+      }
+    }
+  }
+
+  void _enter(QuarkFile dir) {
+    setState(() {
+      _crumbs.add((_currentFid, dir.fileName));
+      _currentFid = dir.fid;
+      _dirs = [];
+      _loading = true;
+    });
+    _load();
+  }
+
+  void _go(int i) {
+    if (i >= _crumbs.length - 1) return;
+    setState(() {
+      _crumbs.removeRange(i + 1, _crumbs.length);
+      _currentFid = _crumbs.last.$1;
+      _dirs = [];
+    });
+    _load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
+        child: Row(children: [
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(children: [
+                for (var i = 0; i < _crumbs.length; i++) ...[
+                  if (i > 0)
+                    Icon(Icons.chevron_right_rounded,
+                        size: 16, color: AppColors.of(context).textSecondary),
+                  InkWell(
+                    onTap: () => _go(i),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 4, vertical: 4),
+                      child: Text(
+                        _crumbs[i].$2,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: i == _crumbs.length - 1
+                              ? AppColors.of(context).accent
+                              : AppColors.of(context).textSecondary,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ]),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, _currentFid),
+            child: const Text('移动至此'),
+          ),
+        ]),
+      ),
+      const Divider(height: 1),
+      Expanded(
+        child: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _error != null
+                ? EmptyView(
+                    icon: Icons.error_outline_rounded, text: '加载失败')
+                : _dirs.isEmpty
+                    ? const EmptyView(
+                        icon: Icons.folder_off_rounded,
+                        text: '暂无子文件夹')
+                    : ListView.builder(
+                        itemCount: _dirs.length,
+                        itemBuilder: (c, i) {
+                          final d = _dirs[i];
+                          return ListTile(
+                            leading: Icon(Icons.folder_rounded,
+                                color: AppColors.of(context).accent),
+                            title: Text(d.fileName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis),
+                            trailing: Icon(Icons.chevron_right_rounded,
+                                color: AppColors.of(context).textSecondary),
+                            onTap: () => _enter(d),
+                          );
+                        },
+                      ),
+      ),
+    ]);
   }
 }

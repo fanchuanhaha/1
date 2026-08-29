@@ -122,10 +122,15 @@ class BaiduClient extends BaseDrive {
     Map<String, dynamic>? params,
     Object? data,
     bool isJson = false,
+    bool isForm = false,
   }) async {
     final headers = Map<String, dynamic>.from(_buildHeaders());
     if (isJson) {
       headers['Content-Type'] = 'application/json';
+    }
+    if (isForm) {
+      // 百度部分接口（api/filemanager）要求 application/x-www-form-urlencoded
+      headers['Content-Type'] = 'application/x-www-form-urlencoded';
     }
 
     Response<dynamic> resp;
@@ -212,8 +217,10 @@ class BaiduClient extends BaseDrive {
     Map<String, dynamic>? params,
     Object? data,
     bool isJson = false,
+    bool isForm = false,
   }) async {
-    final body = await _request('POST', url, params: params, data: data, isJson: isJson);
+    final body = await _request('POST', url,
+        params: params, data: data, isJson: isJson, isForm: isForm);
     return _checkAndReturn(body);
   }
 
@@ -842,10 +849,11 @@ class BaiduClient extends BaseDrive {
         'web': 1,
       }, data: {
         'opera': opera,
-        'async': 0,
+        'async': 1,
+        'channel': 'chunlei',
         'ondup': 'newcopy',
         'filelist': jsonEncode(entries),
-      });
+      }, isForm: true);
       final errno = toInt(body['errno'], fallback: 0);
       if (errno != 0) {
         return body['errmsg']?.toString() ?? body['show_msg']?.toString() ?? '操作失败($errno)';
@@ -881,7 +889,8 @@ class BaiduClient extends BaseDrive {
     final entries = fids
         .map((p) => {
               'path': p,
-              'newname': '$toDirFid/${p.split('/').last}',
+              'dest': toDirFid,
+              'newname': p.split('/').last,
             })
         .toList();
     return _runManager('copy', entries);
