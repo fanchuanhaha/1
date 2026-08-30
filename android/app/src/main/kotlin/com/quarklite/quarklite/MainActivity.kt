@@ -106,35 +106,15 @@ open class MainActivity : FlutterActivity() {
         if (!file.exists()) return false
         val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", file)
 
-        // APK 直接交给系统安装器。直接用 MIME 推断 .apk 会落成 */*，
-        // ACTION_VIEW 找不到接收者，导致不会跳到安装包管理界面。
-        if (file.extension.equals("apk", ignoreCase = true)) {
-            return try {
-                val apk = Intent(Intent.ACTION_VIEW).apply {
-                    setDataAndType(uri, "application/vnd.android.package-archive")
-                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                startActivity(apk)
-                true
-            } catch (_: Exception) {
-                // 少数机型 ACTION_VIEW 无接收者时改用显式安装意图
-                try {
-                    val install = Intent(Intent.ACTION_INSTALL_PACKAGE).apply {
-                        setDataAndType(uri, "application/vnd.android.package-archive")
-                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    }
-                    startActivity(install)
-                    true
-                } catch (_: Exception) {
-                    false
-                }
-            }
+        // 直接用系统的「打开」接口。仅 .apk 需要显式指定安装包类型
+        // （MimeTypeMap 识别不到 apk，会落成 */* 导致找不到接收者），
+        // 指定类型后系统会自动把它交给安装包管理程序打开，无需额外分支。
+        val mime = if (file.extension.equals("apk", ignoreCase = true)) {
+            "application/vnd.android.package-archive"
+        } else {
+            MimeTypeMap.getSingleton()
+                .getMimeTypeFromExtension(file.extension.lowercase()) ?: "*/*"
         }
-
-        val mime = MimeTypeMap.getSingleton()
-            .getMimeTypeFromExtension(file.extension.lowercase()) ?: "*/*"
         val intent = Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(uri, mime)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
