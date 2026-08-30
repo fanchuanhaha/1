@@ -131,7 +131,9 @@ class BaiduAccelService {
       'randsk': fileList.randsk,
       'uk': fileList.uk,
       'shareid': fileList.shareId,
-      'fs_id': fsIds.length == 1 ? fsIds.first : fsIds,
+      // 契约要求 fs_id 恒为数值数组（即使只有一个文件也要 `[fs_id]`），
+      // 传单值字符串会被后端判为格式错误。
+      'fs_id': fsIds.map((f) => toInt(f, fallback: 0)).toList(),
       'surl': surl,
       'dir': dir,
       'pwd': pwd,

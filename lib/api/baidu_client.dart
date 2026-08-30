@@ -905,22 +905,25 @@ class BaiduClient extends BaseDrive {
 
   Future<String?> _runManager(String opera, List<Map<String, dynamic>> entries) async {
     try {
+      // 百度 api/filemanager 固定：opera/async/ondup/channel 等置于 query，
+      // 只有 filelist 放表单 body。误放 body 会返回 errno=2(参数错误)。
       final body = await _postForm('$_baseUrl/api/filemanager', params: {
         'bdstoken': _bdstoken,
         'clienttype': 0,
         'app_id': 250528,
         'web': 1,
-      }, fields: {
-        'opera': opera,
-        'async': 0,
         'channel': 'chunlei',
+        'opera': opera,
+        'async': 2,
         'ondup': 'newcopy',
+      }, fields: {
         'filelist': jsonEncode(entries),
       });
       final errno = toInt(body['errno'], fallback: 0);
       if (errno != 0) {
         return body['errmsg']?.toString() ?? body['show_msg']?.toString() ?? '操作失败($errno)';
       }
+      // async=2 时仅返回 taskid，任务异步执行成功与否见 errno
       return null;
     } catch (e) {
       return '操作失败: $e';

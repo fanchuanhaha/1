@@ -42,11 +42,21 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
   final Set<String> _selected = {};
   bool _downloading = false;
 
+  /// 百度加速过程：正中的模态进度条文案与开关
+  final ValueNotifier<String> _accelMessage = ValueNotifier<String>('');
+  bool _accelDialogOpen = false;
+
   @override
   void initState() {
     super.initState();
     _crumbs.add((widget.initialDirFid, widget.driveName));
     _load();
+  }
+
+  @override
+  void dispose() {
+    _accelMessage.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -166,76 +176,130 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
     final accel = BaiduAccelService.I;
     final password = AppState.I.baiduAccelPassword;
     final results = <DriveDownloadInfo>[];
-    for (final fid in fids) {
-      final matched = _files.where((f) => f.fid == fid).toList();
-      final fileName =
-          matched.isNotEmpty ? matched.first.fileName : '$fid';
-      try {
-        _accelStep('正在创建分享…');
-        final share = await widget.drive.shareFiles([fid]);
-        AppLogger.I.i('drive_files', '分享创建成功 url=${share.url} pwd=${share.pwd}');
+    _openAccelDialog('正在创建分享…');
+    try {
+      for (final fid in fids) {
+        final matched = _files.where((f) => f.fid == fid).toList();
+        final fileName =
+            matched.isNotEmpty ? matched.first.fileName : '$fid';
+        try {
+          _accelStep('正在创建分享…');
+          final share = await widget.drive.shareFiles([fid]);
+          AppLogger.I.i('drive_files', '分享创建成功 url=${share.url} pwd=${share.pwd}');
 
-        _accelStep('正在获取分享文件列表…');
-        final fileList =
-            await accel.getFileList(url: share.url, pwd: share.pwd, parsePassword: password);
-        // 根据文件名定位 fs_id；若分享目录只有一个文件则直接用其 fs_id
-        String fsId = fileList.list
-            .where((f) => !f.isDir && f.serverFilename == fileName)
-            .map((f) => f.fsId)
-            .firstOrNull ??
-            fileList.list.where((f) => !f.isDir).map((f) => f.fsId).firstOrNull ??
-            '';
-        if (fsId.isEmpty) {
-          _accelWarn('fid=$fid 分享列表中未匹配到该文件，回退普通下载');
-          results.addAll(await widget.drive.getDownloadInfo([fid]));
-          continue;
-        }
+          _accelStep('正在获取分享文件列表…');
+          final fileList =
+              await accel.getFileList(url: share.url, pwd: share.pwd, parsePassword: password);
+          // 根据文件名定位 fs_id；若分享目录只有一个文件则直接用其 fs_id
+          String fsId = fileList.list
+              .where((f) => !f.isDir && f.serverFilename == fileName)
+              .map((f) => f.fsId)
+              .firstOrNull ??
+              fileList.list.where((f) => !f.isDir).map((f) => f.fsId).firstOrNull ??
+              '';
+          if (fsId.isEmpty) {
+            _accelWarn('fid=$fid 分享列表中未匹配到该文件，回退普通下载');
+            results.addAll(await widget.drive.getDownloadInfo([fid]));
+            continue;
+          }
 
-        _accelStep('正在解析加速直链…');
-        final urlMap = await accel.getDownloadLinks(
-          fileList: fileList,
-          fsIds: [fsId],
-          surl: share.surl,
-          pwd: share.pwd,
-          parsePassword: password,
-        );
-        final urls = urlMap[fsId];
-        if (urls == null || urls.isEmpty) {
-          _accelWarn('fid=$fid 未解析到加速直链，回退普通下载');
+          _accelStep('正在解析加速直链…');
+          final urlMap = await accel.getDownloadLinks(
+            fileList: fileList,
+            fsIds: [fsId],
+            surl: share.surl,
+            pwd: share.pwd,
+            parsePassword: password,
+          );
+          final urls = urlMap[fsId];
+          if (urls == null || urls.isEmpty) {
+            _accelWarn('fid=$fid 未解析到加速直链，回退普通下载');
+            results.addAll(await widget.drive.getDownloadInfo([fid]));
+            continue;
+          }
+          final size =
+              matched.isNotEmpty ? matched.first.size : 0;
+          _accelStep('加速直链获取成功，准备下载');
+          AppLogger.I.i('drive_files', '百度加速直链获取成功 fid=$fid 加速域名=${_hostOf(urls.first)}');
+          results.add(DriveDownloadInfo(
+            url: urls.first,
+            fileName: fileName,
+            size: size,
+            fid: fid,
+          ));
+        } catch (e) {
+          AppLogger.I.w('drive_files', '百度加速解析失败，回退普通下载 $fid: $e');
+          _accelWarn('百度加速解析失败，已回退普通下载：$e');
           results.addAll(await widget.drive.getDownloadInfo([fid]));
-          continue;
         }
-        final size =
-            matched.isNotEmpty ? matched.first.size : 0;
-        _accelStep('加速直链获取成功，准备下载');
-        AppLogger.I.i('drive_files', '百度加速直链获取成功 fid=$fid 加速域名=${_hostOf(urls.first)}');
-        results.add(DriveDownloadInfo(
-          url: urls.first,
-          fileName: fileName,
-          size: size,
-          fid: fid,
-        ));
-      } catch (e) {
-        AppLogger.I.w('drive_files', '百度加速解析失败，回退普通下载 $fid: $e');
-        _accelWarn('百度加速解析失败，已回退普通下载：$e');
-        results.addAll(await widget.drive.getDownloadInfo([fid]));
       }
+      return results;
+    } finally {
+      _closeAccelDialog();
     }
-    return results;
   }
 
   String _hostOf(String url) => Uri.tryParse(url)?.host ?? '';
 
-  /// 在 UI 提示 + 日志记录一个加速进度步骤。
+  /// 打开正中的模态进度框（丝带旋转 + 当前步骤文案），不可点击关闭。
+  void _openAccelDialog(String initial) {
+    if (_accelDialogOpen || !mounted) return;
+    _accelDialogOpen = true;
+    _accelMessage.value = initial;
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => PopScope(
+        canPop: false,
+        child: Dialog(
+          backgroundColor: AppColors.of(dialogContext).card,
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20)),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 3,
+                    color: AppColors.of(dialogContext).accent,
+                  ),
+                ),
+                const SizedBox(width: 20),
+                Flexible(
+                  child: ValueListenableBuilder<String>(
+                    valueListenable: _accelMessage,
+                    builder: (_, msg, __) => Text(
+                      msg,
+                      style: TextStyle(
+                          color: AppColors.of(dialogContext).textPrimary,
+                          fontSize: 15),
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ).then((_) => _accelDialogOpen = false);
+  }
+
+  void _closeAccelDialog() {
+    if (!_accelDialogOpen || !mounted) return;
+    Navigator.of(context, rootNavigator: true)
+        .pop(); // .then 会复位 _accelDialogOpen
+  }
+
+  /// 记录一个加速进度步骤并实时更新正中进度框文案。
   void _accelStep(String msg) {
     AppLogger.I.i('drive_files', '[百度加速] $msg');
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(msg),
-        duration: const Duration(milliseconds: 900),
-        behavior: SnackBarBehavior.floating,
-      ));
-    }
+    _accelMessage.value = msg;
   }
 
   void _accelWarn(String msg) {
