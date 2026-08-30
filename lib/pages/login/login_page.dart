@@ -402,13 +402,6 @@ class _LoginPageState extends State<LoginPage> {
             onTap: () => _openPage(const XunleiSmsLoginPage()),
           ),
           _MethodItem(
-            icon: Icons.lock_rounded,
-            title: '账号密码登录',
-            subtitle: '使用迅雷账号和密码登录',
-            color: AppColors.of(context).accent,
-            onTap: () => _openPage(PasswordLoginPage(driveType: DriveType.xunlei)),
-          ),
-          _MethodItem(
             icon: Icons.content_paste_rounded,
             title: 'Cookie 登录',
             subtitle: '粘贴浏览器 Cookie 登录',

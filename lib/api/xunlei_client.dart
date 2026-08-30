@@ -47,6 +47,33 @@ class XunleiClient extends BaseDrive {
   static const String defaultUserAgent =
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
+  // ---- 短信验证码登录（Android 客户端协议，参考参考 APK / 迅雷.hiker） ----
+  static const String _sdkAppId = '40';
+  static const String _sdkAppName = 'ANDROID-com.xunlei.downloadprovider';
+  static const String _sdkClientVersion = '8.03.0.9067';
+  static const String _sdkVersion = '231500';
+  static const String _sdkProtocolVersion = '301';
+  static const String _sdkPlatformVersion = '10';
+  static const String _deviceId = 'b71a923eb0e2239842599a3c016b4098';
+  static const String _deviceSign =
+      'div101.b71a923eb0e2239842599a3c016b4098612f6cf6d6e9fd1925845ec59285716c';
+  static const String _peerId = 'c9b076a446517969dff638cd37fa9ff1';
+  static const String _deviceName = 'Xiaomi_22021211Rc';
+  static const String _deviceModel = '22021211RC';
+  static const String _osVersion = '12';
+
+  /// 短信接口专用 UA（迅雷按此识别为官方 Android 客户端）
+  static const String _sdkUa =
+      'ANDROID-com.xunlei.downloadprovider/$_sdkClientVersion netWorkType/2G '
+      'appid/$_sdkAppId deviceName/$_deviceName deviceModel/$_deviceModel '
+      'OSVersion/$_osVersion protocolVersion/$_sdkProtocolVersion '
+      'platformVersion/$_sdkPlatformVersion sdkVersion/$_sdkVersion '
+      'Oauth2Client/0.9 (Linux 4_19_157-perf-g604b910ced3e) (JAVA 0)';
+
+  /// OAuth2 signin/token 用到的官方 client 标识（公共逆向资料公认可用）
+  static const String _oauthClientId = 'Xp6vsxz_7IYVw2BB';
+  static const String _oauthClientSecret = 'Xp6vsy4tN9toTVdMSpomVdXpRmES';
+
   // ---- BaseDrive ----
   @override
   DriveType get type => DriveType.xunlei;
@@ -71,6 +98,11 @@ class XunleiClient extends BaseDrive {
   String _deviceId = '';
   String _cookie = '';
   DriveUserInfo? _userInfo;
+
+  // ---- 短信验证码流程上下文（sendsms 返回，smslogin 需要） ----
+  String _smsCreditKey = '';
+  String _smsDeviceId = '';
+  String _smsToken = '';
 
   XunleiClient()
       : _dio = Dio(BaseOptions(
@@ -305,26 +337,47 @@ class XunleiClient extends BaseDrive {
         final smsCode = credential['sms_code']?.toString() ?? '';
         if (phone.isNotEmpty && smsCode.isNotEmpty) {
           try {
-            final data = await _post(
-              _smsCodeLogin,
+            // 1) smslogin：用 sendsms 阶段的服务端上下文换 sessionID
+            final loginData = await _smsCodeLogin(phone, smsCode);
+            final sessionId = loginData['sessionID']?.toString() ?? '';
+            final userId = loginData['userID']?.toString() ?? '';
+            AppLogger.I.i('xunlei_login',
+                'smslogin 响应 sessionIDLen=${sessionId.length} userIDLen=${userId.length} '
+                'creditkeyLen=${_smsCreditKey.length} deviceidLen=${_smsDeviceId.length}');
+            if (sessionId.isEmpty) {
+              final errno = loginData['errorCode']?.toString() ?? '';
+              final desc = loginData['errorDesc']?.toString() ?? '未获取到会话ID';
+              AppLogger.I.e('xunlei_login', 'smslogin 未返回 sessionID: code=$errno desc=$desc');
+              return '短信登录失败($errno): $desc';
+            }
+            // 2) signin：用 sessionID 走 OAuth2 换取 access_token / refresh_token
+            final signData = await _post(
+              '$_authSignin',
+              params: {'client_id': _oauthClientId},
               data: {
-                'client_id': 'XLP_ANDROID',
-                'client_secret': 'XLP_ANDROID_SECRET',
-                'phone': phone,
-                'sms_code': smsCode,
+                'client_id': _oauthClientId,
+                'client_secret': _oauthClientSecret,
+                'provider': 'access_end_point_token',
+                'signin_token': sessionId,
               },
             );
-            final token = data['access_token']?.toString() ?? '';
-            if (token.isNotEmpty) {
+            final token = signData['access_token']?.toString() ?? '';
+            final refresh = signData['refresh_token']?.toString() ?? '';
+            AppLogger.I.i('xunlei_login',
+                'signin/token 响应 accessTokenLen=${token.length} refreshTokenLen=${refresh.length}');
+            if (refresh.isNotEmpty || token.isNotEmpty) {
               setToken(
                 token,
-                refreshToken: data['refresh_token']?.toString() ?? '',
-                userId: data['user_id']?.toString() ?? '',
-                deviceId: data['device_id']?.toString() ?? '',
+                refreshToken: refresh,
+                userId: userId.isNotEmpty ? userId : (signData['user_id']?.toString() ?? ''),
+                deviceId: (_smsDeviceId.isNotEmpty ? _smsDeviceId : _deviceId),
               );
+              // 若 signin 只给了 refresh_token，立即兑换一次 access_token
+              _smsCreditKey = '';
+              _smsToken = '';
               return null;
             }
-            return '短信登录失败：未获取到访问令牌';
+            return '短信登录失败：未获取到令牌';
           } on XunleiException catch (e) {
             return '短信登录失败(${e.code}): ${e.message}';
           } catch (e) {
@@ -791,22 +844,93 @@ class XunleiClient extends BaseDrive {
     }
   }
 
-  /// 发送短信验证码
+  /// 发送短信验证码（Android 客户端协议）
   Future<void> sendSmsCode(String phone) async {
-    try {
-      await _post(
-        _smsSend,
-        data: {
-          'phone': phone,
-          'client_id': 'XLP_ANDROID',
-          'client_secret': 'XLP_ANDROID_SECRET',
-        },
+    AppLogger.I.i('xunlei_login', 'sendsms 发起 phone=$phone 设备signLen=${_deviceSign.length}');
+    final resp = await _request(
+      'POST',
+      _smsSend,
+      userAgent: _sdkUa,
+      extraHeaders: {
+        'x-device-id': _deviceId,
+        'Content-Type': 'application/json;charset=utf-8',
+      },
+      data: _smsBaseBody(phone, creditKey: _smsCreditKey),
+    );
+    final data = (resp.data is Map)
+        ? Map<String, dynamic>.from(resp.data as Map)
+        : <String, dynamic>{};
+    final code = data['errorCode']?.toString() ?? '';
+    if (code.isNotEmpty && code != '0') {
+      // 服务端明确拒绝：如 errorCode=13 身份失效 / 需图形验证，在此抛错由 UI 展示
+      final desc = data['errorDesc']?.toString() ?? '';
+      final verify = data['verifyType']?.toString() ?? '';
+      AppLogger.I.e('xunlei_login',
+          'sendsms 被拒绝 code=$code desc=$desc verifyType=$verify error=${data['error']}');
+      throw XunleiException(
+        int.tryParse(code) ?? -1,
+        desc.isNotEmpty ? desc : '发送短信验证码失败',
       );
-    } on XunleiException {
-      rethrow;
-    } catch (e) {
-      throw XunleiException(-1, '发送短信验证码失败: $e');
     }
+    // 保存服务端上下文，供 smslogin 使用
+    _smsCreditKey = data['creditkey']?.toString() ?? _smsCreditKey;
+    _smsDeviceId = data['deviceid']?.toString() ?? _smsDeviceId;
+    _smsToken = data['token']?.toString() ?? '';
+    AppLogger.I.i('xunlei_login',
+        'sendsms 成功 creditkeyLen=${_smsCreditKey.length} deviceidLen=${_smsDeviceId.length} '
+        'tokenLen=${_smsToken.length}（服务端已受理，短信已发出）');
+  }
+
+  /// 构造 Android 客户端协议统一请求体（sendsms / smslogin 共用）
+  Map<String, dynamic> _smsBaseBody(String phone, {String creditKey = ''}) => {
+        'protocolVersion': _sdkProtocolVersion,
+        'sequenceNo':
+            '1000${DateTime.now().millisecondsSinceEpoch % 1000000}',
+        'platformVersion': _sdkPlatformVersion,
+        'isCompressed': '0',
+        'appid': _sdkAppId,
+        'clientVersion': _sdkClientVersion,
+        'peerID': _peerId,
+        'appName': _sdkAppName,
+        'sdkVersion': _sdkVersion,
+        'devicesign': _smsDeviceId.isNotEmpty ? _smsDeviceId : _deviceSign,
+        'netWorkType': '2G',
+        'providerName': 'NONE',
+        'deviceModel': _deviceModel,
+        'deviceName': _deviceName,
+        'OSVersion': _osVersion,
+        'creditkey': creditKey,
+        'hl': 'zh-CN',
+        'mobile': phone,
+        'register': '0',
+      };
+
+  /// 短信验证码登录（Android 客户端协议）：返回服务端 JSON（含 sessionID/userID）
+  Future<Map<String, dynamic>> _smsCodeLogin(String phone, String smsCode) async {
+    final body = _smsBaseBody(phone, creditKey: _smsCreditKey)
+      ..['smsCode'] = smsCode
+      ..['token'] = _smsToken;
+    final resp = await _request(
+      'POST',
+      _smsCodeLogin,
+      userAgent: _sdkUa,
+      extraHeaders: {
+        'x-device-id': _deviceId,
+        'Content-Type': 'application/json;charset=utf-8',
+      },
+      data: body,
+    );
+    final data = (resp.data is Map)
+        ? Map<String, dynamic>.from(resp.data as Map)
+        : <String, dynamic>{};
+    final code = data['errorCode']?.toString() ?? '0';
+    if (code.isNotEmpty && code != '0') {
+      throw XunleiException(
+        int.tryParse(code) ?? -1,
+        data['errorDesc']?.toString() ?? '短信验证码不正确',
+      );
+    }
+    return data;
   }
 
   @override

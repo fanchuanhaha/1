@@ -55,7 +55,10 @@ class _WebLoginPageState extends State<WebLoginPage> {
     DriveType.pikpak: ['token', 'session', 'auth_token'],
     DriveType.uc: ['token', 'loginToken', 'auth_token'],
     DriveType.tianyi: ['token', 'session', 'loginToken'],
-    DriveType.xunlei: ['token', 'session', 'loginToken'],
+    DriveType.xunlei: [
+      'token', 'session', 'loginToken', 'accessToken', 'access_token',
+      'auth_token', 'xl_token', 'xl_access_token', 'app_token', 'APP_TOKEN',
+    ],
     DriveType.pan123: ['token', 'loginToken', 'auth_token'],
   };
 
@@ -254,34 +257,50 @@ class _WebLoginPageState extends State<WebLoginPage> {
     // 其他网盘：先尝试从 localStorage 获取 token
     String? result;
 
+    final isXunlei = widget.driveType == DriveType.xunlei;
+
     try {
       final tokenResult = await _controller.runJavaScriptReturningResult('''
 (function() {
   try {
     var keys = ${jsonEncode(_tokenKeys[widget.driveType] ?? [])};
+    function pick(o) {
+      if (!o) return '';
+      if (o.refresh_token) return JSON.stringify({type: 'refresh_token', value: o.refresh_token});
+      if (o.access_token) return JSON.stringify({type: 'access_token', value: o.access_token});
+      if (o.token) return JSON.stringify({type: 'token', value: o.token});
+      if (o.sessionId) return JSON.stringify({type: 'sessionId', value: o.sessionId});
+      if (typeof o === 'string' && o.length > 20) return JSON.stringify({type: 'raw', value: o});
+      return '';
+    }
     for (var i = 0; i < keys.length; i++) {
       var val = localStorage.getItem(keys[i]);
       if (val) {
-        try {
-          var parsed = JSON.parse(val);
-          if (parsed.refresh_token) return JSON.stringify({type: 'refresh_token', value: parsed.refresh_token});
-          if (parsed.access_token) return JSON.stringify({type: 'access_token', value: parsed.access_token});
-          if (parsed.token) return JSON.stringify({type: 'token', value: parsed.token});
-        } catch(e) {
-          if (val.length > 20) return JSON.stringify({type: 'raw', value: val});
-        }
+        try { var r = pick(JSON.parse(val)); if (r) return r; } catch(e) { var r = pick(val); if (r) return r; }
       }
     }
-  } catch(e) {}
-  return '';
+    // 兜底：扫描全部 localStorage，返回最可能的 token 型字段
+    var best = ''; var bestKey = '';
+    for (var k = 0; k < localStorage.length; k++) {
+      var key = localStorage.key(k);
+      if (!key) continue;
+      var v = String(localStorage.getItem(key) || '');
+      if (!v || v.length < 20) continue;
+      try { var o = JSON.parse(v); var r = pick(o); if (r) return r; } catch(e) {}
+      if (/access_token|accessToken|\.access\.|\.token/.test(key) && v.length > best.length) { best = v; bestKey = key; }
+      if (v.length > 40 && v.length > best.length && !/^([0-9]+)\$/.test(v)) { best = v; bestKey = key; }
+    }
+    if (best) return JSON.stringify({type: 'token', value: best.trim(), key: bestKey});
+    return '';
+  } catch(e) { return ''; }
 })();
 ''');
       final tokenStr = tokenResult.toString();
       if (tokenStr.isNotEmpty && tokenStr != '""' && tokenStr != "''") {
         try {
           final parsed = jsonDecode(tokenStr);
-          final value = parsed['value']?.toString() ?? '';
-          if (value.isNotEmpty) result = value;
+          final value = (parsed['value']?.toString() ?? '').trim();
+          if (value.isNotEmpty && value.length >= 20) result = value;
         } catch (_) {}
       }
     } catch (_) {}
@@ -296,17 +315,43 @@ class _WebLoginPageState extends State<WebLoginPage> {
         'localStorageKeys=${_tokenKeys[widget.driveType]} '
         'localStorage结果Token=${result ?? ''} cookieLen=${_currentCookie.length}',
       );
-      if (widget.driveType == DriveType.xunlei) {
-        _toast('迅雷需使用「验证码/账号密码登录」获取 access_token，网页登录的会话无法保存');
-      } else {
-        _toast('未检测到登录凭证，请先登录后再点击保存');
-      }
+      _toast(isXunlei
+          ? '未捕获到迅雷 access_token：请改用「手机号验证码登录」，或手动粘贴有效 Cookie'
+          : '未检测到登录凭证，请先登录后再点击保存');
+      return;
+    }
+
+    // 迅雷：若只拿到 Cookie（非 token），给出明确提示，避免误以为登录成功
+    if (isXunlei && !result.startsWith('Bearer ') &&
+        !result.contains('access_token') && !_looksLikeToken(result)) {
+      AppLogger.I.w('web_login',
+          '迅雷只捕获到 Cookie（非 Bearer token），该 Cookie 无法用于迅雷云盘 API，长度=${result.length}');
+      _toast('检测到的是会话 Cookie，迅雷云盘需 access_token，请改用「验证码登录」');
       return;
     }
 
     AppLogger.I.i('web_login',
         '保存登录凭证成功 drive=${widget.driveType.name} 凭证长度=${result.length}');
     if (mounted) Navigator.of(context).pop(result);
+  }
+
+    /// 判断字符串是否像 token（用于迅雷等网盘：避免把 Cookie 误当 token 保存）
+  bool _looksLikeToken(String value) {
+    if (value.isEmpty) return false;
+    // 过于短的一般不是 token
+    if (value.length < 20) return false;
+    // 包含常见 token 关键字
+    if (value.contains('access_token') || value.contains('refresh_token') ||
+        value.startsWith('Bearer ') || value.contains('eyJ') || // JWT
+        value.contains('.')) {
+      return true;
+    }
+    // 如果是 JSON 结构，可能是 token 对象
+    if (value.startsWith('{') && value.contains('token')) return true;
+    // 移除常见分隔符后判断是否还有字符
+    final cleaned = value.replaceAll(RegExp(r'[=;,]'), '');
+    if (cleaned.length > 30) return true;
+    return false;
   }
 
   /// 手动粘贴 Cookie

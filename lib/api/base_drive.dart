@@ -103,11 +103,15 @@ class DriveShareSession {
   final String passcode;
   String stoken;
 
+  /// 分享来源用户 uk（百度网盘分享列目录必需）
+  final int uk;
+
   DriveShareSession({
     required this.shareId,
     required this.pwdId,
     required this.passcode,
     required this.stoken,
+    this.uk = 0,
   });
 }
 

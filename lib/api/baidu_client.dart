@@ -566,13 +566,40 @@ class BaiduClient extends BaseDrive {
 
   @override
   Future<DriveShareSession> getShareToken(String pwdId, String passcode) async {
+    // 百度分享链接的 pwdId 是 surl 短码（如 1XXXXX）。share/verify 需要的是
+    // 真实数字 shareid + 来源 uk，需先经 /share/init 用 surl 解析（否则返回 errno=-12）。
+    var shareId = pwdId;
+    var uk = 0;
+    final looksSurl = RegExp(r'^1[A-Za-z0-9]{3,}$').hasMatch(pwdId);
+    if (looksSurl) {
+      final init = await _get('$_baseUrl/share/init', params: {
+        'surl': pwdId,
+        'clienttype': 0,
+        'app_id': 250528,
+        'web': 1,
+      });
+      AppLogger.I.i('baidu', 'share/init 结果 errno=${init['errno']} shareid=${init['shareid']} uk=${init['uk']}');
+      final initShare = init['shareid']?.toString() ?? '';
+      if (initShare.isNotEmpty) {
+        shareId = initShare;
+      }
+      uk = toInt(init['uk']);
+      if (shareId == pwdId && init['errno']?.toString() != '0') {
+        throw BaiduException(
+          toInt(init['errno'], fallback: -1),
+          init['errmsg']?.toString() ?? '分享链接解析失败',
+        );
+      }
+    }
+
     final body = await _post('$_baseUrl/share/verify', params: {
       'bdstoken': _bdstoken,
       'clienttype': 0,
       'app_id': 250528,
       'web': 1,
     }, data: {
-      'shareid': pwdId,
+      'shareid': shareId,
+      'uk': uk,
       'pwd': passcode,
       'vcode': '',
       'vcode_str': '',
@@ -591,10 +618,11 @@ class BaiduClient extends BaseDrive {
     }
 
     return DriveShareSession(
-      shareId: pwdId,
+      shareId: shareId,
       pwdId: pwdId,
       passcode: passcode,
       stoken: stoken,
+      uk: uk,
     );
   }
 
@@ -608,6 +636,7 @@ class BaiduClient extends BaseDrive {
       'web': 1,
       'bdstoken': _bdstoken,
       'shareid': session.shareId,
+      'uk': session.uk,
       'randsk': session.stoken,
       'dir': pdirFid.isEmpty ? '/' : pdirFid,
       'start': (page - 1) * size,
