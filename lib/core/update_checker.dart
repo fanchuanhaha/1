@@ -108,12 +108,13 @@ class UpdateChecker {
       if (!name.toLowerCase().endsWith('.apk') || url == null || url.isEmpty) {
         continue;
       }
-      // 记录每个 ABI 对应的 URL；通用包名为 app-release.apk
-      final m = RegExp(r'app-(arm64-v8a|armeabi-v7a|x86_64)-release\.apk')
-          .firstMatch(name);
+      // 记录每个 ABI 对应的 URL；分架构包名形如 `Quarklite-v2.0.1-arm64-v8a-release.apk`，
+      // 兼容旧的 `app-{abi}-release.apk`；其余 .apk 一律视为通用包。
+      final m =
+          RegExp(r'-(arm64-v8a|armeabi-v7a|x86_64)-release\.apk$').firstMatch(name);
       if (m != null) {
         urls[m[1]!] = url;
-      } else if (name == 'app-release.apk') {
+      } else {
         urls['universal'] = url;
       }
     }

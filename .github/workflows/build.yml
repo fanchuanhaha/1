@@ -95,15 +95,30 @@ jobs:
           flutter build apk --release --dart-define=APP_VERSION=${{ steps.ver.outputs.version }}
           flutter build apk --release --split-per-abi --dart-define=APP_VERSION=${{ steps.ver.outputs.version }}
 
+      - name: Rename APK artifacts
+        shell: bash
+        run: |
+          VER=${{ steps.ver.outputs.version }}
+          SRC=build/app/outputs/flutter-apk
+          DST=dist
+          mkdir -p "$DST"
+          # 通用包
+          if [ -f "$SRC/app-release.apk" ]; then
+            cp "$SRC/app-release.apk" "$DST/Quarklite-v$VER.apk"
+          fi
+          # 分架构包：Quarklite-v{ver}-{abi}-release.apk
+          for abi in armeabi-v7a arm64-v8a x86_64; do
+            if [ -f "$SRC/app-$abi-release.apk" ]; then
+              cp "$SRC/app-$abi-release.apk" "$DST/Quarklite-v$VER-$abi-release.apk"
+            fi
+          done
+          ls -la "$DST"
+
       - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
         with:
           name: quarklite-apk
-          path: |
-            build/app/outputs/flutter-apk/app-release.apk
-            build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
-            build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
-            build/app/outputs/flutter-apk/app-x86_64-release.apk
+          path: dist/
           if-no-files-found: error
 
       - name: Create Release
@@ -119,10 +134,10 @@ jobs:
             - 基于 Gopeed 下载引擎
             - 自动构建时间: ${{ github.event.repository.updated_at }}
           files: |
-            build/app/outputs/flutter-apk/app-release.apk
-            build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
-            build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
-            build/app/outputs/flutter-apk/app-x86_64-release.apk
+            dist/Quarklite-v${{ steps.ver.outputs.version }}.apk
+            dist/Quarklite-v${{ steps.ver.outputs.version }}-armeabi-v7a-release.apk
+            dist/Quarklite-v${{ steps.ver.outputs.version }}-arm64-v8a-release.apk
+            dist/Quarklite-v${{ steps.ver.outputs.version }}-x86_64-release.apk
           generate_release_notes: false
           make_latest: true
           token: ${{ secrets.RELEASE_TOKEN }}

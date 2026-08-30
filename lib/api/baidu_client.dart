@@ -758,10 +758,11 @@ class BaiduClient extends BaseDrive {
   }
 
   /// 创建分享链接（form 编码，fid_list 为 fs_id 的 JSON 字符串）
+  /// [period] 有效期：0 永久、1 一天、7 七天、30 三十天。
   Future<Map<String, dynamic>> createShareLink(
-      List<String> paths, {String pwd = ''}) async {
+      List<String> paths, {String pwd = '', int period = 0}) async {
     final fields = <String, dynamic>{
-      'period': 0,
+      'period': period,
       'schannel': 4,
       'channel_list': '[]',
       'fid_list': jsonEncode(paths),
@@ -817,16 +818,19 @@ class BaiduClient extends BaseDrive {
   }
 
   @override
-  Future<DriveShareResult> shareFiles(List<String> fids) async {
+  Future<DriveShareResult> shareFiles(List<String> fids,
+      {int? period, String? pwd}) async {
     if (fids.isEmpty) throw StateError('请先选择文件');
     final fsIds = await _fidsToFsIds(fids);
     if (fsIds.isEmpty) throw StateError('未能获取文件信息，请重试');
-    // 生成 4 位数字提取码，制作「私密分享」：
-    // 1) 公开分享（无提取码）易被百度风控判为“账号异常，禁止分享”(errno 115)；
-    // 2) 第三方「野鸡百度加速」接口解析分享链接时通常也需要提取码。
-    final pwd = _randomSharePwd();
+    // 私密分享：默认生成 4 位提取码；公开分享易被百度风控判为“账号异常，禁止分享”(errno 115)。
+    final finalPwd =
+        (pwd != null && pwd.isNotEmpty) ? pwd : _randomSharePwd();
     final body = await createShareLink(
-        fsIds.map((e) => e.toString()).toList(), pwd: pwd);
+      fsIds.map((e) => e.toString()).toList(),
+      pwd: finalPwd,
+      period: period ?? 0,
+    );
     final errno = toInt(body['errno'], fallback: 0);
     if (body.containsKey('errno') && errno != 0) {
       throw StateError(body['errmsg']?.toString() ??
@@ -834,16 +838,18 @@ class BaiduClient extends BaseDrive {
           '创建分享链接失败($errno)');
     }
     var link = body['link']?.toString() ?? '';
-    final surl =
-        body['surl']?.toString() ?? body['shortlink']?.toString() ?? '';
+    // 分享短码：反应字段是 shorturl（注意不是 surl / shortlink），可能返回完整链接或短码。
+    var surl = _surlFromShareBody(body, link);
     if (link.isEmpty && surl.isNotEmpty) {
       link = 'https://pan.baidu.com/s/$surl';
     }
     if (link.isEmpty) throw StateError('创建分享链接失败：未返回分享地址');
-    final respPwd = body['pwd']?.toString() ?? pwd;
-    if (respPwd.isNotEmpty && !link.contains('pwd=')) {
-      link = '$link?pwd=$respPwd';
-    }
+    // 校验分享是否真的配置了提取码：响应 body 通常不含 pwd，但 qrcodeurl/分享二维码里会带 pwd，
+    // 以我们发送的提取码为准。
+    final respPwd = (body['pwd']?.toString().isNotEmpty ?? false)
+        ? body['pwd'].toString()
+        : finalPwd;
+    // 注意：这里不把 pwd 拼进 url，避免上层再拼一次导致 “?pwd=xxxx?pwd=xxxx” 双密码。
     return DriveShareResult(url: link, pwd: respPwd, surl: surl);
   }
 
@@ -851,6 +857,29 @@ class BaiduClient extends BaseDrive {
   static String _randomSharePwd() {
     final r = DateTime.now().microsecondsSinceEpoch;
     return (1000 + (r % 9000)).toString();
+  }
+
+  /// 从分享创建响应体中提取分享短码 surl。
+  /// body 的反应字段是 `shorturl`（完整链接），其次是 `surl`/`shortlink`（短码），
+  /// 最后可从 `link` 里 `/s/{surl}` 兜底抠出。
+  static String _surlFromShareBody(Map<String, dynamic> body, String link) {
+    final short =
+        body['shorturl']?.toString() ?? body['surl']?.toString() ?? body['shortlink']?.toString() ?? '';
+    if (short.isNotEmpty) {
+      final sIdx = short.indexOf('/s/');
+      if (sIdx >= 0) {
+        var seg = short.substring(sIdx + 3);
+        final q = seg.indexOf('?');
+        if (q >= 0) seg = seg.substring(0, q);
+        final slash = seg.indexOf('/');
+        if (slash > 0) seg = seg.substring(0, slash);
+        if (seg.isNotEmpty) return seg;
+      }
+      // 已是短码（不含路径分隔）
+      if (!short.contains('/') && short.isNotEmpty) return short;
+    }
+    final m = RegExp(r'/s/([A-Za-z0-9_\-]+)').firstMatch(link);
+    return m?.group(1) ?? '';
   }
 
   /// 统一的 filemanager 调用：entries 形如 {path, newname?}，返回 null 表示成功。

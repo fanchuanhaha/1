@@ -17,6 +17,7 @@ import '../../utils/permission.dart';
 import '../../utils/upload_picker.dart';
 import '../../widgets/empty_view.dart';
 import '../../widgets/file_icon.dart';
+import '../../widgets/share_dialogs.dart';
 import 'album_page.dart';
 import 'search_page.dart';
 
@@ -657,23 +658,14 @@ class _DrivePageState extends State<DrivePage>
 
   Future<void> _shareFile(QuarkFile file) async {
     try {
-      final result = await AppState.I.quark.shareFiles([file.fid]);
-      await Clipboard.setData(ClipboardData(text: result.url));
+      final config = await showShareSetupDialog(context);
+      if (config == null || !mounted) return;
+      final result = await AppState.I.quark.shareFiles([file.fid],
+          passcode: config.hasCustomPwd ? config.pwd : null,
+          expiredType: config.period);
       if (!mounted) return;
-      await showDialog<void>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('分享链接已生成并复制'),
-          content: SelectableText(
-            result.hasPwd ? '${result.url}?pwd=${result.pwd}' : result.url,
-            style: TextStyle(color: AppColors.of(ctx).textSecondary),
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx), child: const Text('关闭')),
-          ],
-        ),
-      );
+      await showShareResultDialog(
+          context, buildShareFullUrl(result.url, result.pwd), result.pwd);
     } catch (e) {
       if (!mounted) return;
       _showSnack('分享失败: $e');

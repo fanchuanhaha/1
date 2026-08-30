@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../../api/base_drive.dart';
 import '../../api/baidu_accel_service.dart';
@@ -12,6 +11,7 @@ import '../../utils/app_logger.dart';
 import '../../utils/format.dart';
 import '../../widgets/empty_view.dart';
 import '../../widgets/file_icon.dart';
+import '../../widgets/share_dialogs.dart';
 
 /// 通用网盘文件浏览页面，可适用于任何实现 [BaseDrive] 的网盘。
 class DriveFilesPage extends StatefulWidget {
@@ -156,8 +156,9 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
   bool get _useAccel =>
       widget.drive.type == DriveType.baidu && AppState.I.isBaiduAccelOn;
 
-  /// 解析下载信息：开启百度加速接口时，先对文件创建公开分享链接，再由
+  /// 解析下载信息：开启百度加速接口时，先对文件创建分享链接，再由
   /// 第三方接口解析出加速直链；任一环节失败则回退用网盘原生方式获取直链。
+  /// 各步骤会通过 toast + 日志提示用户当前进度。
   Future<List<DriveDownloadInfo>> _resolveDownloadInfo(
       List<String> fids) async {
     if (!_useAccel) return widget.drive.getDownloadInfo(fids);
@@ -170,9 +171,13 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
       final fileName =
           matched.isNotEmpty ? matched.first.fileName : '$fid';
       try {
+        _accelStep('正在创建分享…');
         final share = await widget.drive.shareFiles([fid]);
+        AppLogger.I.i('drive_files', '分享创建成功 url=${share.url} pwd=${share.pwd}');
+
+        _accelStep('正在获取分享文件列表…');
         final fileList =
-            await accel.getFileList(url: share.url, parsePassword: password);
+            await accel.getFileList(url: share.url, pwd: share.pwd, parsePassword: password);
         // 根据文件名定位 fs_id；若分享目录只有一个文件则直接用其 fs_id
         String fsId = fileList.list
             .where((f) => !f.isDir && f.serverFilename == fileName)
@@ -181,10 +186,12 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
             fileList.list.where((f) => !f.isDir).map((f) => f.fsId).firstOrNull ??
             '';
         if (fsId.isEmpty) {
-          AppLogger.I.w('drive_files', 'fid=$fid 未匹配到加速文件，回退普通下载');
+          _accelWarn('fid=$fid 分享列表中未匹配到该文件，回退普通下载');
           results.addAll(await widget.drive.getDownloadInfo([fid]));
           continue;
         }
+
+        _accelStep('正在解析加速直链…');
         final urlMap = await accel.getDownloadLinks(
           fileList: fileList,
           fsIds: [fsId],
@@ -194,11 +201,14 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
         );
         final urls = urlMap[fsId];
         if (urls == null || urls.isEmpty) {
+          _accelWarn('fid=$fid 未解析到加速直链，回退普通下载');
           results.addAll(await widget.drive.getDownloadInfo([fid]));
           continue;
         }
         final size =
             matched.isNotEmpty ? matched.first.size : 0;
+        _accelStep('加速直链获取成功，准备下载');
+        AppLogger.I.i('drive_files', '百度加速直链获取成功 fid=$fid 加速域名=${_hostOf(urls.first)}');
         results.add(DriveDownloadInfo(
           url: urls.first,
           fileName: fileName,
@@ -207,10 +217,36 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
         ));
       } catch (e) {
         AppLogger.I.w('drive_files', '百度加速解析失败，回退普通下载 $fid: $e');
+        _accelWarn('百度加速解析失败，已回退普通下载：$e');
         results.addAll(await widget.drive.getDownloadInfo([fid]));
       }
     }
     return results;
+  }
+
+  String _hostOf(String url) => Uri.tryParse(url)?.host ?? '';
+
+  /// 在 UI 提示 + 日志记录一个加速进度步骤。
+  void _accelStep(String msg) {
+    AppLogger.I.i('drive_files', '[百度加速] $msg');
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(msg),
+        duration: const Duration(milliseconds: 900),
+        behavior: SnackBarBehavior.floating,
+      ));
+    }
+  }
+
+  void _accelWarn(String msg) {
+    AppLogger.I.w('drive_files', '[百度加速] $msg');
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(msg),
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+      ));
+    }
   }
 
   Future<void> _batchDownload([List<String>? specific]) async {
@@ -489,7 +525,7 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
                 leading: Icon(Icons.link_rounded,
                     color: AppColors.of(context).accent),
                 title: const Text('分享链接'),
-                subtitle: const Text('生成公开分享链接并复制'),
+                subtitle: const Text('自定义时长与提取码，生成分享链接'),
                 onTap: () {
                   Navigator.pop(ctx);
                   _shareFile(file);
@@ -535,22 +571,14 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
 
   Future<void> _shareFile(DriveFile file) async {
     try {
-      final result = await widget.drive.shareFiles([file.fid]);
-      await Clipboard.setData(ClipboardData(text: result.url));
+      final config = await showShareSetupDialog(context);
+      if (config == null || !mounted) return;
+      final result = await widget.drive.shareFiles([file.fid],
+          pwd: config.hasCustomPwd ? config.pwd : null,
+          period: config.period);
       if (!mounted) return;
-      showDialog<void>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('分享链接已生成并复制'),
-          content: SelectableText(
-            result.hasPwd ? '${result.url}?pwd=${result.pwd}' : result.url,
-            style: TextStyle(color: AppColors.of(context).textSecondary),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('关闭')),
-          ],
-        ),
-      );
+      await showShareResultDialog(
+          context, buildShareFullUrl(result.url, result.pwd), result.pwd);
     } catch (e) {
       _toast('分享失败: $e');
     }

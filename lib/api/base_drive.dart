@@ -168,7 +168,9 @@ abstract class BaseDrive {
   bool get supportsMove => false;
 
   /// 创建分享链接，返回分享结果（链接 + 提取码）。异常或失败抛 [StateError]。
-  Future<DriveShareResult> shareFiles(List<String> fids) {
+  /// [pwd] 自定义提取码（为空时由网盘默认生成）；[period] 有效期时长（各网盘自定义）。
+  Future<DriveShareResult> shareFiles(List<String> fids,
+      {String? pwd, int? period}) {
     throw StateError('当前网盘不支持创建分享链接');
   }
 

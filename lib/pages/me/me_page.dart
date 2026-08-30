@@ -661,7 +661,7 @@ class _InterfaceTileState extends State<_InterfaceTile> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (widget.needsPassword) ...[
-                  Text('说明：下载百度网盘文件前，会先对该文件创建公开分享链接，再由该接口解析出加速直链下载。该接口需要填写解析密码才能使用。',
+                  Text('说明：下载百度网盘文件前，会先对该文件创建私密分享链接，再由该接口解析出加速直链下载；过程中会弹出步骤提示。该接口需要填写解析密码才能使用。',
                       style: TextStyle(fontSize: 12, color: textSecondary, height: 1.5)),
                   const SizedBox(height: 10),
                   Row(

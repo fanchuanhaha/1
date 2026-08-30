@@ -64,9 +64,20 @@ class BaiduAccelService {
     try {
       resp = await _dio.post(path,
           data: jsonEncode(body), options: Options(headers: _headers()));
-    } catch (e) {
+    } on DioException catch (e) {
+      // 尽量透出服务器实际响应（状态码 + body），便于定位 4xx/5xx 具体原因。
+      var detail = e.toString();
+      final r = e.response;
+      if (r != null) {
+        var respBody = r.data;
+        if (respBody is Map || respBody is List) respBody = jsonEncode(respBody);
+        if (respBody is String && respBody.length > 300) {
+          respBody = respBody.substring(0, 300);
+        }
+        detail = 'HTTP ${r.statusCode} ${respBody ?? ""}'.trim();
+      }
       AppLogger.I.e('baidu_accel', '请求失败 $path: $e');
-      throw BaiduAccelException('网络请求失败: $e');
+      throw BaiduAccelException('接口请求失败($path): $detail');
     }
     final data = resp.data;
     if (data is String && data.isNotEmpty) {
@@ -86,17 +97,20 @@ class BaiduAccelService {
   }
 
   /// 解析分享链接 → 文件列表。返回 [BaiduAccelFileList]。
+  /// [pwd] 分享链接的提取码；若链接本身已带 `?pwd=` 亦可由 [url] 解析出来。
   Future<BaiduAccelFileList> getFileList({
     required String url,
     required String parsePassword,
+    String pwd = '',
     String dir = '/',
   }) async {
     final parsed = parseShareUrl(url);
+    final finalPwd = (pwd.isNotEmpty ? pwd : parsed.pwd);
     final surl = parsed.surl.isEmpty ? _surlFromAny(url) : parsed.surl;
     final data = await _post('/user/parse/get_file_list', {
       'url': url,
       'surl': surl,
-      'pwd': parsed.pwd,
+      'pwd': finalPwd,
       'dir': dir,
       'parse_password': parsePassword,
     });
@@ -117,11 +131,11 @@ class BaiduAccelService {
       'randsk': fileList.randsk,
       'uk': fileList.uk,
       'shareid': fileList.shareId,
-      'fs_id': fsIds,
+      'fs_id': fsIds.length == 1 ? fsIds.first : fsIds,
       'surl': surl,
       'dir': dir,
       'pwd': pwd,
-      'token': 'guest',
+      'token': fileList.token.isNotEmpty ? fileList.token : 'guest',
       'parse_password': parsePassword,
       'vcode_str': '',
       'vcode_input': '',
@@ -170,11 +184,15 @@ class BaiduAccelFileList {
   final String randsk;
   final List<BaiduAccelFile> list;
 
+  /// 会话 token（部分接口在 get_file_list 阶段返回，供 get_download_links 复用）。
+  final String token;
+
   BaiduAccelFileList({
     required this.uk,
     required this.shareId,
     required this.randsk,
     required this.list,
+    required this.token,
   });
 
   factory BaiduAccelFileList.fromJson(Map<String, dynamic> json) {
@@ -192,6 +210,7 @@ class BaiduAccelFileList {
       shareId: toInt(json['shareid']),
       randsk: json['randsk']?.toString() ?? '',
       list: list,
+      token: json['token']?.toString() ?? '',
     );
   }
 }

@@ -466,8 +466,9 @@ class QuarkClient {
 
   /// 创建分享链接。默认生成私密分享（带 4 位提取码）。
   /// [passcode] 不传或为空时自动生成。返回 [QuarkShareResult]，失败抛 [QuarkException]。
+  /// [expiredType] 有效期：1=1天、7=7天、30=30天、0=永久（默认 1）。
   Future<QuarkShareResult> shareFiles(List<String> fids,
-      {String? passcode}) async {
+      {String? passcode, int expiredType = 1}) async {
     final pwd = (passcode != null && passcode.isNotEmpty)
         ? passcode
         : _randomSharePwd();
@@ -476,7 +477,7 @@ class QuarkClient {
         data: {
           'fid_list': fids,
           'url_type': 2,
-          'expired_type': 1,
+          'expired_type': expiredType == 0 ? 0 : expiredType,
           'passcode': pwd,
         });
     if (data is! Map) throw QuarkException(-1, '创建分享链接失败');
@@ -490,9 +491,7 @@ class QuarkClient {
       url = 'https://pan.quark.cn/s/$pwdId';
     }
     if (url.isEmpty) throw QuarkException(-1, '创建分享链接失败：未返回分享地址');
-    if (respPwd.isNotEmpty && !url.contains('?')) {
-      url = '$url?pwd=$respPwd';
-    }
+    // 注意：不把 pwd 拼进 url，避免上层再次拼接导致双密码。pwd 由 QuarkShareResult.pwd 单独携带。
     return QuarkShareResult(url: url, pwd: respPwd, pwdId: pwdId);
   }
 
