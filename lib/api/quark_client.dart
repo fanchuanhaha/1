@@ -34,6 +34,17 @@ class QuarkShareSession {
   });
 }
 
+/// 在夸克网盘中创建分享链接的返回结果
+class QuarkShareResult {
+  final String url;
+  final String pwd;
+  final String pwdId;
+
+  QuarkShareResult({required this.url, this.pwd = '', this.pwdId = ''});
+
+  bool get hasPwd => pwd.isNotEmpty;
+}
+
 class QuarkClient {
   static const driveApi = 'https://drive.quark.cn/1/clouddrive';
   static const drivePcApi = 'https://drive-pc.quark.cn/1/clouddrive';
@@ -387,6 +398,7 @@ class QuarkClient {
   // 直传 OSS 分片（PUT）→ 合并（POST CompleteMultipartUpload）→ upload/finish。
 
   static const _ucParams = {'pr': 'ucpro', 'fr': 'pc'};
+  static const _pcParams = {'pr': 'ucpro', 'fr': 'pc', 'uc_param_str': ''};
   static const _ossUserAgent =
       'aliyun-sdk-js/6.6.1 Chrome 98.0.4758.80 on Windows 10 64-bit';
 
@@ -417,10 +429,12 @@ class QuarkClient {
   /// 重命名文件/文件夹，返回 null 表示成功，否则返回错误信息。
   Future<String?> renameFile(String fid, String newName) async {
     try {
-      await _post('$driveApi/file/rename', params: _ucParams, data: {
-        'file_name': newName,
-        'fid': fid,
-      });
+      await _post('$drivePcApi/file/rename',
+          params: _pcParams,
+          data: {
+            'file_name': newName,
+            'fid': fid,
+          });
       return null;
     } on QuarkException catch (e) {
       return '重命名失败: ${e.message}';
@@ -430,18 +444,62 @@ class QuarkClient {
   }
 
   /// 移动文件/文件夹到目标目录，返回 null 表示成功，否则返回错误信息。
+  /// 使用 drive-pc 接口，body 为 filelist(数组) + to_pdir_fid + exclude_fids + action_type；
+  /// 注意不能用 fid_list，否则返回「current_dir_fid,filelist 不能同时为空」。
   Future<String?> moveFiles(List<String> fids, String toPdirFid) async {
     try {
-      await _post('$driveApi/file/move', params: _ucParams, data: {
-        'fid_list': fids,
-        'to_pdir_fid': toPdirFid,
-      });
+      await _post('$drivePcApi/file/move',
+          params: _pcParams,
+          data: {
+            'filelist': fids,
+            'to_pdir_fid': toPdirFid,
+            'exclude_fids': <String>[],
+            'action_type': 1,
+          });
       return null;
     } on QuarkException catch (e) {
       return '移动失败: ${e.message}';
     } catch (e) {
       return '移动失败: $e';
     }
+  }
+
+  /// 创建分享链接。默认生成私密分享（带 4 位提取码）。
+  /// [passcode] 不传或为空时自动生成。返回 [QuarkShareResult]，失败抛 [QuarkException]。
+  Future<QuarkShareResult> shareFiles(List<String> fids,
+      {String? passcode}) async {
+    final pwd = (passcode != null && passcode.isNotEmpty)
+        ? passcode
+        : _randomSharePwd();
+    final data = await _post('$drivePcApi/share',
+        params: _pcParams,
+        data: {
+          'fid_list': fids,
+          'url_type': 2,
+          'expired_type': 1,
+          'passcode': pwd,
+        });
+    if (data is! Map) throw QuarkException(-1, '创建分享链接失败');
+    final pwdId = data['pwd_id']?.toString() ?? '';
+    final respPwd = data['passcode']?.toString() ?? pwd;
+    var url = data['share_url']?.toString() ?? '';
+    if (url.isEmpty) {
+      url = data['url']?.toString() ?? '';
+    }
+    if (url.isEmpty && pwdId.isNotEmpty) {
+      url = 'https://pan.quark.cn/s/$pwdId';
+    }
+    if (url.isEmpty) throw QuarkException(-1, '创建分享链接失败：未返回分享地址');
+    if (respPwd.isNotEmpty && !url.contains('?')) {
+      url = '$url?pwd=$respPwd';
+    }
+    return QuarkShareResult(url: url, pwd: respPwd, pwdId: pwdId);
+  }
+
+  /// 生成 4 位随机数字提取码（1000-9999）
+  static String _randomSharePwd() {
+    final r = DateTime.now().microsecondsSinceEpoch;
+    return (1000 + (r % 9000)).toString();
   }
 
   /// 上传预申请：返回 OSS 分片上传会话（含秒传标记）

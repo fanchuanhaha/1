@@ -155,6 +155,15 @@ class QuarkDriveAdapter extends BaseDrive {
   bool get supportsMove => true;
 
   @override
+  bool get supportsShare => true;
+
+  @override
+  Future<DriveShareResult> shareFiles(List<String> fids) async {
+    final r = await _client.shareFiles(fids);
+    return DriveShareResult(url: r.url, pwd: r.pwd, surl: r.pwdId);
+  }
+
+  @override
   Future<String?> renameFile(String fid, String newName) =>
       _client.renameFile(fid, newName);
 

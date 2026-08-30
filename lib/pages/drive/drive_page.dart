@@ -621,6 +621,15 @@ class _DrivePageState extends State<DrivePage>
             ),
             const Divider(height: 1),
             ListTile(
+              leading: Icon(Icons.share_rounded, color: AppColors.of(context).accent),
+              title: const Text('分享链接'),
+              subtitle: const Text('生成分享链接并复制'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _shareFile(file);
+              },
+            ),
+            ListTile(
               leading: Icon(Icons.drive_file_rename_outline_rounded,
                   color: AppColors.of(context).accent),
               title: const Text('重命名'),
@@ -644,6 +653,31 @@ class _DrivePageState extends State<DrivePage>
         ),
       ),
     );
+  }
+
+  Future<void> _shareFile(QuarkFile file) async {
+    try {
+      final result = await AppState.I.quark.shareFiles([file.fid]);
+      await Clipboard.setData(ClipboardData(text: result.url));
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('分享链接已生成并复制'),
+          content: SelectableText(
+            result.hasPwd ? '${result.url}?pwd=${result.pwd}' : result.url,
+            style: TextStyle(color: AppColors.of(ctx).textSecondary),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx), child: const Text('关闭')),
+          ],
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      _showSnack('分享失败: $e');
+    }
   }
 
   Future<void> _renameFile(QuarkFile file) async {

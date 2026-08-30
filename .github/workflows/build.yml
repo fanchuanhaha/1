@@ -15,6 +15,27 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute version
+        id: ver
+        shell: bash
+        run: |
+          # 取当前最新的 vX.Y.Z 标签，每次构建 patch+0.0.1；
+          # 未发布过 v 标签时以基线 v2.0.0 起步 → 首次为 v2.0.1。
+          LAST=$(git tag --list 'v[0-9]*' --sort=-v:refname | head -n1)
+          [ -z "$LAST" ] && LAST="v2.0.0"
+          V=${LAST#v}
+          MAJ=${V%%.*}; REST=${V#*.}; MIN=${REST%%.*}; PATCH=${REST##*.}
+          PATCH=$((PATCH+1))
+          VER="${MAJ}.${MIN}.${PATCH}"
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+          echo "tag=v${VER}" >> "$GITHUB_OUTPUT"
+          echo "上一版本=$LAST 本次=$VER"
+          # 仅改写工作副本供本次构建使用，不提交 pubspec，避免触发 Push 死循环
+          sed -i "s/^version: .*/version: ${VER}+${GITHUB_RUN_NUMBER}/" pubspec.yaml
+          grep -m1 '^version:' pubspec.yaml
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -71,8 +92,8 @@ jobs:
 
       - name: Build release APK
         run: |
-          flutter build apk --release
-          flutter build apk --release --split-per-abi
+          flutter build apk --release --dart-define=APP_VERSION=${{ steps.ver.outputs.version }}
+          flutter build apk --release --split-per-abi --dart-define=APP_VERSION=${{ steps.ver.outputs.version }}
 
       - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
@@ -89,10 +110,10 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: github.ref == 'refs/heads/main'
         with:
-          tag_name: build-${{ github.run_number }}
-          name: "自动构建 #${{ github.run_number }}"
+          tag_name: v${{ steps.ver.outputs.version }}
+          name: "v${{ steps.ver.outputs.version }}"
           body: |
-            自动构建 APK
+            自动构建 APK v${{ steps.ver.outputs.version }}
             
             - 支持多网盘: 夸克、阿里云盘、百度网盘、PikPak、天翼云盘、UC网盘、微云、迅雷网盘、123云盘、移动云盘、光丫
             - 基于 Gopeed 下载引擎

@@ -36,15 +36,19 @@ class AppUpdate {
 
 /// 检查 GitHub Releases 是否有新版本（移植自 ZXEB/quarklite 上游 update_checker）。
 ///
-/// 本次发布 action 生成 tag 形如 `build-N`，因而用其中的数字 N 与本地已构建
-/// 的 build 号比较大小：[kLocalBuild] 需在每次发布后随之递增。
+/// 每次 CI 构建自动生成 `vX.Y.Z` tag（patch+0.0.1），此处用 [kLocalVersion]
+/// 与远端 tag 做语义化版本比较，检测到更新时才提示。
 class UpdateChecker {
   static const _repo = 'fanchuanhaha/1';
   static const _latestUrl =
       'https://api.github.com/repos/fanchuanhaha/1/releases/latest';
 
-  /// 当前代码已发布到的最新 build 号（随发布递增）
-  static const int kLocalBuild = 69;
+  /// 本地当前版本号。CI 通过 `--dart-define=APP_VERSION=vX.Y.Z` 注入，
+  /// 未注入（本地开发）时回退为 0.0.0，从而始终提示手动更新。
+  static const String kLocalVersion = String.fromEnvironment(
+    'APP_VERSION',
+    defaultValue: '0.0.0',
+  );
 
   static const _kSkippedKey = 'update_skipped_build';
 
@@ -73,10 +77,11 @@ class UpdateChecker {
       final data = resp.data;
       if (data is! Map) return null;
       final tag = data['tag_name']?.toString() ?? '';
-      final remote = _buildNum(tag);
-      if (remote == null || remote <= kLocalBuild) return null;
+      // 语义化版本比较：远端 tag vX.Y.Z 需高于本地版本才提示
+      if (_compareVersion(tag, kLocalVersion) <= 0) return null;
       final prefs = await SharedPreferences.getInstance();
-      if (prefs.getInt(_kSkippedKey) == remote) return null;
+      // 跳过键沿用历史“build 号”，此处用语义版本号本身做去重
+      if (prefs.getString(_kSkippedKey) == tag) return null;
 
       final abis = await AppState.I.getSupportedAbis();
       final assets = (data['assets'] as List?) ?? const [];
@@ -172,7 +177,10 @@ class UpdateChecker {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx),
+            onPressed: () {
+              skip(update.version);
+              Navigator.pop(ctx);
+            },
             child: Text('取消',
                 style: TextStyle(color: AppColors.of(ctx).textSecondary)),
           ),
@@ -231,10 +239,42 @@ class UpdateChecker {
             : '下载失败：$err')));
   }
 
-  static int? _buildNum(String tag) {
-    final m = RegExp(r'build-?(\d+)', caseSensitive: false).firstMatch(tag) ??
-        RegExp(r'(\d+)').firstMatch(tag);
-    return m == null ? null : int.tryParse(m[1] ?? '');
+  /// 语义化版本比较：解析 `vX.Y.Z`/`X.Y.Z`，返回 a<b → -1、a==b → 0、a>b → 1。
+  /// 任意一方无法解析为合法语义版本时，按「不可比、视为相等」处理，避免误弹更新。
+  static int _compareVersion(String a, String b) {
+    final an = _versionParts(a);
+    final bn = _versionParts(b);
+    if (an == null || bn == null) return 0;
+    for (var i = 0; i < 3; i++) {
+      if (an[i] != bn[i]) return an[i] < bn[i] ? -1 : 1;
+    }
+    return 0;
+  }
+
+  /// 把版本字符串拆成 [major, minor, patch]；`v` 前缀与末尾构建号会被忽略。
+  static List<int>? _versionParts(String v) {
+    var s = v.trim();
+    if (s.toLowerCase().startsWith('v')) s = s.substring(1);
+    final main = s.split('+').first;
+    final segs = main.split('.');
+    if (segs.length > 3) return null;
+    final parts = <int>[];
+    for (final seg in segs) {
+      final n = int.tryParse(seg);
+      if (n == null) return null;
+      parts.add(n);
+    }
+    // 补齐到三位，例如 "2.0" -> [2, 0, 0]
+    while (parts.length < 3) {
+      parts.add(0);
+    }
+    return parts;
+  }
+
+  /// 把版本号写入「跳过更新」键，供下次不再提示。
+  static Future<void> skip(String tag) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kSkippedKey, tag);
   }
 
   static void _toast(BuildContext context, String msg) {

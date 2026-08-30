@@ -760,19 +760,23 @@ class BaiduClient extends BaseDrive {
   /// 创建分享链接（form 编码，fid_list 为 fs_id 的 JSON 字符串）
   Future<Map<String, dynamic>> createShareLink(
       List<String> paths, {String pwd = ''}) async {
+    final fields = <String, dynamic>{
+      'period': 0,
+      'schannel': 4,
+      'channel_list': '[]',
+      'fid_list': jsonEncode(paths),
+    };
+    // 仅在设置了提取码时才传 pwd（空 pwd 会被百度判定为 "pwd length param error"）
+    if (pwd.isNotEmpty) {
+      fields['pwd'] = pwd;
+    }
     final body = await _postForm('$_baseUrl/share/set', params: {
       'bdstoken': _bdstoken,
       'channel': 'chunlei',
       'clienttype': 0,
       'app_id': 250528,
       'web': 1,
-    }, fields: {
-      'period': 0,
-      'schannel': 4,
-      'channel_list': '[]',
-      'pwd': pwd,
-      'fid_list': jsonEncode(paths),
-    });
+    }, fields: fields);
     return body;
   }
 
@@ -817,24 +821,36 @@ class BaiduClient extends BaseDrive {
     if (fids.isEmpty) throw StateError('请先选择文件');
     final fsIds = await _fidsToFsIds(fids);
     if (fsIds.isEmpty) throw StateError('未能获取文件信息，请重试');
-    // 无提取码保护，便于「野鸡百度加速」接口直接解析
-    final body = await createShareLink(fsIds.map((e) => e.toString()).toList(),
-        pwd: '');
+    // 生成 4 位数字提取码，制作「私密分享」：
+    // 1) 公开分享（无提取码）易被百度风控判为“账号异常，禁止分享”(errno 115)；
+    // 2) 第三方「野鸡百度加速」接口解析分享链接时通常也需要提取码。
+    final pwd = _randomSharePwd();
+    final body = await createShareLink(
+        fsIds.map((e) => e.toString()).toList(), pwd: pwd);
     final errno = toInt(body['errno'], fallback: 0);
     if (body.containsKey('errno') && errno != 0) {
-      throw StateError(body['errmsg']?.toString() ?? '创建分享链接失败($errno)');
+      throw StateError(body['errmsg']?.toString() ??
+          body['show_msg']?.toString() ??
+          '创建分享链接失败($errno)');
     }
     var link = body['link']?.toString() ?? '';
-    if (link.isEmpty) {
-      final surl = body['surl']?.toString() ?? body['shortlink']?.toString() ?? '';
-      if (surl.isNotEmpty) link = 'https://pan.baidu.com/s/$surl';
+    final surl =
+        body['surl']?.toString() ?? body['shortlink']?.toString() ?? '';
+    if (link.isEmpty && surl.isNotEmpty) {
+      link = 'https://pan.baidu.com/s/$surl';
     }
     if (link.isEmpty) throw StateError('创建分享链接失败：未返回分享地址');
-    return DriveShareResult(
-      url: link,
-      pwd: body['pwd']?.toString() ?? '',
-      surl: body['surl']?.toString() ?? body['shortlink']?.toString() ?? '',
-    );
+    final respPwd = body['pwd']?.toString() ?? pwd;
+    if (respPwd.isNotEmpty && !link.contains('pwd=')) {
+      link = '$link?pwd=$respPwd';
+    }
+    return DriveShareResult(url: link, pwd: respPwd, surl: surl);
+  }
+
+  /// 生成 4 位随机数字提取码（1000-9999）
+  static String _randomSharePwd() {
+    final r = DateTime.now().microsecondsSinceEpoch;
+    return (1000 + (r % 9000)).toString();
   }
 
   /// 统一的 filemanager 调用：entries 形如 {path, newname?}，返回 null 表示成功。
@@ -867,7 +883,7 @@ class BaiduClient extends BaseDrive {
         'web': 1,
       }, fields: {
         'opera': opera,
-        'async': 1,
+        'async': 0,
         'channel': 'chunlei',
         'ondup': 'newcopy',
         'filelist': jsonEncode(entries),
@@ -894,7 +910,8 @@ class BaiduClient extends BaseDrive {
     final entries = fids
         .map((p) => {
               'path': p,
-              // 百度 move：dest 为目标目录，newname 仅文件名（与路径拼接会导致参数错误）
+              // 百度 move：每个条目需 path(源绝对路径) + dest(目标目录) + newname(文件名)，
+              // 缺 newname 会返回 errno=2 参数错误。
               'dest': toDirFid,
               'newname': p.split('/').last,
             })

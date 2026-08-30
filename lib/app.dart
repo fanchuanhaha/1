@@ -237,7 +237,8 @@ class _BottomBar extends StatelessWidget {
     ];
     return Container(
       decoration: BoxDecoration(
-        color: Color(0xFF12121A),
+        // 跟随主题背景色（深色用深底、浅色用浅底），避免浅色模式下仍显示深色栏
+        color: AppColors.of(context).card,
         border:
             Border(top: BorderSide(color: AppColors.of(context).divider, width: 0.5)),
       ),
