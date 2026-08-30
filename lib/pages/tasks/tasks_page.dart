@@ -372,7 +372,9 @@ class _TasksPageState extends State<TasksPage>
     final paused = task.status == GopeedStatus.pause;
     final selected = _dlSelected.contains(task.id);
     return InkWell(
-      onTap: _dlSelectMode ? () => _toggleDlSelect(task) : null,
+      onTap: _dlSelectMode
+          ? () => _toggleDlSelect(task)
+          : (done ? () => _openDownloaded(task) : null),
       onLongPress: _dlSelectMode ? null : () => _enterDlSelectMode(task),
       borderRadius: BorderRadius.circular(14),
       child: Container(
