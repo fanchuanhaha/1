@@ -54,19 +54,19 @@ class XunleiClient extends BaseDrive {
   static const String _sdkVersion = '231500';
   static const String _sdkProtocolVersion = '301';
   static const String _sdkPlatformVersion = '10';
-  static const String _deviceId = 'b71a923eb0e2239842599a3c016b4098';
-  static const String _deviceSign =
+  static const String _sdkDeviceId = 'b71a923eb0e2239842599a3c016b4098';
+  static const String _sdkDeviceSign =
       'div101.b71a923eb0e2239842599a3c016b4098612f6cf6d6e9fd1925845ec59285716c';
-  static const String _peerId = 'c9b076a446517969dff638cd37fa9ff1';
-  static const String _deviceName = 'Xiaomi_22021211Rc';
-  static const String _deviceModel = '22021211RC';
-  static const String _osVersion = '12';
+  static const String _sdkPeerId = 'c9b076a446517969dff638cd37fa9ff1';
+  static const String _sdkDeviceName = 'Xiaomi_22021211Rc';
+  static const String _sdkDeviceModel = '22021211RC';
+  static const String _sdkOsVersion = '12';
 
   /// 短信接口专用 UA（迅雷按此识别为官方 Android 客户端）
   static const String _sdkUa =
       'ANDROID-com.xunlei.downloadprovider/$_sdkClientVersion netWorkType/2G '
-      'appid/$_sdkAppId deviceName/$_deviceName deviceModel/$_deviceModel '
-      'OSVersion/$_osVersion protocolVersion/$_sdkProtocolVersion '
+      'appid/$_sdkAppId deviceName/$_sdkDeviceName deviceModel/$_sdkDeviceModel '
+      'OSVersion/$_sdkOsVersion protocolVersion/$_sdkProtocolVersion '
       'platformVersion/$_sdkPlatformVersion sdkVersion/$_sdkVersion '
       'Oauth2Client/0.9 (Linux 4_19_157-perf-g604b910ced3e) (JAVA 0)';
 
@@ -338,7 +338,7 @@ class XunleiClient extends BaseDrive {
         if (phone.isNotEmpty && smsCode.isNotEmpty) {
           try {
             // 1) smslogin：用 sendsms 阶段的服务端上下文换 sessionID
-            final loginData = await _smsCodeLogin(phone, smsCode);
+            final loginData = await _smsCodeLoginFlow(phone, smsCode);
             final sessionId = loginData['sessionID']?.toString() ?? '';
             final userId = loginData['userID']?.toString() ?? '';
             AppLogger.I.i('xunlei_login',
@@ -846,13 +846,13 @@ class XunleiClient extends BaseDrive {
 
   /// 发送短信验证码（Android 客户端协议）
   Future<void> sendSmsCode(String phone) async {
-    AppLogger.I.i('xunlei_login', 'sendsms 发起 phone=$phone 设备signLen=${_deviceSign.length}');
+    AppLogger.I.i('xunlei_login', 'sendsms 发起 phone=$phone 设备signLen=${_sdkDeviceSign.length}');
     final resp = await _request(
       'POST',
       _smsSend,
       userAgent: _sdkUa,
       extraHeaders: {
-        'x-device-id': _deviceId,
+        'x-device-id': _sdkDeviceId,
         'Content-Type': 'application/json;charset=utf-8',
       },
       data: _smsBaseBody(phone, creditKey: _smsCreditKey),
@@ -890,15 +890,15 @@ class XunleiClient extends BaseDrive {
         'isCompressed': '0',
         'appid': _sdkAppId,
         'clientVersion': _sdkClientVersion,
-        'peerID': _peerId,
+        'peerID': _sdkPeerId,
         'appName': _sdkAppName,
         'sdkVersion': _sdkVersion,
-        'devicesign': _smsDeviceId.isNotEmpty ? _smsDeviceId : _deviceSign,
+        'devicesign': _smsDeviceId.isNotEmpty ? _smsDeviceId : _sdkDeviceSign,
         'netWorkType': '2G',
         'providerName': 'NONE',
-        'deviceModel': _deviceModel,
-        'deviceName': _deviceName,
-        'OSVersion': _osVersion,
+        'deviceModel': _sdkDeviceModel,
+        'deviceName': _sdkDeviceName,
+        'OSVersion': _sdkOsVersion,
         'creditkey': creditKey,
         'hl': 'zh-CN',
         'mobile': phone,
@@ -906,7 +906,7 @@ class XunleiClient extends BaseDrive {
       };
 
   /// 短信验证码登录（Android 客户端协议）：返回服务端 JSON（含 sessionID/userID）
-  Future<Map<String, dynamic>> _smsCodeLogin(String phone, String smsCode) async {
+  Future<Map<String, dynamic>> _smsCodeLoginFlow(String phone, String smsCode) async {
     final body = _smsBaseBody(phone, creditKey: _smsCreditKey)
       ..['smsCode'] = smsCode
       ..['token'] = _smsToken;
@@ -915,7 +915,7 @@ class XunleiClient extends BaseDrive {
       _smsCodeLogin,
       userAgent: _sdkUa,
       extraHeaders: {
-        'x-device-id': _deviceId,
+        'x-device-id': _sdkDeviceId,
         'Content-Type': 'application/json;charset=utf-8',
       },
       data: body,
