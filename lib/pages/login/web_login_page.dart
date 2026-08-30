@@ -68,11 +68,14 @@ class _WebLoginPageState extends State<WebLoginPage> {
     // 蓝奏云 = H5 移动端登录页，需用现代移动端 UA 才能正常渲染并完成「我是人」滑动验证；
     // 阿里云/其它网盘 = 电脑端站点，必须用桌面 UA（手机 UA 会不显示登录表单）。
     final isLanzou = widget.driveType == DriveType.lanzou;
+    // 桌面 UA：电脑端网盘站点必须用它（手机 UA 不会显示登录表单）
+    final desktopUA =
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setUserAgent(isLanzou
           ? 'Mozilla/5.0 (Linux; Android 13; Pixel 7 Build/TQ3A.230805.001) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36'
-          : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+          : desktopUA)
       ..setNavigationDelegate(
         NavigationDelegate(
           onUrlChange: (change) => _checkAliCallback(change.url),
@@ -94,6 +97,14 @@ class _WebLoginPageState extends State<WebLoginPage> {
   vp.content = 'width=' + w + ', initial-scale=0.55, minimum-scale=0.25, maximum-scale=3, user-scalable=yes';
   document.documentElement.style.minWidth = w + 'px';
   document.body.style.minWidth = w + 'px';
+  // 强制前端脚本读到桌面 UA：部分电脑站（如迅雷）用 JS 判断移动端，
+  // 仅 setUserAgent 时页面 JS 里的 navigator.userAgent 可能仍是移动 UA 而渲染成手机版。
+  try {
+    Object.defineProperty(navigator, 'userAgent', {
+      get: function() { return '$desktopUA'; },
+      configurable: true
+    });
+  } catch (e) {}
 })();
 ''');
             }
