@@ -228,7 +228,12 @@ class LoginService {
       case DriveType.quark:
         return 'https://pan.quark.cn/';
       case DriveType.ali:
-        return 'https://www.alipan.com/sign/';
+        // 阿里云盘网页登录走 OAuth 授权页，回跳 sign/callback 时携带 code，应用内捕获后换取 refresh_token。
+        return 'https://auth.aliyundrive.com/v2/oauth/authorize'
+            '?login_type=custom&response_type=code'
+            '&redirect_uri=https%3A%2F%2Fwww.aliyundrive.com%2Fsign%2Fcallback'
+            '&client_id=25dzX3vbYqktVxyX'
+            '&state=%7B%22origin%22%3A%22*%22%7D#/login';
       case DriveType.baidu:
         return 'https://pan.baidu.com/';
       case DriveType.pikpak:

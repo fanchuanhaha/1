@@ -172,4 +172,40 @@ class DownloadManager extends ChangeNotifier {
       await _poll();
     }
   }
+
+  /// 批量暂停指定任务（多选）。
+  Future<void> pauseBatch(List<GopeedTask> list) async {
+    if (list.isEmpty) return;
+    try {
+      await GopeedEngine.client.pauseAll(ids: list.map((t) => t.id).toList());
+    } finally {
+      await _poll();
+    }
+  }
+
+  /// 批量继续指定任务（多选）。
+  /// Gopeed 引擎没有 resumeAll，这里逐个恢复，失败单独收集但不中断。
+  Future<void> resumeBatch(List<GopeedTask> list) async {
+    for (final t in list) {
+      try {
+        await GopeedEngine.client.resume(t.id);
+      } catch (_) {
+        // 单个失败不阻塞批量继续
+      }
+    }
+    await _poll();
+  }
+
+  /// 批量删除指定任务（多选）。[deleteFile] 为 true 时同时删除本地文件。
+  Future<void> removeBatch(List<GopeedTask> list, {bool deleteFile = false}) async {
+    if (list.isEmpty) return;
+    try {
+      await GopeedEngine.client.removeAll(
+        ids: list.map((t) => t.id).toList(),
+        force: deleteFile,
+      );
+    } finally {
+      await _poll();
+    }
+  }
 }

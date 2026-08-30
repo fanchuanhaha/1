@@ -501,7 +501,8 @@ class _LoginPageState extends State<LoginPage> {
   /// 打开网页登录页
   Future<void> _openWebLogin(DriveType type) async {
     final loginUrl = LoginService.getLoginUrl(type);
-    final cookie = await Navigator.of(context).push<String>(
+    // result 为 dynamic：Cookie 类网盘返回 String(cookie)，阿里云盘返回 Map({'code': code})。
+    final result = await Navigator.of(context).push<dynamic>(
       MaterialPageRoute(
         builder: (_) => WebLoginPage(
           driveType: type,
@@ -509,11 +510,12 @@ class _LoginPageState extends State<LoginPage> {
         ),
       ),
     );
-    if (cookie == null || cookie.isEmpty || !mounted) return;
+    if (result == null || !mounted) return;
+    if (result is String && result.isEmpty) return;
 
-    // 尝试登录（夸克特殊处理）
+    // 尝试登录（夸克特殊处理，网页登录返回 Cookie 字符串）
     if (type == DriveType.quark) {
-      final err = await DriveManager.I.login(cookie);
+      final err = await DriveManager.I.login(result as String);
       if (!mounted) return;
       if (err == null) {
         _onLoginSuccess(type);
@@ -528,7 +530,7 @@ class _LoginPageState extends State<LoginPage> {
       _toast('驱动器未初始化');
       return;
     }
-    final err = await drive.login(cookie);
+    final err = await drive.login(result);
     if (!mounted) return;
     if (err == null) {
       _onLoginSuccess(type);

@@ -24,8 +24,11 @@ class _TasksPageState extends State<TasksPage>
   /// 0 = 下载，1 = 上传（分段切换，不单独拆「全部」以减少切换成本）
   int _segment = 0;
 
-  // ---- 下载页筛选 ----
+  // ---- 下载页筛选/多选 ----
   int _dlFilter = 0;
+  bool _dlSelectMode = false;
+  final Set<String> _dlSelected = {};
+  bool _dlBusy = false;
 
   // ---- 上传页筛选/多选 ----
   int _upFilter = 0;
@@ -70,6 +73,7 @@ class _TasksPageState extends State<TasksPage>
             Expanded(
               child: _segment == 0 ? _buildDownloadList() : _buildUploadList(),
             ),
+            if (_segment == 0 && _dlSelectMode) _buildDownloadSelectBar(),
             if (_segment == 1 && _upSelectMode) _buildUploadSelectBar(),
           ],
         ),
@@ -77,7 +81,10 @@ class _TasksPageState extends State<TasksPage>
     );
   }
 
-  String _title() => _segment == 1 && _upSelectMode ? '批量操作' : '任务管理';
+  String _title() => (_segment == 1 && _upSelectMode) ||
+          (_segment == 0 && _dlSelectMode)
+      ? '批量操作'
+      : '任务管理';
 
   // ---------------- 顶部操作 ---------------- //
 
@@ -110,11 +117,41 @@ class _TasksPageState extends State<TasksPage>
         ],
       );
     }
+    if (_segment == 0 && _dlSelectMode) {
+      return Row(
+        children: [
+          TextButton(
+            onPressed: () => setState(() {
+              final allIds = _downloadFiltered.map((t) => t.id).toSet();
+              if (_dlSelected.length == allIds.length && allIds.isNotEmpty) {
+                _dlSelected.clear();
+              } else {
+                _dlSelected
+                  ..clear()
+                  ..addAll(allIds);
+              }
+            }),
+            child: Text(_isAllDlSelected() ? '全不选' : '全选',
+                style: TextStyle(color: AppColors.of(context).accent)),
+          ),
+          IconButton(
+            onPressed: () => setState(() {
+              _dlSelectMode = false;
+              _dlSelected.clear();
+            }),
+            icon: Icon(Icons.close_rounded,
+                color: AppColors.of(context).accent),
+          ),
+        ],
+      );
+    }
     return PopupMenuButton<String>(
       icon: Icon(Icons.more_horiz_rounded,
           color: AppColors.of(context).accent, size: 26),
       onSelected: (v) async {
         switch (v) {
+          case 'select':
+            setState(() => _dlSelectMode = true);
           case 'import':
             final msg = await ImportDownloadSheet.show(context);
             if (msg != null && mounted) _toast(msg);
@@ -131,6 +168,7 @@ class _TasksPageState extends State<TasksPage>
       },
       itemBuilder: (_) => [
         if (_segment == 0) ...[
+          const PopupMenuItem(value: 'select', child: Text('多选')),
           const PopupMenuItem(value: 'import', child: Text('自定义下载')),
           const PopupMenuItem(value: 'pauseAll', child: Text('全部暂停')),
           const PopupMenuItem(value: 'clearDoneDl', child: Text('清除已完成下载')),
@@ -174,6 +212,8 @@ class _TasksPageState extends State<TasksPage>
           _segment = seg;
           _upSelectMode = false;
           _upSelected.clear();
+          _dlSelectMode = false;
+          _dlSelected.clear();
         }),
         borderRadius: BorderRadius.circular(9),
         child: AnimatedContainer(
@@ -330,10 +370,15 @@ class _TasksPageState extends State<TasksPage>
     final done = task.status == GopeedStatus.done;
     final failed = task.status == GopeedStatus.error;
     final paused = task.status == GopeedStatus.pause;
-    return Container(
+    final selected = _dlSelected.contains(task.id);
+    return InkWell(
+      onTap: _dlSelectMode ? () => _toggleDlSelect(task) : null,
+      onLongPress: _dlSelectMode ? null : () => _enterDlSelectMode(task),
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.of(context).card,
+        color: selected ? AppColors.of(context).accentDeep : AppColors.of(context).card,
         borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
@@ -368,8 +413,20 @@ class _TasksPageState extends State<TasksPage>
               ),
               _downloadBadge(task),
               const SizedBox(width: 4),
-              _downloadControl(task),
-              PopupMenuButton<String>(
+              if (_dlSelectMode)
+                Icon(
+                  selected
+                      ? Icons.check_circle_rounded
+                      : Icons.radio_button_unchecked_rounded,
+                  color: selected
+                      ? AppColors.of(context).accent
+                      : AppColors.of(context).textSecondary,
+                  size: 22,
+                )
+              else
+                _downloadControl(task),
+              if (!_dlSelectMode)
+                PopupMenuButton<String>(
                 icon: Icon(Icons.more_vert_rounded,
                     color: AppColors.of(context).textSecondary, size: 18),
                 onSelected: (v) async {
@@ -433,6 +490,7 @@ class _TasksPageState extends State<TasksPage>
             ),
           ],
         ],
+      ),
       ),
     );
   }
@@ -564,7 +622,110 @@ class _TasksPageState extends State<TasksPage>
     }
   }
 
-  // ---------------- 上传列表 ---------------- //
+  // ---------------- 下载选中操作 ---------------- //
+
+  void _enterDlSelectMode(GopeedTask task) {
+    setState(() {
+      _dlSelectMode = true;
+      _dlSelected.add(task.id);
+    });
+  }
+
+  void _toggleDlSelect(GopeedTask task) {
+    setState(() {
+      if (!_dlSelected.remove(task.id)) {
+        _dlSelected.add(task.id);
+      }
+    });
+  }
+
+  bool _isAllDlSelected() {
+    final filtered = _downloadFiltered;
+    return filtered.isNotEmpty && filtered.every((t) => _dlSelected.contains(t.id));
+  }
+
+  Widget _buildDownloadSelectBar() {
+    final count = _dlSelected.length;
+    final dlTasks = _dm.tasks.where((t) => _dlSelected.contains(t.id)).toList();
+    final hasPause = dlTasks.any((t) => t.status != GopeedStatus.done && t.status != GopeedStatus.error && t.status != GopeedStatus.pause);
+    final hasResume = dlTasks.any((t) => t.status == GopeedStatus.pause);
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+      decoration: BoxDecoration(
+        color: Color(0xFF12121A),
+        border: Border(top: BorderSide(color: AppColors.of(context).divider, width: 0.5)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            Text('已选 $count 项', style: TextStyle(color: AppColors.of(context).textPrimary, fontSize: 14)),
+            const Spacer(),
+            IconButton(
+              onPressed: _dlBusy || !hasPause ? null : _batchDlPause,
+              icon: Icon(Icons.pause_rounded, color: hasPause && !_dlBusy ? AppColors.of(context).orange : AppColors.of(context).textSecondary),
+            ),
+            IconButton(
+              onPressed: _dlBusy || !hasResume ? null : _batchDlResume,
+              icon: Icon(Icons.play_arrow_rounded, color: hasResume && !_dlBusy ? AppColors.of(context).accent : AppColors.of(context).textSecondary),
+            ),
+            IconButton(
+              onPressed: _dlBusy || count == 0 ? null : _batchDlDelete,
+              icon: Icon(Icons.delete_outline_rounded, color: _dlBusy || count == 0 ? AppColors.of(context).textSecondary : AppColors.of(context).red),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _batchDlPause() async {
+    final list = _dm.tasks.where((t) => _dlSelected.contains(t.id) && t.status != GopeedStatus.done && t.status != GopeedStatus.error && t.status != GopeedStatus.pause).toList();
+    for (final task in list) {
+      await _dm.pauseTask(task);
+    }
+    _finishDlBatch('已暂停 ${list.length} 个任务');
+  }
+
+  Future<void> _batchDlResume() async {
+    final list = _dm.tasks.where((t) => _dlSelected.contains(t.id) && t.status == GopeedStatus.pause).toList();
+    for (final task in list) {
+      await _dm.resumeTask(task);
+    }
+    _finishDlBatch('已恢复 ${list.length} 个任务');
+  }
+
+  Future<void> _batchDlDelete() async {
+    final count = _dlSelected.length;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('删除下载任务'),
+        content: const Text('确定删除选中的任务吗？'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text('删除', style: TextStyle(color: AppColors.of(context).red))),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final list = _dm.tasks.where((t) => _dlSelected.contains(t.id)).toList();
+    for (final task in list) {
+      await _dm.removeTask(task, deleteFile: false);
+    }
+    _finishDlBatch('已删除 $count 个任务');
+  }
+
+  void _finishDlBatch(String msg) {
+    setState(() {
+      _dlSelectMode = false;
+      _dlSelected.clear();
+      _dlBusy = false;
+    });
+    _toast(msg);
+  }
+
+// ---------------- 上传列表 ---------------- //
 
   List<UploadTask> _uploadFiltered() {
     final all = _um.tasks;

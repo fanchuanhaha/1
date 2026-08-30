@@ -173,6 +173,54 @@ class BaiduAccelService {
     return m?.group(1) ?? '';
   }
 
+  /// 查询当前账号的剩余解析额度。
+  ///
+  /// 站点口径（`/user/parse/limit?token=guest`）：
+  /// - `count` = 剩余可解析文件数（次数）
+  /// - `size`  = 剩余可解析大小（流量，字节）
+  /// - `expires_at` = 额度到期时间（未使用时为空）
+  ///
+  /// token 固定用站点默认的 `guest` 会话（未填写卡密时网站前端也是用它），
+  /// 与解析直链的会话保持一致。失败抛出 [BaiduAccelException]。
+  Future<BaiduAccelQuota> getQuota() async {
+    Response<dynamic> resp;
+    try {
+      resp = await _dio.get(
+        '/user/parse/limit',
+        queryParameters: {'token': 'guest'},
+        options: Options(headers: _headers(), validateStatus: (_) => true),
+      );
+    } on DioException catch (e) {
+      AppLogger.I.e('baidu_accel', '查询剩余额度失败: $e');
+      throw BaiduAccelException('查询剩余额度失败: $e');
+    }
+    final data = resp.data;
+    if (data is String && data.isNotEmpty) {
+      try {
+        return _parseQuota(jsonDecode(data));
+      } catch (_) {}
+    }
+    if (data is! Map) {
+      throw BaiduAccelException('剩余额度接口返回格式异常');
+    }
+    return _parseQuota(data);
+  }
+
+  BaiduAccelQuota _parseQuota(Map data) {
+    final code = data['code'];
+    if (code is num && code != 200) {
+      throw BaiduAccelException(
+          data['message']?.toString() ?? '剩余额度查询失败(code=$code)');
+    }
+    final d = data['data'];
+    if (d is! Map) throw BaiduAccelException('剩余额度数据异常');
+    return BaiduAccelQuota(
+      count: toInt(d['count']),
+      size: toInt(d['size']),
+      expiresAt: d['expires_at']?.toString(),
+    );
+  }
+
   void dispose() {
     _dio.close(force: true);
   }
@@ -234,6 +282,20 @@ class BaiduAccelDownloadLink {
   BaiduAccelDownloadLink({required this.urls, required this.ua});
 
   bool get hasUrl => urls.isNotEmpty;
+}
+
+/// 剩余解析额度（`/user/parse/limit` 返回）。
+/// `count` = 剩余可解析文件数（次数），`size` = 剩余可解析大小（流量，字节）。
+class BaiduAccelQuota {
+  final int count;
+  final int size;
+  final String? expiresAt;
+
+  const BaiduAccelQuota({
+    required this.count,
+    required this.size,
+    this.expiresAt,
+  });
 }
 
 /// 分享文件列表项

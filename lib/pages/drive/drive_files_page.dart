@@ -84,7 +84,8 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
 
   Future<void> _enterDir(DriveFile dir) async {
     setState(() {
-      _crumbs.add((_pdirFid, _currentName));
+      // 记录进入的文件夹本身作为新面包屑；之前误加旧目录名导致「百度网盘/百度网盘」重复。
+      _crumbs.add((dir.fid, dir.fileName));
       _pdirFid = dir.fid;
       _currentName = dir.fileName;
       _files = [];

@@ -27,6 +27,11 @@ class _WebLoginPageState extends State<WebLoginPage> {
   bool _loading = true;
   String _currentCookie = '';
 
+  /// 阿里云盘 OAuth 授权回调里捕获到的 code（`redirect_uri?code=xxx`）。
+  /// 阿里云盘走的是 OAuth code 流程，cookie/localStorage 拿不到 refresh_token，
+  /// 必须捕获回跳地址里的 code，再交给 login（换取 refresh_token）。
+  String _aliOauthCode = '';
+
   /// 各网盘用于捕获 token 的 localStorage key
   static const _tokenKeys = {
     DriveType.ali: [
@@ -70,6 +75,7 @@ class _WebLoginPageState extends State<WebLoginPage> {
           : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
       ..setNavigationDelegate(
         NavigationDelegate(
+          onUrlChange: (change) => _checkAliCallback(change.url),
           onPageStarted: (url) {
             if (!mounted) return;
             setState(() => _loading = true);
@@ -115,6 +121,29 @@ class _WebLoginPageState extends State<WebLoginPage> {
   /// 优先用 WebViewCookieManager 读取（可包含 HttpOnly cookie）。
   /// 夸克/UC 的关键会话 cookie（__puus、__pus）是 HttpOnly 的，
   /// document.cookie 读不到它们，缺失会导致后续接口返回 500。
+  /// 捕获阿里云盘 OAuth 授权回调的 code（仅阿里云盘使用，走 redirect_uri?code=xxx）。
+  void _checkAliCallback(String? url) {
+    if (widget.driveType != DriveType.ali) return;
+    if (url == null || _aliOauthCode.isNotEmpty) return;
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+    String? code = uri.queryParameters['code'];
+    if (code == null && uri.fragment.isNotEmpty) {
+      try {
+        code = Uri.splitQueryString(uri.fragment)['code'];
+      } catch (_) {}
+    }
+    final host = uri.host;
+    if (!host.contains('aliyundrive.com') &&
+        !host.contains('aliyundrive.cn') &&
+        !host.contains('alipan.com')) {
+      return;
+    }
+    if (code == null || code.trim().isEmpty) return;
+    _aliOauthCode = code.trim();
+    debugPrint('[WebLogin] 捕获阿里云盘 OAuth code');
+  }
+
   Future<void> _refreshCookie() async {
     debugPrint('[WebLogin] _refreshCookie 开始, type=${widget.driveType}');
     // 1) 优先使用 CookieManager，能读到 HttpOnly cookie
@@ -199,6 +228,13 @@ class _WebLoginPageState extends State<WebLoginPage> {
         return;
       }
       if (mounted) Navigator.of(context).pop(_currentCookie);
+      return;
+    }
+
+    // 阿里云盘：优先使用捕获到的 OAuth code（返回 Map，由 drive.login 兑换 refresh_token）。
+    // cookie/localStorage 拿不到阿里云盘的 refresh_token。
+    if (widget.driveType == DriveType.ali && _aliOauthCode.isNotEmpty) {
+      if (mounted) Navigator.of(context).pop({'code': _aliOauthCode});
       return;
     }
 

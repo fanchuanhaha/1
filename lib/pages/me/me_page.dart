@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../api/baidu_accel_service.dart';
 import '../../core/update_checker.dart';
 import '../../state/app_state.dart';
 import '../../state/upload_manager.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/app_logger.dart';
+import '../../utils/format.dart';
 
 class MePage extends StatelessWidget {
   const MePage({super.key});
@@ -185,7 +187,7 @@ class MePage extends StatelessWidget {
             leading: Icon(Icons.info_outline_rounded,
                 color: AppColors.of(context).accent),
             title: const Text('关于'),
-            subtitle: const Text('Quarklite v1.1.3  ·  基于 Gopeed 下载引擎'),
+            subtitle: Text('Quarklite v${_displayVersion()}  ·  基于 Gopeed 下载引擎'),
             onTap: () => _showAbout(context),
           ),
         ],
@@ -490,13 +492,13 @@ class MePage extends StatelessWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Quarklite'),
-        content: const Text(
+        content: Text(
           '夸克网盘不限速下载工具\n\n'
           '· 内置 Gopeed 多线程下载引擎\n'
           '· 支持分享链接解析 / 网盘直连 / BT 磁力\n'
           '· 本项目基于 GPL-3.0 协议开源\n\n'
-          'v1.0.0',
-          style: TextStyle(fontSize: 13, height: 1.7),
+          'v${_displayVersion()}',
+          style: const TextStyle(fontSize: 13, height: 1.7),
         ),
         actions: [
           TextButton(
@@ -506,6 +508,14 @@ class MePage extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  /// 当前应用版本号（去 v 前缀）。CI 通过 --dart-define=APP_VERSION 注入，
+  /// 未注入（本地开发）时回退 0.0.0 —— 与检查更新的版本来源保持一致。
+  String _displayVersion() {
+    var v = UpdateChecker.kLocalVersion.trim();
+    if (v.toLowerCase().startsWith('v')) v = v.substring(1);
+    return v;
   }
 }
 
@@ -538,8 +548,63 @@ class _InterfaceTile extends StatefulWidget {
 
 class _InterfaceTileState extends State<_InterfaceTile> {
   bool _expanded = false;
+  BaiduAccelQuota? _quota;
+  bool _quotaLoading = false;
 
-  void _toggleExpand() => setState(() => _expanded = !_expanded);
+  @override
+  void didUpdateWidget(covariant _InterfaceTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 从「未开启 → 开启」时刷新一次剩余额度
+    if (!oldWidget.enabled && widget.enabled) _loadQuota();
+  }
+
+  void _toggleExpand() {
+    setState(() => _expanded = !_expanded);
+    if (_expanded && widget.enabled) _loadQuota();
+  }
+
+  Future<void> _loadQuota() async {
+    if (_quotaLoading) return;
+    setState(() => _quotaLoading = true);
+    BaiduAccelQuota? q;
+    try {
+      q = await BaiduAccelService.I.getQuota();
+    } catch (_) {
+      q = null;
+    }
+    if (!mounted) return;
+    setState(() {
+      _quota = q;
+      _quotaLoading = false;
+    });
+  }
+
+  /// 剩余流量 & 剩余次数展示。仅在接口开启时展示数据；加载中/失败给出提示。
+  Widget _buildQuotaRow() {
+    final color = AppColors.of(context).textSecondary;
+    if (_quotaLoading) {
+      return Text('正在查询剩余额度…',
+          style: TextStyle(fontSize: 12, color: color));
+    }
+    final q = _quota;
+    if (q == null) {
+      return Text('剩余额度查询失败',
+          style: TextStyle(fontSize: 12, color: AppColors.of(context).red));
+    }
+    return Row(
+      children: [
+        Icon(Icons.data_usage_rounded,
+            size: 16, color: AppColors.of(context).accent),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            '剩余流量 ${formatBytes(q.size)}  ·  剩余次数 ${q.count}',
+            style: TextStyle(fontSize: 12, color: color),
+          ),
+        ),
+      ],
+    );
+  }
 
   /// 切换开关：开启时若需要密码但尚未填写，则先引导填写密码。
   Future<void> _toggleEnabled() async {
@@ -681,6 +746,8 @@ class _InterfaceTileState extends State<_InterfaceTile> {
                       ),
                     ],
                   ),
+                  const SizedBox(height: 10),
+                  _buildQuotaRow(),
                 ] else
                   Text(widget.desc,
                       style: TextStyle(fontSize: 12, color: textSecondary)),
