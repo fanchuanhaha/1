@@ -229,6 +229,9 @@ class AliClient extends BaseDrive {
         'grant_type': 'authorization_code',
         'code': code,
         'client_id': '25dzX3vbYqktVxyX',
+        // OpenAPI 在 authorization_code 时要求 redirect_uri 与授权页一致；
+        // 缺省会返回 400 InvalidRequest invalid parameter，导致无法登录。
+        'redirect_uri': 'https://www.aliyundrive.com/sign/callback',
       },
       options: Options(
         method: 'POST',

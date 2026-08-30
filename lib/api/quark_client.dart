@@ -466,9 +466,11 @@ class QuarkClient {
 
   /// 创建分享链接。默认生成私密分享（带 4 位提取码）。
   /// [passcode] 不传或为空时自动生成。返回 [QuarkShareResult]，失败抛 [QuarkException]。
-  /// [expiredType] 有效期：1=1天、7=7天、30=30天、0=永久（默认 1）。
+  /// [expiredType] UI 有效期：0=永久、1=1天、7=7天、30=30天。
+  /// 夸克接口枚举与 UI 不一致（1=永久、2=7天、3=30天），内部做映射，未知档回退永久。
+  /// 分享接口需要 [title]（标题），缺省用「网盘分享」。
   Future<QuarkShareResult> shareFiles(List<String> fids,
-      {String? passcode, int expiredType = 1}) async {
+      {String? passcode, String? title, int expiredType = 0}) async {
     final pwd = (passcode != null && passcode.isNotEmpty)
         ? passcode
         : _randomSharePwd();
@@ -476,8 +478,11 @@ class QuarkClient {
         params: _pcParams,
         data: {
           'fid_list': fids,
+          'title': (title == null || title.isEmpty) ? '网盘分享' : title,
           'url_type': 2,
-          'expired_type': expiredType == 0 ? 0 : expiredType,
+          // 夸克 expired_type：1=永久、2=7天、3=30天；此前把 UI 的 period(0/1/7/30) 直接当作
+          // expired_type 传，0/7/30 不在枚举内，导致接口报「分享创建失败。[未知过期类型]」。
+          'expired_type': _mapExpiredType(expiredType),
           'passcode': pwd,
         });
     if (data is! Map) throw QuarkException(-1, '创建分享链接失败');
@@ -494,6 +499,15 @@ class QuarkClient {
     // 注意：不把 pwd 拼进 url，避免上层再次拼接导致双密码。pwd 由 QuarkShareResult.pwd 单独携带。
     return QuarkShareResult(url: url, pwd: respPwd, pwdId: pwdId);
   }
+
+  /// 夸克分享过期类型映射：UI period → 接口 expired_type。
+  /// 接口枚举：1=永久、2=7天、3=30天；UI 的 0(永久)、1(1天)、7(7天)、30(30天) 会被映射，
+  /// 未知档一律回退为永久，避免接口报「未知过期类型」。
+  static int _mapExpiredType(int period) => switch (period) {
+        7 => 2,
+        30 => 3,
+        _ => 1,
+      };
 
   /// 生成 4 位随机数字提取码（1000-9999）
   static String _randomSharePwd() {
