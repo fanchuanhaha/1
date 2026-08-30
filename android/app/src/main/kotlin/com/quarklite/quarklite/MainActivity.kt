@@ -7,6 +7,7 @@ import android.os.Build
 import android.os.Environment
 import android.os.PowerManager
 import android.provider.Settings
+import android.util.Log
 import android.webkit.MimeTypeMap
 import androidx.annotation.NonNull
 import androidx.core.content.FileProvider
@@ -101,9 +102,9 @@ open class MainActivity : FlutterActivity() {
     /// 用系统方式打开本地文件：ACTION_VIEW + FileProvider，交给系统选择应用。
     /// 返回是否成功拉起某个应用。
     private fun openFile(path: String?): Boolean {
-        if (path.isNullOrEmpty()) return false
+        if (path.isNullOrEmpty()) { Log.w("openFile", "openFile: path 为空"); return false }
         val file = File(path)
-        if (!file.exists()) return false
+        if (!file.exists()) { Log.w("openFile", "openFile: 文件不存在 path=$path"); return false }
         val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", file)
 
         // 直接用系统的「打开」接口。仅 .apk 需要显式指定安装包类型
@@ -115,6 +116,7 @@ open class MainActivity : FlutterActivity() {
             MimeTypeMap.getSingleton()
                 .getMimeTypeFromExtension(file.extension.lowercase()) ?: "*/*"
         }
+        Log.i("openFile", "打开: path=$path mime=$mime uri=$uri")
         val intent = Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(uri, mime)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
@@ -122,8 +124,10 @@ open class MainActivity : FlutterActivity() {
         }
         return try {
             startActivity(intent)
+            Log.i("openFile", "ACTION_VIEW 打开成功 path=$path")
             true
         } catch (e: Exception) {
+            Log.w("openFile", "ACTION_VIEW 打开失败 path=$path err=${e.message}")
             try {
                 // MIME 类型不明确时回退到通配类型重试
                 val generic = Intent(Intent.ACTION_VIEW).apply {
@@ -132,6 +136,7 @@ open class MainActivity : FlutterActivity() {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
                 startActivity(generic)
+                Log.i("openFile", "通配类型打开成功 path=$path")
                 true
             } catch (_: Exception) {
                 false

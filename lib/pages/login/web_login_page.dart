@@ -5,6 +5,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 
 import '../../api/drive_type.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/app_logger.dart';
 
 /// 网页登录页面：使用 WebView 加载网盘登录页
 /// 用户登录后点击「保存」按钮手动保存 Cookie/Token（参考 APK 样式）
@@ -289,10 +290,22 @@ class _WebLoginPageState extends State<WebLoginPage> {
     result ??= _currentCookie.isNotEmpty ? _currentCookie : null;
 
     if (result == null || result.isEmpty) {
-      _toast('未检测到登录凭证，请先登录后再点击保存');
+      AppLogger.I.w(
+        'web_login',
+        '未获取到登录凭证 drive=${widget.driveType.name} '
+        'localStorageKeys=${_tokenKeys[widget.driveType]} '
+        'localStorage结果Token=${result ?? ''} cookieLen=${_currentCookie.length}',
+      );
+      if (widget.driveType == DriveType.xunlei) {
+        _toast('迅雷需使用「验证码/账号密码登录」获取 access_token，网页登录的会话无法保存');
+      } else {
+        _toast('未检测到登录凭证，请先登录后再点击保存');
+      }
       return;
     }
 
+    AppLogger.I.i('web_login',
+        '保存登录凭证成功 drive=${widget.driveType.name} 凭证长度=${result.length}');
     if (mounted) Navigator.of(context).pop(result);
   }
 

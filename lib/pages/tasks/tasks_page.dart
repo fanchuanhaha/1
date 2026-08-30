@@ -6,6 +6,7 @@ import '../../state/download_manager.dart';
 import '../../state/upload_manager.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/format.dart';
+import '../../utils/app_logger.dart';
 import '../../widgets/empty_view.dart';
 import '../../widgets/file_icon.dart';
 import '../downloads/import_download_sheet.dart';
@@ -590,10 +591,19 @@ class _TasksPageState extends State<TasksPage>
 
   /// 打开已下载的文件：交由系统选择应用打开
   Future<void> _openDownloaded(GopeedTask task) async {
-    final dir = AppState.I.downloadDir;
-    final path =
-        dir.endsWith('/') || dir.endsWith('\\') ? '$dir${task.name}' : '$dir/${task.name}';
-    final ok = await AppState.I.openDownloadedFile(path);
+    // 优先用 gopeed 引擎返回的真实保存路径（含文件名），它能反映实际落盘位置
+    // （部分网盘会用响应头文件名覆盖 name，downloadDir/name 拼接会找不到文件）。
+    var p = task.raw?['path']?.toString() ?? '';
+    if (p.isEmpty) {
+      final dir = AppState.I.downloadDir;
+      p =
+          dir.endsWith('/') || dir.endsWith('\\') ? '$dir${task.name}' : '$dir/${task.name}';
+    } else if (p.endsWith('/') || p.endsWith('\\')) {
+      p = '$p${task.name}';
+    }
+    AppLogger.I.i(
+        'open_file', 'openDownloaded task=${task.name} path=$p status=${task.status}');
+    final ok = await AppState.I.openDownloadedFile(p);
     if (!ok && mounted) {
       _toast('无法打开「${task.name}」，文件可能已移动或路径不可访问');
     }

@@ -13,6 +13,7 @@ import '../../api/quark_auth.dart';
 import 'login_service.dart';
 import 'web_login_page.dart';
 import 'password_login_page.dart';
+import 'xunlei_sms_login_page.dart';
 
 /// 登录页面：支持多网盘选择与登录
 /// 参考APK样式：每个登录方式为一个按钮，点击打开独立页面，登录成功后显示用户信息
@@ -393,6 +394,13 @@ class _LoginPageState extends State<LoginPage> {
 
       case DriveType.xunlei:
         return _buildMethodList([
+          _MethodItem(
+            icon: Icons.sms_rounded,
+            title: '手机号验证码登录',
+            subtitle: '获取短信验证码直接登录（推荐）',
+            color: const Color(0xFF34C759),
+            onTap: () => _openPage(const XunleiSmsLoginPage()),
+          ),
           _MethodItem(
             icon: Icons.lock_rounded,
             title: '账号密码登录',
