@@ -118,8 +118,12 @@ class BaiduAccelService {
     return BaiduAccelFileList.fromJson(data.cast<String, dynamic>());
   }
 
-  /// 生成下载直链，返回每个 fs_id 对应的直链列表。
-  Future<Map<String, List<String>>> getDownloadLinks({
+  /// 生成下载直链，返回每个 fs_id 对应的直链结果（含该直链要求的下载 UA）。
+  ///
+  /// 返回的 [BaiduAccelDownloadLink] 里带 `ua` 字段——这是解析服务为这条
+  /// 直链绑定的下载 User-Agent，下载时必须原样带上，且不要附带本账号的个人
+  /// cookie（该直链属于分享/匿名上下文，带个人 cookie 会导致 CDN 鉴权失败）。
+  Future<Map<String, BaiduAccelDownloadLink>> getDownloadLinks({
     required BaiduAccelFileList fileList,
     required List<String> fsIds,
     required String surl,
@@ -142,18 +146,23 @@ class BaiduAccelService {
       'vcode_str': '',
       'vcode_input': '',
     });
-    final result = <String, List<String>>{};
+    final result = <String, BaiduAccelDownloadLink>{};
+    void addItem(Map item) {
+      final fid = item['fs_id']?.toString() ?? '';
+      final urls = item['urls'];
+      if (fid.isEmpty || urls is! List) return;
+      result[fid] = BaiduAccelDownloadLink(
+        urls: urls.map((e) => e.toString()).where((u) => u.isNotEmpty).toList(),
+        ua: item['ua']?.toString() ?? '',
+      );
+    }
+
     if (data is List) {
       for (final item in data) {
-        if (item is Map) {
-          final fid = item['fs_id']?.toString() ?? '';
-          final urls = item['urls'];
-          if (fid.isNotEmpty && urls is List) {
-            result[fid] =
-                urls.map((e) => e.toString()).where((u) => u.isNotEmpty).toList();
-          }
-        }
+        if (item is Map) addItem(item.cast<String, dynamic>());
       }
+    } else if (data is Map) {
+      addItem(data.cast<String, dynamic>());
     }
     return result;
   }
@@ -215,6 +224,16 @@ class BaiduAccelFileList {
       token: json['token']?.toString() ?? '',
     );
   }
+}
+
+/// 一条加速直链的解析结果：直链列表 + 该链接要求的下载 User-Agent。
+class BaiduAccelDownloadLink {
+  final List<String> urls;
+  final String ua;
+
+  BaiduAccelDownloadLink({required this.urls, required this.ua});
+
+  bool get hasUrl => urls.isNotEmpty;
 }
 
 /// 分享文件列表项

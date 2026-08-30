@@ -57,11 +57,21 @@ class DriveDownloadInfo {
   final int size;
   final String fid;
 
+  /// 覆盖下载时使用的 User-Agent（为空则用驱动器默认 UA）。
+  /// 例如百度加速直链会返回其绑定的专用 UA，必须原样带上。
+  final String userAgent;
+
+  /// 为 true 时不携带登录账号的个人 cookie 下载。
+  /// 百度加速直链属于分享/匿名上下文，带个人 cookie 会被 CDN 拒签。
+  final bool skipCookie;
+
   DriveDownloadInfo({
     required this.url,
     required this.fileName,
     required this.size,
     required this.fid,
+    this.userAgent = '',
+    this.skipCookie = false,
   });
 }
 

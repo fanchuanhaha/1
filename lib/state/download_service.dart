@@ -104,9 +104,11 @@ class DownloadService {
     final err = await addDirectUrl(
       url: info.url,
       fileName: info.fileName,
-      cookie: drive.loginCookie ?? '',
+      // 加速直链属于分享/匿名上下文，不能带本账号个人 cookie（会触发 CDN 拒签）。
+      cookie: info.skipCookie ? '' : (drive.loginCookie ?? ''),
       referer: http.referer,
-      userAgent: http.ua,
+      // 直链若指定了专用 UA（如百度加速返回的 netdisk;8.42.0.5;PC）则优先使用。
+      userAgent: info.userAgent.isNotEmpty ? info.userAgent : http.ua,
       connections: connections,
     );
     if (err == null) {

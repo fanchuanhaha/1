@@ -204,15 +204,15 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
           }
 
           _accelStep('正在解析加速直链…');
-          final urlMap = await accel.getDownloadLinks(
+          final linkMap = await accel.getDownloadLinks(
             fileList: fileList,
             fsIds: [fsId],
             surl: share.surl,
             pwd: share.pwd,
             parsePassword: password,
           );
-          final urls = urlMap[fsId];
-          if (urls == null || urls.isEmpty) {
+          final link = linkMap[fsId];
+          if (link == null || link.urls.isEmpty) {
             _accelWarn('fid=$fid 未解析到加速直链，回退普通下载');
             results.addAll(await widget.drive.getDownloadInfo([fid]));
             continue;
@@ -220,12 +220,16 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
           final size =
               matched.isNotEmpty ? matched.first.size : 0;
           _accelStep('加速直链获取成功，准备下载');
-          AppLogger.I.i('drive_files', '百度加速直链获取成功 fid=$fid 加速域名=${_hostOf(urls.first)}');
+          AppLogger.I.i('drive_files', '百度加速直链获取成功 fid=$fid 加速域名=${_hostOf(link.urls.first)}');
           results.add(DriveDownloadInfo(
-            url: urls.first,
+            url: link.urls.first,
             fileName: fileName,
             size: size,
             fid: fid,
+            // 直链绑定专用 UA（如 netdisk;8.42.0.5;PC），原样使用；
+            // 且加速链接为分享/匿名上下文，禁止附带个人 cookie。
+            userAgent: link.ua,
+            skipCookie: true,
           ));
         } catch (e) {
           AppLogger.I.w('drive_files', '百度加速解析失败，回退普通下载 $fid: $e');
