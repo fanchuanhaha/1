@@ -82,35 +82,18 @@ class _WebLoginPageState extends State<WebLoginPage> {
           onPageStarted: (url) {
             if (!mounted) return;
             setState(() => _loading = true);
-            // 在页面加载第一时间注入 viewport 元标签，使桌面站点在手机上以合适比例显示
-            // 参考 APK 做法：固定 viewport 宽度为 980px，initial-scale=0.55
+            // 页面加载早期先注入一次（可能因 document 未就绪而失败，onPageFinished 会再补一次）
             if (!isLanzou) {
-              _controller.runJavaScript('''
-(function() {
-  var vp = document.querySelector('meta[name="viewport"]');
-  var w = 980;
-  if (!vp) {
-    vp = document.createElement('meta');
-    vp.name = 'viewport';
-    document.head.appendChild(vp);
-  }
-  vp.content = 'width=' + w + ', initial-scale=0.55, minimum-scale=0.25, maximum-scale=3, user-scalable=yes';
-  document.documentElement.style.minWidth = w + 'px';
-  document.body.style.minWidth = w + 'px';
-  // 强制前端脚本读到桌面 UA：部分电脑站（如迅雷）用 JS 判断移动端，
-  // 仅 setUserAgent 时页面 JS 里的 navigator.userAgent 可能仍是移动 UA 而渲染成手机版。
-  try {
-    Object.defineProperty(navigator, 'userAgent', {
-      get: function() { return '$desktopUA'; },
-      configurable: true
-    });
-  } catch (e) {}
-})();
-''');
+              _controller.runJavaScript(_desktopInjectScript(desktopUA));
             }
           },
           onPageFinished: (_) {
             if (!mounted) return;
+            // 页面就绪后再强制注入桌面布局与桌面 UA，确保迅雷这类电脑站
+            // 按桌面版渲染（onPageStarted 时 document.body 可能为 null 会让上一次注入抛错中断）。
+            if (!isLanzou) {
+              _controller.runJavaScript(_desktopInjectScript(desktopUA));
+            }
             setState(() => _loading = false);
             _refreshCookie();
             // 登录成功跳转后 Cookie 可能稍后才落地，延迟再读一次
@@ -127,11 +110,29 @@ class _WebLoginPageState extends State<WebLoginPage> {
       ..loadRequest(Uri.parse(widget.loginUrl));
   }
 
-  /// 刷新当前 Cookie
-  ///
-  /// 优先用 WebViewCookieManager 读取（可包含 HttpOnly cookie）。
-  /// 夸克/UC 的关键会话 cookie（__puus、__pus）是 HttpOnly 的，
-  /// document.cookie 读不到它们，缺失会导致后续接口返回 500。
+  /// 构造注入脚本：把非蓝奏云网盘的 WebView 渲染成桌面版
+  /// （固定 980 宽布局 + 覆盖 navigator.userAgent 为桌面 UA），全部 null 安全。
+  String _desktopInjectScript(String ua) => '''
+(function() {
+  var vp = document.querySelector('meta[name="viewport"]');
+  var w = 980;
+  if (!vp) {
+    vp = document.createElement('meta');
+    vp.name = 'viewport';
+    if (document.head) document.head.appendChild(vp);
+  }
+  if (vp) vp.content = 'width=' + w + ', initial-scale=0.55, minimum-scale=0.25, maximum-scale=3, user-scalable=yes';
+  if (document.documentElement) document.documentElement.style.minWidth = w + 'px';
+  if (document.body) document.body.style.minWidth = w + 'px';
+  try {
+    Object.defineProperty(navigator, 'userAgent', {
+      get: function() { return '$ua'; },
+      configurable: true
+    });
+  } catch (e) {}
+})();
+''';
+
   /// 捕获阿里云盘 OAuth 授权回调的 code（仅阿里云盘使用，走 redirect_uri?code=xxx）。
   void _checkAliCallback(String? url) {
     if (widget.driveType != DriveType.ali) return;
