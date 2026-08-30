@@ -105,7 +105,11 @@ open class MainActivity : FlutterActivity() {
         if (path.isNullOrEmpty()) { Log.w("openFile", "openFile: path 为空"); return false }
         val file = File(path)
         if (!file.exists()) { Log.w("openFile", "openFile: 文件不存在 path=$path"); return false }
-        val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", file)
+        val uri = try {
+            FileProvider.getUriForFile(this, "$packageName.fileprovider", file)
+        } catch (e: Exception) {
+            Log.e("openFile", "FileProvider 创建 URI 失败 path=$path", e); return false
+        }
 
         // 直接用系统的「打开」接口。仅 .apk 需要显式指定安装包类型
         // （MimeTypeMap 识别不到 apk，会落成 */* 导致找不到接收者），
@@ -127,7 +131,7 @@ open class MainActivity : FlutterActivity() {
             Log.i("openFile", "ACTION_VIEW 打开成功 path=$path")
             true
         } catch (e: Exception) {
-            Log.w("openFile", "ACTION_VIEW 打开失败 path=$path err=${e.message}")
+            Log.w("openFile", "ACTION_VIEW 打开失败 path=$path mime=$mime err=${e.message}", e)
             try {
                 // MIME 类型不明确时回退到通配类型重试
                 val generic = Intent(Intent.ACTION_VIEW).apply {
@@ -138,7 +142,8 @@ open class MainActivity : FlutterActivity() {
                 startActivity(generic)
                 Log.i("openFile", "通配类型打开成功 path=$path")
                 true
-            } catch (_: Exception) {
+            } catch (e2: Exception) {
+                Log.e("openFile", "通配类型打开也失败 path=$path err=${e2.message}", e2)
                 false
             }
         }

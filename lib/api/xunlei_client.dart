@@ -857,9 +857,8 @@ class XunleiClient extends BaseDrive {
       },
       data: _smsBaseBody(phone, creditKey: _smsCreditKey),
     );
-    final data = (resp.data is Map)
-        ? Map<String, dynamic>.from(resp.data as Map)
-        : <String, dynamic>{};
+    // 兼容 resp.data 为 Map 或原始 JSON 字符串的两种情况
+    final data = _parseBody(resp);
     final code = data['errorCode']?.toString() ?? '';
     if (code.isNotEmpty && code != '0') {
       // 服务端明确拒绝：如 errorCode=13 身份失效 / 需图形验证，在此抛错由 UI 展示
@@ -920,9 +919,7 @@ class XunleiClient extends BaseDrive {
       },
       data: body,
     );
-    final data = (resp.data is Map)
-        ? Map<String, dynamic>.from(resp.data as Map)
-        : <String, dynamic>{};
+    final data = _parseBody(resp);
     final code = data['errorCode']?.toString() ?? '0';
     if (code.isNotEmpty && code != '0') {
       throw XunleiException(

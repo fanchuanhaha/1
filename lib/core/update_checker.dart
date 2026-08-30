@@ -177,43 +177,54 @@ class UpdateChecker {
           ],
         ),
         actions: [
-          TextButton(
-            onPressed: () {
-              skip(update.version);
-              Navigator.pop(ctx);
-            },
-            child: Text('取消',
-                style: TextStyle(color: AppColors.of(ctx).textSecondary)),
-          ),
-          TextButton(
-            onPressed: () {
-              final url = update.directUrl ?? update.htmlUrl;
-              if (url == null) return;
-              Clipboard.setData(ClipboardData(text: url));
-              Navigator.pop(ctx);
-              _toast(context, '下载链接已复制');
-            },
-            child: const Text('复制链接'),
-          ),
-          if (update.directUrl != null) ...[
-            TextButton(
-              onPressed: () async {
-                Navigator.pop(ctx);
-                await _startDownload(context, update.directUrl!,
-                    update.version, useProxy: false);
-              },
-              child: const Text('下载'),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+            child: Wrap(
+              spacing: 4,
+              runSpacing: 4,
+              alignment: WrapAlignment.end,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                TextButton(
+                  onPressed: () {
+                    skip(update.version);
+                    Navigator.pop(ctx);
+                  },
+                  child: Text('取消',
+                      style: TextStyle(
+                          color: AppColors.of(ctx).textSecondary)),
+                ),
+                TextButton(
+                  onPressed: () {
+                    final url = update.directUrl ?? update.htmlUrl;
+                    if (url == null) return;
+                    Clipboard.setData(ClipboardData(text: url));
+                    Navigator.pop(ctx);
+                    _toast(context, '下载链接已复制');
+                  },
+                  child: const Text('复制链接'),
+                ),
+                if (update.directUrl != null) ...[
+                  TextButton(
+                    onPressed: () async {
+                      Navigator.pop(ctx);
+                      await _startDownload(context, update.directUrl!,
+                          update.version, useProxy: false);
+                    },
+                    child: const Text('下载'),
+                  ),
+                  FilledButton(
+                    onPressed: () async {
+                      Navigator.pop(ctx);
+                      await _startDownload(context, update.directUrl!,
+                          update.version, useProxy: true);
+                    },
+                    child: const Text('加速下载'),
+                  ),
+                ],
+              ],
             ),
-            TextButton(
-              onPressed: () async {
-                Navigator.pop(ctx);
-                await _startDownload(
-                    context, update.directUrl!, update.version,
-                    useProxy: true);
-              },
-              child: const Text('加速下载'),
-            ),
-          ],
+          ),
         ],
       ),
     );

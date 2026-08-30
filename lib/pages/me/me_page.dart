@@ -239,6 +239,19 @@ class MePage extends StatelessWidget {
               onPressed: () => Navigator.pop(ctx),
               child: const Text('关闭'),
             ),
+            TextButton(
+              onPressed: () async {
+                final r = await AppLogger.I.exportTo('/sdcard/1.log');
+                if (!ctx.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text(r.ok
+                        ? '日志已导出到 ${r.message}'
+                        : r.message)));
+              },
+              child: Text('导出/1.log',
+                  style: TextStyle(
+                      color: AppColors.of(context).textSecondary)),
+            ),
             TextButton.icon(
               icon: Icon(Icons.delete_sweep_rounded,
                   size: 18, color: AppColors.of(context).red),

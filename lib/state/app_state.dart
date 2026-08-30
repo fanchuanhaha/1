@@ -11,6 +11,7 @@ import '../api/drive_manager.dart';
 import '../api/drive_type.dart';
 import '../api/quark_client.dart';
 import '../api/quark_models.dart';
+import '../utils/app_logger.dart';
 
 class AppState extends ChangeNotifier {
   static const _sysChannel = MethodChannel('quarklite.com/system');
@@ -49,8 +50,11 @@ class AppState extends ChangeNotifier {
     try {
       final ok =
           await _sysChannel.invokeMethod<bool>('openFile', {'path': path});
+      AppLogger.I.i('open_file',
+          'openDownloadedFile 结果 ok=${ok ?? false} path=$path');
       return ok ?? false;
-    } catch (_) {
+    } catch (e) {
+      AppLogger.I.e('open_file', 'openDownloadedFile 异常 path=$path err=$e');
       return false;
     }
   }

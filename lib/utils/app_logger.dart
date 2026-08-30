@@ -122,6 +122,30 @@ class AppLogger {
     }
   }
 
+  /// 导出完整日志到 [path]（如 /sdcard/1.log），返回是否成功与提示信息
+  Future<({bool ok, String message})> exportTo(String path) async {
+    try {
+      final f = _file;
+      final content =
+          (f != null && f.existsSync()) ? f.readAsStringSync() : '（暂无日志）';
+      // 把 /sdcard 符号链接解析为真实外部存储路径，提高写入兼容性
+      var target = path;
+      if (target == '/sdcard' || target.startsWith('/sdcard/')) {
+        target = target.replaceFirst('/sdcard', '/storage/emulated/0');
+      }
+      final tf = File(target);
+      if (!tf.parent.existsSync()) {
+        try {
+          tf.parent.createSync(recursive: true);
+        } catch (_) {}
+      }
+      tf.writeAsStringSync(content, flush: true);
+      return (ok: true, message: target);
+    } catch (e) {
+      return (ok: false, message: '导出失败：$e');
+    }
+  }
+
   /// 日志文件完整路径
   Future<String> logPath() async {
     final f = _file;

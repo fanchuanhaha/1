@@ -112,6 +112,9 @@ class BaiduClient extends BaseDrive {
       'Content-Type': 'application/x-www-form-urlencoded',
       'User-Agent': _ua,
       'Referer': 'https://pan.baidu.com/',
+      // 百度部分接口返回的 gzip 数据 Dart 的 zlib 解码会报 "Filter error, bad data"，
+      // 显式要求明文响应以规避解码崩溃（百度会遵守 identity）。
+      'Accept-Encoding': 'identity',
       if (_bduss.isNotEmpty) 'Cookie': cookie,
     };
   }
