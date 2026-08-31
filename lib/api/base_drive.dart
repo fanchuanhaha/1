@@ -183,8 +183,9 @@ abstract class BaseDrive {
 
   /// 创建分享链接，返回分享结果（链接 + 提取码）。异常或失败抛 [StateError]。
   /// [pwd] 自定义提取码（为空时由网盘默认生成）；[period] 有效期时长（各网盘自定义）。
+  /// [requirePwd] 为 false 时优先生成公开分享（无提取码）；网盘不支持时回退为私密分享。
   Future<DriveShareResult> shareFiles(List<String> fids,
-      {String? pwd, int? period}) {
+      {String? pwd, int? period, bool requirePwd = true}) {
     throw StateError('当前网盘不支持创建分享链接');
   }
 

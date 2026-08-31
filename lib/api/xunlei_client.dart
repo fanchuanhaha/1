@@ -438,7 +438,7 @@ class XunleiClient extends BaseDrive {
           'page_size': size,
           'sort_by': 'updated_at',
           'sort_order': 'desc',
-          'thumbnail_size': 'large',
+          'thumbnail_size': 'SIZE_LARGE',
         },
       );
       final list = data['files'];
@@ -600,7 +600,7 @@ class XunleiClient extends BaseDrive {
           'parent_id': pdirFid,
           'page': page,
           'page_size': size,
-          'thumbnail_size': 'large',
+          'thumbnail_size': 'SIZE_LARGE',
         },
       );
       final list = data['files'];

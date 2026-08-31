@@ -11,7 +11,14 @@ class ShareConfig {
   /// 用户自定义提取码（可空，为空时由网盘自动生成）。
   final String pwd;
 
-  const ShareConfig({this.period = 0, this.pwd = ''});
+  /// 是否开启提取码（私密分享）。为 false 时生成公开分享、无提取码。
+  final bool requirePwd;
+
+  const ShareConfig({
+    this.period = 0,
+    this.pwd = '',
+    this.requirePwd = true,
+  });
 
   bool get hasCustomPwd => pwd.isNotEmpty;
 }
@@ -23,10 +30,11 @@ const List<(int, String)> kSharePeriods = [
   (30, '30天'),
 ];
 
-/// 弹出「分享设置」对话框：选择有效期 + 填写提取码（留空自动生成）。
+/// 弹出「分享设置」对话框：选择有效期 + 是否开启提取码 + 填写提取码（留空自动生成）。
 /// 返回 null 表示用户取消。
 Future<ShareConfig?> showShareSetupDialog(BuildContext context) async {
   var period = 0;
+  var requirePwd = true;
   var pwd = '';
   final pwdCtrl = TextEditingController();
   String? pwdError;
@@ -68,33 +76,57 @@ Future<ShareConfig?> showShareSetupDialog(BuildContext context) async {
                 }).toList(),
               ),
               const SizedBox(height: 16),
-              Text('提取码',
-                  style: TextStyle(
-                      color: AppColors.of(ctx).textSecondary, fontSize: 13)),
-              const SizedBox(height: 8),
-              TextField(
-                controller: pwdCtrl,
-                maxLength: 4,
-                keyboardType: TextInputType.number,
-                style: TextStyle(color: AppColors.of(ctx).textPrimary),
-                decoration: InputDecoration(
-                  hintText: '留空自动生成 4 位数字',
-                  hintStyle: TextStyle(color: AppColors.of(ctx).textSecondary),
-                  counterText: '',
-                  errorText: pwdError,
-                  filled: true,
-                  fillColor: AppColors.of(ctx).cardLight,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide.none,
+              Row(
+                children: [
+                  Expanded(
+                    child: Text('开启提取码',
+                        style: TextStyle(
+                            color: AppColors.of(ctx).textSecondary,
+                            fontSize: 13)),
                   ),
-                ),
-                onChanged: (_) {
-                  if (pwdError != null) setState(() => pwdError = null);
-                },
+                  Switch(
+                    value: requirePwd,
+                    activeColor: AppColors.of(ctx).accent,
+                    onChanged: (_) => setState(() {
+                      requirePwd = !requirePwd;
+                      if (requirePwd) {
+                        pwdError = null;
+                      }
+                    }),
+                  ),
+                ],
               ),
+              if (requirePwd) ...[
+                const SizedBox(height: 8),
+                Text('提取码',
+                    style: TextStyle(
+                        color: AppColors.of(ctx).textSecondary, fontSize: 13)),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: pwdCtrl,
+                  maxLength: 4,
+                  keyboardType: TextInputType.number,
+                  style: TextStyle(color: AppColors.of(ctx).textPrimary),
+                  decoration: InputDecoration(
+                    hintText: '留空自动生成 4 位数字',
+                    hintStyle:
+                        TextStyle(color: AppColors.of(ctx).textSecondary),
+                    counterText: '',
+                    errorText: pwdError,
+                    filled: true,
+                    fillColor: AppColors.of(ctx).cardLight,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                  onChanged: (_) {
+                    if (pwdError != null) setState(() => pwdError = null);
+                  },
+                ),
+              ],
               const SizedBox(height: 8),
-              Text('提示：开启「野鸡百度加速」接口后，下载百度文件时需用这里生成的私密分享链接配合提取码解析。',
+              Text('开启提取码时为私密分享；关闭后为公开分享（夸克支持）。',
                   style: TextStyle(
                       color: AppColors.of(ctx).textSecondary, fontSize: 11)),
             ],
@@ -109,11 +141,14 @@ Future<ShareConfig?> showShareSetupDialog(BuildContext context) async {
               onPressed: () {
                 final raw = pwdCtrl.text.trim();
                 pwd = raw;
-                if (raw.isNotEmpty && !RegExp(r'^\d{4}$').hasMatch(raw)) {
+                if (requirePwd &&
+                    raw.isNotEmpty &&
+                    !RegExp(r'^\d{4}$').hasMatch(raw)) {
                   setState(() => pwdError = '提取码需为 4 位数字');
                   return;
                 }
-                Navigator.pop(ctx, ShareConfig(period: period, pwd: pwd));
+                Navigator.pop(ctx,
+                    ShareConfig(period: period, pwd: pwd, requirePwd: requirePwd));
               },
               child: const Text('生成分享'),
             ),

@@ -644,7 +644,8 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
       if (config == null || !mounted) return;
       final result = await widget.drive.shareFiles([file.fid],
           pwd: config.hasCustomPwd ? config.pwd : null,
-          period: config.period);
+          period: config.period,
+          requirePwd: config.requirePwd);
       if (!mounted) return;
       await showShareResultDialog(
           context, buildShareFullUrl(result.url, result.pwd), result.pwd);

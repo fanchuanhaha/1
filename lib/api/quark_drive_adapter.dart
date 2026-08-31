@@ -159,9 +159,9 @@ class QuarkDriveAdapter extends BaseDrive {
 
   @override
   Future<DriveShareResult> shareFiles(List<String> fids,
-      {String? pwd, int? period}) async {
+      {String? pwd, int? period, bool requirePwd = true}) async {
     final r = await _client.shareFiles(fids,
-        passcode: pwd, expiredType: period ?? 1);
+        passcode: pwd, expiredType: period ?? 1, requirePwd: requirePwd);
     return DriveShareResult(url: r.url, pwd: r.pwd, surl: r.pwdId);
   }
 

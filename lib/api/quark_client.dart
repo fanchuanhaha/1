@@ -466,24 +466,26 @@ class QuarkClient {
 
   /// 创建分享链接。默认生成私密分享（带 4 位提取码）。
   /// [passcode] 不传或为空时自动生成。返回 [QuarkShareResult]，失败抛 [QuarkException]。
+  /// [requirePwd] 为 false 时生成公开分享、不设置提取码。
   /// [expiredType] UI 有效期：0=永久、1=1天、7=7天、30=30天。
   /// 夸克接口枚举与 UI 不一致（1=永久、2=7天、3=30天），内部做映射，未知档回退永久。
   /// 分享接口需要 [title]（标题），缺省用「网盘分享」。
   Future<QuarkShareResult> shareFiles(List<String> fids,
-      {String? passcode, String? title, int expiredType = 0}) async {
-    final pwd = (passcode != null && passcode.isNotEmpty)
-        ? passcode
-        : _randomSharePwd();
+      {String? passcode, String? title, int expiredType = 0, bool requirePwd = true}) async {
+    final pwd = requirePwd
+        ? ((passcode != null && passcode.isNotEmpty)
+            ? passcode
+            : _randomSharePwd())
+        : '';
     final data = await _post('$drivePcApi/share',
         params: _pcParams,
         data: {
           'fid_list': fids,
           'title': (title == null || title.isEmpty) ? '网盘分享' : title,
           'url_type': 2,
-          // 夸克 expired_type：1=永久、2=7天、3=30天；此前把 UI 的 period(0/1/7/30) 直接当作
-          // expired_type 传，0/7/30 不在枚举内，导致接口报「分享创建失败。[未知过期类型]」。
           'expired_type': _mapExpiredType(expiredType),
-          'passcode': pwd,
+          // 私密分享设置提取码；公开分享不传 passcode（传空会被部分驱动忽略）。
+          if (pwd.isNotEmpty) 'passcode': pwd,
         });
     if (data is! Map) throw QuarkException(-1, '创建分享链接失败');
     // 响应可能是任务包装结构：{task_id, task_resp:{data:{share_id,...}}}，

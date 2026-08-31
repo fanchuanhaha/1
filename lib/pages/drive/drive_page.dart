@@ -663,7 +663,8 @@ class _DrivePageState extends State<DrivePage>
       final result = await AppState.I.quark.shareFiles([file.fid],
           passcode: config.hasCustomPwd ? config.pwd : null,
           title: file.fileName,
-          expiredType: config.period);
+          expiredType: config.period,
+          requirePwd: config.requirePwd);
       if (!mounted) return;
       await showShareResultDialog(
           context, buildShareFullUrl(result.url, result.pwd), result.pwd);

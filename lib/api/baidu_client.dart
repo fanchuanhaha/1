@@ -570,28 +570,33 @@ class BaiduClient extends BaseDrive {
   @override
   Future<DriveShareSession> getShareToken(String pwdId, String passcode) async {
     // 百度分享链接的 pwdId 是 surl 短码（如 1XXXXX）。share/verify 需要的是
-    // 真实数字 shareid + 来源 uk，需先经 /share/init 用 surl 解析（否则返回 errno=-12）。
+    // 真实数字 shareid + 来源 uk，需先解析（否则返回 errno=-12）。
+    // 注意：网页端的 /share/init 现返回 404 页面，改走 JSON 接口 api/shorturlinfo 解析。
     var shareId = pwdId;
     var uk = 0;
     final looksSurl = RegExp(r'^1[A-Za-z0-9]{3,}$').hasMatch(pwdId);
     if (looksSurl) {
-      final init = await _get('$_baseUrl/share/init', params: {
-        'surl': pwdId,
+      final short = await _get('$_baseUrl/api/shorturlinfo', params: {
+        'shorturl': pwdId,
         'clienttype': 0,
         'app_id': 250528,
         'web': 1,
+        'channel': 'chunlei',
       });
-      AppLogger.I.i('baidu', 'share/init 结果 errno=${init['errno']} shareid=${init['shareid']} uk=${init['uk']}');
-      final initShare = init['shareid']?.toString() ?? '';
+      final data = short['data'];
+      final errno = toInt(short['errno'], fallback: toInt(data?['errno']));
+      final initShare = data is Map ? data['shareid']?.toString() ?? '' : '';
       if (initShare.isNotEmpty) {
         shareId = initShare;
       }
-      uk = toInt(init['uk']);
-      if (shareId == pwdId && init['errno']?.toString() != '0') {
-        throw BaiduException(
-          toInt(init['errno'], fallback: -1),
-          init['errmsg']?.toString() ?? '分享链接解析失败',
-        );
+      uk = toInt(data is Map ? data['uk'] : null);
+      AppLogger.I.i('baidu',
+          'shorturlinfo 结果 errno=$errno shareid=${data is Map ? data['shareid'] : ''} uk=${data is Map ? data['uk'] : ''}');
+      if (shareId == pwdId && errno != 0) {
+        final msg = short['errmsg']?.toString() ??
+            (data is Map ? data['errmsg']?.toString() : '') ??
+            '分享链接解析失败';
+        throw BaiduException(errno, msg);
       }
     }
 
@@ -851,11 +856,12 @@ class BaiduClient extends BaseDrive {
 
   @override
   Future<DriveShareResult> shareFiles(List<String> fids,
-      {int? period, String? pwd}) async {
+      {int? period, String? pwd, bool requirePwd = true}) async {
     if (fids.isEmpty) throw StateError('请先选择文件');
     final fsIds = await _fidsToFsIds(fids);
     if (fsIds.isEmpty) throw StateError('未能获取文件信息，请重试');
-    // 私密分享：默认生成 4 位提取码；公开分享易被百度风控判为“账号异常，禁止分享”(errno 115)。
+    // 私密分享：默认生成 4 位提取码；公开分享易被百度风控判为“账号异常，禁止分享”(errno 115)，
+    // 故百度即使 requirePwd=false 也强制私密分享避免封号。
     final finalPwd =
         (pwd != null && pwd.isNotEmpty) ? pwd : _randomSharePwd();
     final body = await createShareLink(

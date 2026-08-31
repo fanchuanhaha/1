@@ -187,10 +187,21 @@ class UpdateChecker {
               children: [
                 TextButton(
                   onPressed: () {
-                    skip(update.version);
+                    // 仅关闭弹窗，不写入跳过键：
+                    // 之前「取消」也调用 skip(update.version)，导致同版本二次点击更新
+                    // 时被判为已跳过而提示「已是最新版本」。
                     Navigator.pop(ctx);
                   },
                   child: Text('取消',
+                      style: TextStyle(
+                          color: AppColors.of(ctx).textSecondary)),
+                ),
+                TextButton(
+                  onPressed: () {
+                    skip(update.version);
+                    Navigator.pop(ctx);
+                  },
+                  child: Text('以后再说',
                       style: TextStyle(
                           color: AppColors.of(ctx).textSecondary)),
                 ),
