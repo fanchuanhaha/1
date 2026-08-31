@@ -467,7 +467,6 @@ class MePage extends StatelessWidget {
             ),
           ),
         ),
-      ),
     );
   }
 

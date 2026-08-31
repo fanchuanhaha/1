@@ -135,7 +135,7 @@ class XunleiClient extends BaseDrive {
     Object? data,
     String? userAgent,
     Map<String, dynamic>? extraHeaders,
-    bool _retried = false,
+    bool retried = false,
   }) async {
     final headers = _buildHeaders(
       userAgent: userAgent,
@@ -154,7 +154,7 @@ class XunleiClient extends BaseDrive {
     // access_token 过期（401）：用 refresh_token 静默续期后重试一次。
     // 避免「登录后 token 短期过期，后续文件加载全部失败」。
     if (resp.statusCode == 401 &&
-        !_retried &&
+        !retried &&
         _refreshToken.isNotEmpty) {
       AppLogger.I.w('xunlei', '收到 401，使用 refresh_token 自动续期');
       final ok = await _refreshByOAuth();
@@ -164,7 +164,7 @@ class XunleiClient extends BaseDrive {
             data: data,
             userAgent: userAgent,
             extraHeaders: extraHeaders,
-            _retried: true);
+            retried: true);
       }
     }
     _mergeSetCookie(resp);
