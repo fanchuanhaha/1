@@ -415,7 +415,7 @@ class MePage extends StatelessWidget {
     ];
     showModalBottomSheet(
       context: dialogCtx,
-      backgroundColor: AppColors.of(context).card,
+      backgroundColor: AppColors.of(dialogCtx).card,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(18))),
@@ -431,20 +431,20 @@ class MePage extends StatelessWidget {
                   Row(
                     children: [
                       Icon(Icons.arrow_back_rounded,
-                          color: AppColors.of(context).accent, size: 24),
+                          color: AppColors.of(ctx).accent, size: 24),
                       const SizedBox(width: 8),
                       Text('按网盘设置下载线程',
                           style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.w700,
-                              color: AppColors.of(context).textPrimary)),
+                              color: AppColors.of(ctx).textPrimary)),
                     ],
                   ),
                   const SizedBox(height: 4),
                   Text('未设置的网盘沿用全局默认 ${app.connections} 线程。夸克最大可调 128。',
                       style: TextStyle(
                           fontSize: 12,
-                          color: AppColors.of(context).textSecondary)),
+                          color: AppColors.of(ctx).textSecondary)),
                   const SizedBox(height: 12),
                   for (final d in drives) ...[
                     _DriveThreadTile(

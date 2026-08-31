@@ -187,7 +187,6 @@ class XunleiClient extends BaseDrive {
     try {
       final resp = await _dio.request(
         '$_authToken?client_id=$_oauthClientId',
-        method: 'POST',
         data: {
           'client_id': _oauthClientId,
           'client_secret': _oauthClientSecret,
@@ -195,6 +194,7 @@ class XunleiClient extends BaseDrive {
           'refresh_token': _refreshToken,
         },
         options: Options(
+          method: 'POST',
           headers: {
             'Accept': 'application/json, text/plain, */*',
             'Content-Type': 'application/json',
