@@ -132,7 +132,7 @@ class DownloadService {
         fileName:
             info.fileName.isNotEmpty ? info.fileName : (fileName ?? ''),
         cookie: cookie,
-        connections: app.connections,
+        connections: app.connectionsFor(DriveType.quark),
       );
     } catch (e) {
       return '下载失败: $e';

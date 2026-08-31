@@ -198,15 +198,6 @@ class UpdateChecker {
                 ),
                 TextButton(
                   onPressed: () {
-                    skip(update.version);
-                    Navigator.pop(ctx);
-                  },
-                  child: Text('以后再说',
-                      style: TextStyle(
-                          color: AppColors.of(ctx).textSecondary)),
-                ),
-                TextButton(
-                  onPressed: () {
                     final url = update.directUrl ?? update.htmlUrl;
                     if (url == null) return;
                     Clipboard.setData(ClipboardData(text: url));

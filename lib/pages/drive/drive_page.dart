@@ -315,7 +315,7 @@ class _DrivePageState extends State<DrivePage>
           url: info.url,
           fileName: info.fileName,
           cookie: cookie,
-          connections: app.connections,
+          connections: app.connectionsFor(DriveType.quark),
         );
         if (err == null) added++;
       }
@@ -765,7 +765,7 @@ class _DrivePageState extends State<DrivePage>
         url: info.url,
         fileName: info.fileName,
         cookie: cookie,
-        connections: app.connections,
+        connections: app.connectionsFor(DriveType.quark),
       );
       if (err != null) throw Exception(err);
       showDownloadAddedToast(context, '已加入下载队列');

@@ -331,7 +331,7 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
         final err = await DownloadService.addDriveUrl(
           widget.drive,
           info,
-          connections: AppState.I.connections,
+          connections: AppState.I.connectionsFor(widget.drive.type),
         );
         if (err == null) added++;
       }

@@ -583,18 +583,20 @@ class BaiduClient extends BaseDrive {
         'web': 1,
         'channel': 'chunlei',
       });
-      final data = short['data'];
-      final errno = toInt(short['errno'], fallback: toInt(data?['errno']));
-      final initShare = data is Map ? data['shareid']?.toString() ?? '' : '';
+      // shorturlinfo 返回的是扁平结构：shareid/uk/errno 都在顶层，没有 data 包裹。
+      final errno = toInt(short['errno'], fallback: -1);
+      final initShare = short['shareid']?.toString() ?? '';
       if (initShare.isNotEmpty) {
         shareId = initShare;
       }
-      uk = toInt(data is Map ? data['uk'] : null);
+      uk = toInt(short['uk']);
       AppLogger.I.i('baidu',
-          'shorturlinfo 结果 errno=$errno shareid=${data is Map ? data['shareid'] : ''} uk=${data is Map ? data['uk'] : ''}');
-      if (shareId == pwdId && errno != 0) {
+          'shorturlinfo 结果 errno=$errno shareid=${short['shareid']} uk=${short['uk']} show_msg=${short['show_msg']}');
+      // 只在拿不到 shareid（errno 非 0 且未解析出数字 shareid）时才抛错；
+      // 已解析出 shareid 时即使 errno 非 0（如 -3 分享已删）也继续，让 /share/verify 给出准确错误。
+      if (shareId == pwdId && (errno != 0 || initShare.isEmpty)) {
         final msg = short['errmsg']?.toString() ??
-            (data is Map ? data['errmsg']?.toString() : '') ??
+            short['show_msg']?.toString() ??
             '分享链接解析失败';
         throw BaiduException(errno, msg);
       }

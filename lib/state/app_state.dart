@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -20,6 +21,7 @@ class AppState extends ChangeNotifier {
   static const _kCloseAction = 'window_close_action';
   static const _kThemeMode = 'theme_mode';
   static const _kUploadParallelism = 'upload_parallelism';
+  static const _kDriveConnections = 'drive_connections_json';
 
   // ---- 第三方接口配置（「野鸡百度加速」等，预留多接口扩展） ----
   static const _kBaiduAccelEnabled = 'baidu_accel_enabled';
@@ -84,6 +86,9 @@ class AppState extends ChangeNotifier {
   String closeAction = 'ask_once';
   String themeMode = 'dark';
 
+  /// 按网盘单独设置的下载线程数（键为 DriveType.name）。未单独配置的网盘使用 [connections]。
+  Map<String, int> driveConnections = {};
+
   /// 同时上传任务数（默认 1：一次一个文件，减少接口限流与内存占用）
   int uploadParallelism = 1;
 
@@ -114,6 +119,7 @@ class AppState extends ChangeNotifier {
       uploadParallelism = prefs.getInt(_kUploadParallelism) ?? 1;
       baiduAccelEnabled = prefs.getBool(_kBaiduAccelEnabled) ?? false;
       baiduAccelPassword = prefs.getString(_kBaiduAccelPassword) ?? '';
+      driveConnections = _decodeDriveConnections(prefs.getString(_kDriveConnections));
       notifyListeners();
     });
   }
@@ -138,6 +144,32 @@ class AppState extends ChangeNotifier {
     await prefs.setInt(_kConnections, n);
     notifyListeners();
   }
+
+  /// 某个网盘的下载线程数：单独配置过则用该值，否则回退全局 [connections]。
+  int connectionsFor(DriveType type) =>
+      driveConnections[type.name] ?? connections;
+
+  /// 设置单个网盘的下载线程数。
+  Future<void> setDriveConnections(DriveType type, int n) async {
+    driveConnections = {...driveConnections, type.name: n};
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kDriveConnections, _encodeDriveConnections(driveConnections));
+    notifyListeners();
+  }
+
+  static Map<String, int> _decodeDriveConnections(String? raw) {
+    if (raw == null || raw.isEmpty) return {};
+    try {
+      final m = jsonDecode(raw);
+      if (m is! Map<String, dynamic>) return {};
+      return m.map((k, v) => MapEntry(k, (v as num?)?.toInt() ?? 0));
+    } catch (_) {
+      return {};
+    }
+  }
+
+  static String _encodeDriveConnections(Map<String, int> map) =>
+      jsonEncode(map);
 
   Future<void> setCloseAction(String action) async {
     closeAction = action;

@@ -71,6 +71,9 @@ class DriveManager extends ChangeNotifier {
     _drives[DriveType.uc] = UcClient();
     _drives[DriveType.weiyun] = WeiyunClient();
     _drives[DriveType.xunlei] = XunleiClient();
+    // access_token 自动续期成功后立即把新凭证持久化（refresh_token 会轮换）
+    (_drives[DriveType.xunlei] as XunleiClient).onTokenRefreshed = () =>
+        saveDriveSession(DriveType.xunlei);
     _drives[DriveType.pan123] = Pan123Client();
     _drives[DriveType.yidong] = YiDongClient();
     _drives[DriveType.guangya] = GuangyaClient();
@@ -147,6 +150,10 @@ class DriveManager extends ChangeNotifier {
     if (drive is AliClient) {
       final rt = drive.refreshToken.trim();
       return rt.isEmpty ? null : rt;
+    }
+    if (drive is XunleiClient) {
+      // 迅雷 access_token 会过期，必须连同 refresh_token 一起持久化，重启后才可自动续期。
+      return drive.persistableCredential();
     }
     return drive.loginCookie;
   }

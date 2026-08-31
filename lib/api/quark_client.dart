@@ -73,6 +73,23 @@ class QuarkClient {
     cookie = c.trim();
   }
 
+  /// 从 cookie 中提取云盘会话 token（值形如 `st...`），用作 `x-clouddrive-st` 请求头。
+  /// 夸克部分接口（尤其创建分享）依赖该头校验会话状态，缺失时可能返回通用错误
+  /// （如分享创建时报 41000「提取码不符合规范」）。拿不到时返回 null，不发送该头。
+  String? get cloudDriveSt {
+    for (final part in cookie.split(';')) {
+      final seg = part.trim();
+      if (seg.isEmpty) continue;
+      final eq = seg.indexOf('=');
+      if (eq <= 0) continue;
+      final value = seg.substring(eq + 1).trim();
+      if (RegExp(r'^st[a-zA-Z0-9]+$').hasMatch(value)) {
+        return value;
+      }
+    }
+    return null;
+  }
+
   String get downloadCookieSnapshot => cookie;
 
   Future<Response<dynamic>> _request(
@@ -89,6 +106,7 @@ class QuarkClient {
       'Referer': 'https://pan.quark.cn/',
       'User-Agent': userAgent ?? uaPc,
       if (cookie.isNotEmpty) 'Cookie': cookie,
+      if (cloudDriveSt != null) 'x-clouddrive-st': cloudDriveSt,
       ...?extraHeaders,
     };
     final resp = await _dio.request(
@@ -117,10 +135,22 @@ class QuarkClient {
     AppLogger.I.i(
       'quark',
       '$method $url\n'
+      '  request=${_summarizePayload(data)}\n'
       '  status=$sc cookie=${cookie.isEmpty ? 'empty' : 'len=${cookie.length}'}\n'
       '  body=$bodyStr',
     );
     return resp;
+  }
+
+  /// 出参摘要：把请求体里的敏感字段脱敏后再打印，方便排查分享创建等问题。
+  static String _summarizePayload(Object? data) {
+    if (data == null) return '-';
+    try {
+      final s = jsonEncode(data);
+      return s.length > 500 ? '${s.substring(0, 500)}…' : s;
+    } catch (_) {
+      return '-';
+    }
   }
 
   void _mergeSetCookie(Response<dynamic> resp) {
@@ -482,9 +512,11 @@ class QuarkClient {
         data: {
           'fid_list': fids,
           'title': (title == null || title.isEmpty) ? '网盘分享' : title,
-          'url_type': 2,
+          // 夸克 url_type：1=公开分享（无提取码）、2=私密分享（需设置 passcode）。
+          // 无码分享若仍用 2 且不传 passcode，接口会报 41000「提取码不符合规范」。
+          'url_type': requirePwd ? 2 : 1,
           'expired_type': _mapExpiredType(expiredType),
-          // 私密分享设置提取码；公开分享不传 passcode（传空会被部分驱动忽略）。
+          // 私密分享设置提取码；公开分享（url_type=1）不传 passcode。
           if (pwd.isNotEmpty) 'passcode': pwd,
         });
     if (data is! Map) throw QuarkException(-1, '创建分享链接失败');
@@ -509,12 +541,12 @@ class QuarkClient {
     return QuarkShareResult(url: url, pwd: respPwd, pwdId: pwdId);
   }
 
-  /// 夸克分享过期类型映射：UI period → 接口 expired_type。
-  /// 接口枚举：1=永久、2=7天、3=30天；UI 的 0(永久)、1(1天)、7(7天)、30(30天) 会被映射，
-  /// 未知档一律回退为永久，避免接口报「未知过期类型」。
+  /// 夸克分享过期类型映射：接口枚举 1=永久、2=1天、3=7天、4=30天；
+  /// UI 的 0/永久、1/1天、7/7天、30/30天 映射到接口值，未知档一律回退为永久。
   static int _mapExpiredType(int period) => switch (period) {
-        7 => 2,
-        30 => 3,
+        1 => 2,
+        7 => 3,
+        30 => 4,
         _ => 1,
       };
 

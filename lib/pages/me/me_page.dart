@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../api/baidu_accel_service.dart';
+import '../../api/drive_type.dart';
 import '../../core/update_checker.dart';
 import '../../state/app_state.dart';
 import '../../state/upload_manager.dart';
@@ -51,52 +52,23 @@ class MePage extends StatelessWidget {
       child: Column(
         children: [
           ListTile(
-            leading: Icon(Icons.folder_rounded, color: AppColors.of(context).accent),
-            title: const Text('下载目录'),
-            subtitle: Text(app.downloadDir,
-                maxLines: 1, overflow: TextOverflow.ellipsis),
-            trailing: Icon(Icons.chevron_right_rounded,
-                color: AppColors.of(context).textSecondary),
-            onTap: () => _editDownloadDir(context, app),
-          ),
-          const Divider(height: 1, indent: 56),
-          ListTile(
-            leading:
-                Icon(Icons.speed_rounded, color: AppColors.of(context).accent),
-            title: const Text('下载连接数'),
-            subtitle: Text('每个任务 ${app.connections} 线程并发下载'),
-            trailing: Icon(Icons.chevron_right_rounded,
-                color: AppColors.of(context).textSecondary),
-            onTap: () => _editConnections(context, app),
-          ),
-          const Divider(height: 1, indent: 56),
-          ListTile(
-            leading: Icon(Icons.cloud_upload_rounded,
+            leading: Icon(Icons.swap_vert_rounded,
                 color: AppColors.of(context).accent),
-            title: const Text('上传并行数'),
-            subtitle: Text('同时上传 ${app.uploadParallelism} 个文件'),
+            title: const Text('下载与上传'),
+            subtitle: Text('目录 · 线程 · 上传并行 · 按网盘设置线程数'),
             trailing: Icon(Icons.chevron_right_rounded,
                 color: AppColors.of(context).textSecondary),
-            onTap: () => _editUploadParallelism(context, app),
+            onTap: () => _showTransferSettings(context, app),
           ),
           const Divider(height: 1, indent: 56),
           ListTile(
-            leading: Icon(Icons.storage_rounded, color: AppColors.of(context).accent),
-            title: const Text('存储权限'),
-            subtitle: const Text('访问下载目录所需权限'),
-            trailing: Icon(Icons.chevron_right_rounded,
-                color: AppColors.of(context).textSecondary),
-            onTap: () => app.openAllFilesAccess(),
-          ),
-          const Divider(height: 1, indent: 56),
-          ListTile(
-            leading: Icon(Icons.battery_saver_rounded,
+            leading: Icon(Icons.shield_outlined,
                 color: AppColors.of(context).accent),
-            title: const Text('后台运行'),
-            subtitle: const Text('允许忽略电池优化，锁屏后仍持续下载'),
+            title: const Text('权限'),
+            subtitle: const Text('存储访问 · 后台运行（忽略电池优化）'),
             trailing: Icon(Icons.chevron_right_rounded,
                 color: AppColors.of(context).textSecondary),
-            onTap: () => app.requestIgnoreBattery(),
+            onTap: () => _showPermissions(context, app),
           ),
           const Divider(height: 1, indent: 56),
           ListTile(
@@ -319,6 +291,186 @@ class MePage extends StatelessWidget {
     });
   }
 
+  /// 「下载与上传」一级页面：下载目录 / 下载连接数 / 上传并行数。
+  /// 点「下载连接数」进入二级设置，可为每个网盘单独配置下载线程数。
+  void _showTransferSettings(BuildContext context, AppState app) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.of(context).card,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(18))),
+      builder: (ctx) => SafeArea(
+        child: ListenableBuilder(
+          listenable: AppState.I,
+          builder: (ctx, _) => Padding(
+            padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('下载与上传',
+                    style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.of(context).textPrimary)),
+                const SizedBox(height: 6),
+                Text('下载线程可按网盘独立设置，未单独设置的网盘使用全局默认值。',
+                    style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.of(context).textSecondary)),
+                const SizedBox(height: 14),
+                _SheetTile(
+                  icon: Icons.folder_rounded,
+                  title: '下载目录',
+                  subtitle: app.downloadDir,
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _editDownloadDir(context, app);
+                  },
+                ),
+                const Divider(height: 1, indent: 48),
+                _SheetTile(
+                  icon: Icons.speed_rounded,
+                  title: '下载连接数',
+                  subtitle:
+                      '全局默认 ${app.connections} 线程 · 点此按网盘单独设置',
+                  onTap: () => _showDriveThreads(ctx, app),
+                ),
+                const Divider(height: 1, indent: 48),
+                _SheetTile(
+                  icon: Icons.cloud_upload_rounded,
+                  title: '上传并行数',
+                  subtitle: '同时上传 ${app.uploadParallelism} 个文件',
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _editUploadParallelism(context, app);
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 「权限」一级页面：存储访问 + 后台运行（忽略电池优化）。单项点击不弹二级，
+  /// 直接在页面内给出两个操作项，点击即拉起对应系统权限引导。
+  void _showPermissions(BuildContext context, AppState app) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.of(context).card,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(18))),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('权限',
+                  style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.of(context).textPrimary)),
+              const SizedBox(height: 14),
+              _SheetTile(
+                icon: Icons.storage_rounded,
+                title: '存储访问',
+                subtitle: '允许读写下载目录（“所有文件访问权限”）',
+                onTap: () {
+                  Navigator.pop(ctx);
+                  app.openAllFilesAccess();
+                },
+              ),
+              const Divider(height: 1, indent: 48),
+              _SheetTile(
+                icon: Icons.battery_saver_rounded,
+                title: '后台运行',
+                subtitle: '允许忽略电池优化，锁屏后仍持续下载',
+                onTap: () {
+                  Navigator.pop(ctx);
+                  app.requestIgnoreBattery();
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 「下载连接数」二级设置：列出常用网盘，各自可设置专属线程数（夸克最大 128）。
+  void _showDriveThreads(BuildContext dialogCtx, AppState app) {
+    final drives = <DriveType>[
+      DriveType.quark,
+      DriveType.baidu,
+      DriveType.xunlei,
+      DriveType.ali,
+      DriveType.tianyi,
+      DriveType.lanzou,
+    ];
+    showModalBottomSheet(
+      context: dialogCtx,
+      backgroundColor: AppColors.of(context).card,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(18))),
+      builder: (ctx) => SafeArea(
+          child: ListenableBuilder(
+            listenable: AppState.I,
+            builder: (ctx, _) => Padding(
+              padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.arrow_back_rounded,
+                          color: AppColors.of(context).accent, size: 24),
+                      const SizedBox(width: 8),
+                      Text('按网盘设置下载线程',
+                          style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.of(context).textPrimary)),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text('未设置的网盘沿用全局默认 ${app.connections} 线程。夸克最大可调 128。',
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.of(context).textSecondary)),
+                  const SizedBox(height: 12),
+                  for (final d in drives) ...[
+                    _DriveThreadTile(
+                      drive: d,
+                      value: app.connectionsFor(d),
+                      onChanged: (n) => app.setDriveConnections(d, n),
+                    ),
+                    const Divider(height: 1, indent: 48),
+                  ],
+                  const SizedBox(height: 4),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: FilledButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text('完成'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   void _editDownloadDir(BuildContext context, AppState app) {
     final controller = TextEditingController(text: app.downloadDir);
     showDialog(
@@ -457,40 +609,6 @@ class MePage extends StatelessWidget {
     );
   }
 
-  void _editConnections(BuildContext context, AppState app) {
-    final options = [4, 8, 16, 32];
-    showDialog(
-      context: context,
-      builder: (ctx) => SimpleDialog(
-        title: const Text('下载连接数'),
-        children: [
-          for (final n in options)
-            SimpleDialogOption(
-              onPressed: () async {
-                await app.setConnections(n);
-                if (ctx.mounted) Navigator.pop(ctx);
-              },
-              child: Row(
-                children: [
-                  Icon(
-                    n == app.connections
-                        ? Icons.radio_button_checked_rounded
-                        : Icons.radio_button_off_rounded,
-                    color: n == app.connections
-                        ? AppColors.of(context).accent
-                        : AppColors.of(context).textSecondary,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 12),
-                  Text('$n 线程', style: const TextStyle(fontSize: 14)),
-                ],
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
   void _editUploadParallelism(BuildContext context, AppState app) {
     final options = [1, 2, 3, 4];
     showDialog(
@@ -564,6 +682,103 @@ class MePage extends StatelessWidget {
     var v = UpdateChecker.kLocalVersion.trim();
     if (v.toLowerCase().startsWith('v')) v = v.substring(1);
     return v;
+  }
+}
+
+/// 设置在底部弹层中的一行「图标 + 标题 + 副标题 + 箭头」。
+class _SheetTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const _SheetTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: Icon(icon, color: AppColors.of(context).accent),
+      title: Text(title),
+      subtitle: Text(subtitle,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(color: AppColors.of(context).textSecondary)),
+      trailing: Icon(Icons.chevron_right_rounded,
+          color: AppColors.of(context).textSecondary),
+      onTap: onTap,
+    );
+  }
+}
+
+/// 单个网盘的下载线程数设置行。点击弹出可选线程数，夸克最大 128，其它默认到 64。
+class _DriveThreadTile extends StatelessWidget {
+  final DriveType drive;
+  final int value;
+  final ValueChanged<int> onChanged;
+
+  const _DriveThreadTile({
+    required this.drive,
+    required this.value,
+    required this.onChanged,
+  });
+
+  int get _max => drive == DriveType.quark ? 128 : 64;
+
+  List<int> get _options {
+    final opts = <int>[...[1, 2, 4, 8, 16, 32]];
+    if (_max >= 64 && !opts.contains(64)) opts.add(64);
+    if (_max >= 128) opts.add(128);
+    if (!opts.contains(value)) opts.add(value);
+    opts.sort();
+    return opts;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: Icon(Icons.cable_rounded, color: AppColors.of(context).accent),
+      title: Text(drive.label),
+      subtitle: Text('$value 线程${drive == DriveType.quark ? ' · 最大 128' : ''}'),
+      trailing: Icon(Icons.edit_rounded,
+          color: AppColors.of(context).textSecondary, size: 18),
+      onTap: () {
+        showDialog<void>(
+          context: context,
+          builder: (ctx) => SimpleDialog(
+            title: Text('${drive.label} · 下载线程'),
+            children: [
+              for (final n in _options)
+                SimpleDialogOption(
+                  onPressed: () {
+                    onChanged(n);
+                    if (ctx.mounted) Navigator.pop(ctx);
+                  },
+                  child: Row(
+                    children: [
+                      Icon(
+                        n == value
+                            ? Icons.radio_button_checked_rounded
+                            : Icons.radio_button_off_rounded,
+                        color: n == value
+                            ? AppColors.of(context).accent
+                            : AppColors.of(context).textSecondary,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 12),
+                      Text('$n 线程', style: const TextStyle(fontSize: 14)),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
   }
 }
 

@@ -135,6 +135,7 @@ class XunleiClient extends BaseDrive {
     Object? data,
     String? userAgent,
     Map<String, dynamic>? extraHeaders,
+    bool _retried = false,
   }) async {
     final headers = _buildHeaders(
       userAgent: userAgent,
@@ -150,6 +151,22 @@ class XunleiClient extends BaseDrive {
         validateStatus: (_) => true,
       ),
     );
+    // access_token 过期（401）：用 refresh_token 静默续期后重试一次。
+    // 避免「登录后 token 短期过期，后续文件加载全部失败」。
+    if (resp.statusCode == 401 &&
+        !_retried &&
+        _refreshToken.isNotEmpty) {
+      AppLogger.I.w('xunlei', '收到 401，使用 refresh_token 自动续期');
+      final ok = await _refreshByOAuth();
+      if (ok) {
+        return _request(method, url,
+            params: params,
+            data: data,
+            userAgent: userAgent,
+            extraHeaders: extraHeaders,
+            _retried: true);
+      }
+    }
     _mergeSetCookie(resp);
     AppLogger.I.http(
       'xunlei',
@@ -160,6 +177,62 @@ class XunleiClient extends BaseDrive {
       body: resp.data,
     );
     return resp;
+  }
+
+  /// 用 refresh_token 走 OAuth2 刷新 access_token，成功返回 true。
+  /// 接口：POST https://xluser-ssl.xunlei.com/v1/auth/token?client_id=...
+  /// 返回扁平结构 {access_token, refresh_token, ...}。
+  Future<bool> _refreshByOAuth() async {
+    if (_refreshToken.isEmpty) return false;
+    try {
+      final resp = await _dio.request(
+        '$_authToken?client_id=$_oauthClientId',
+        method: 'POST',
+        data: {
+          'client_id': _oauthClientId,
+          'client_secret': _oauthClientSecret,
+          'grant_type': 'refresh_token',
+          'refresh_token': _refreshToken,
+        },
+        options: Options(
+          headers: {
+            'Accept': 'application/json, text/plain, */*',
+            'Content-Type': 'application/json',
+            'User-Agent': defaultUserAgent,
+            'Referer': _panHome,
+          },
+          validateStatus: (_) => true,
+        ),
+      );
+      AppLogger.I.http(
+        'xunlei',
+        'POST',
+        '$_authToken?client_id=xxx',
+        status: resp.statusCode ?? -1,
+        cred: _refreshToken,
+        body: resp.data,
+      );
+      final body = _parseBody(resp);
+      final token = body['access_token']?.toString() ?? '';
+      if (token.isEmpty) {
+        AppLogger.I.e('xunlei',
+            'token 续期失败：${body['error'] ?? body['error_description']}');
+        return false;
+      }
+      final refresh = body['refresh_token']?.toString() ?? _refreshToken;
+      setToken(token,
+          refreshToken: refresh,
+          userId: _userId,
+          deviceId: _deviceId,
+          cookie: _cookie);
+      AppLogger.I.i('xunlei', 'token 续期成功 accessTokenLen=${token.length}');
+      // 续期拿到新凭证后，通知上层立即持久化，保证下次启动可用最新 refresh_token
+      unawaited(onTokenRefreshed?.call());
+      return true;
+    } catch (e) {
+      AppLogger.I.e('xunlei', 'token 续期异常: $e');
+      return false;
+    }
   }
 
   void _mergeSetCookie(Response<dynamic> resp) {
@@ -245,6 +318,25 @@ class XunleiClient extends BaseDrive {
 
   /// 获取当前设备 ID
   String get deviceId => _deviceId;
+
+  /// access_token 自动续期成功后的回调（由上层注入，用于把新凭证重新持久化，
+  /// 避免 refresh_token 轮换后下次启动仍用旧的失效 refresh_token）。
+  Future<void> Function()? onTokenRefreshed;
+
+  /// 返回可持久化凭证（JSON，含 refresh_token），供 drive_manager 保存到本地。
+  /// 重启后 [restoreSession] 可据此恢复 refresh_token 并在过期时自动续期。
+  String? persistableCredential() {
+    if (_accessToken.isEmpty && _refreshToken.isEmpty && _cookie.isEmpty) {
+      return null;
+    }
+    return jsonEncode({
+      'access_token': _accessToken,
+      'refresh_token': _refreshToken,
+      'user_id': _userId,
+      'device_id': _deviceId,
+      'cookie': _cookie,
+    });
+  }
 
   // ---- BaseDrive 接口实现 ----
 
