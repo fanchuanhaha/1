@@ -486,12 +486,19 @@ class QuarkClient {
           'passcode': pwd,
         });
     if (data is! Map) throw QuarkException(-1, '创建分享链接失败');
-    final pwdId = data['pwd_id']?.toString() ?? '';
-    final respPwd = data['passcode']?.toString() ?? pwd;
-    var url = data['share_url']?.toString() ?? '';
-    if (url.isEmpty) {
-      url = data['url']?.toString() ?? '';
+    // 响应可能是任务包装结构：{task_id, task_resp:{data:{share_id,...}}}，
+    // 真实分享字段（share_id / share_url / pwd_id）嵌在 task_resp.data 里，需解包。
+    dynamic share = data;
+    if (share is Map && share['task_resp'] is Map) {
+      final tr = share['task_resp'] as Map;
+      final inner = tr['data'] is Map ? tr['data'] : tr['task'];
+      if (inner is Map) share = inner;
     }
+    final Map<String, dynamic> sm = share is Map ? share.cast<String, dynamic>() : {};
+    final pwdId = sm['pwd_id']?.toString() ?? sm['share_id']?.toString() ?? '';
+    final respPwd = sm['passcode']?.toString() ?? sm['pwd']?.toString() ?? pwd;
+    var url = sm['share_url']?.toString() ?? '';
+    if (url.isEmpty) url = sm['url']?.toString() ?? '';
     if (url.isEmpty && pwdId.isNotEmpty) {
       url = 'https://pan.quark.cn/s/$pwdId';
     }

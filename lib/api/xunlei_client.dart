@@ -351,9 +351,11 @@ class XunleiClient extends BaseDrive {
               return '短信登录失败($errno): $desc';
             }
             // 2) signin：用 sessionID 走 OAuth2 换取 access_token / refresh_token
-            final signData = await _post(
-              '$_authSignin',
-              params: {'client_id': _oauthClientId},
+            // 注意：该接口返回扁平结构 {access_token,...,refresh_token}（无 data 字段），
+            // 必须用 _request+_parseBody 读取完整 body，不能走 _post（会取 .data 得到 null）。
+            final signResp = await _request(
+              'POST',
+              '$_authSignin?client_id=$_oauthClientId',
               data: {
                 'client_id': _oauthClientId,
                 'client_secret': _oauthClientSecret,
@@ -361,15 +363,18 @@ class XunleiClient extends BaseDrive {
                 'signin_token': sessionId,
               },
             );
-            final token = signData['access_token']?.toString() ?? '';
-            final refresh = signData['refresh_token']?.toString() ?? '';
+            final signBody = _parseBody(signResp);
+            final token = signBody['access_token']?.toString() ?? '';
+            final refresh = signBody['refresh_token']?.toString() ?? '';
             AppLogger.I.i('xunlei_login',
                 'signin/token 响应 accessTokenLen=${token.length} refreshTokenLen=${refresh.length}');
             if (refresh.isNotEmpty || token.isNotEmpty) {
               setToken(
                 token,
                 refreshToken: refresh,
-                userId: userId.isNotEmpty ? userId : (signData['user_id']?.toString() ?? ''),
+                userId: userId.isNotEmpty
+                    ? userId
+                    : (signBody['user_id']?.toString() ?? ''),
                 deviceId: (_smsDeviceId.isNotEmpty ? _smsDeviceId : _deviceId),
               );
               // 若 signin 只给了 refresh_token，立即兑换一次 access_token
@@ -377,7 +382,7 @@ class XunleiClient extends BaseDrive {
               _smsToken = '';
               return null;
             }
-            return '短信登录失败：未获取到令牌';
+            return '短信登录失败：未获取到令牌(${signBody['error']?.toString() ?? ''} ${signBody['error_description']?.toString() ?? ''})';
           } on XunleiException catch (e) {
             return '短信登录失败(${e.code}): ${e.message}';
           } catch (e) {
