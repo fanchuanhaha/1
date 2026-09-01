@@ -592,12 +592,16 @@ class BaiduClient extends BaseDrive {
       uk = toInt(short['uk']);
       AppLogger.I.i('baidu',
           'shorturlinfo 结果 errno=$errno shareid=${short['shareid']} uk=${short['uk']} show_msg=${short['show_msg']}');
-      // 只在拿不到 shareid（errno 非 0 且未解析出数字 shareid）时才抛错；
-      // 已解析出 shareid 时即使 errno 非 0（如 -3 分享已删）也继续，让 /share/verify 给出准确错误。
-      if (shareId == pwdId && (errno != 0 || initShare.isEmpty)) {
-        final msg = short['errmsg']?.toString() ??
-            short['show_msg']?.toString() ??
-            '分享链接解析失败';
+      final msg = short['errmsg']?.toString() ??
+          short['show_msg']?.toString() ??
+          '分享链接解析失败';
+      // errno != 0（如 -3=分享已删除）说明该链接本身已不可用，直接给出准确提示，
+      // 避免继续走 verify 后给不出明确原因、看起来「解析不了」。
+      if (errno != 0) {
+        throw BaiduException(errno, msg);
+      }
+      // errno=0 但没有解析出数字 shareid 时也视为失败
+      if (shareId == pwdId || initShare.isEmpty) {
         throw BaiduException(errno, msg);
       }
     }

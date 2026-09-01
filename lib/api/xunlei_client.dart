@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
+import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 
 import '../utils/app_logger.dart';
@@ -97,6 +99,7 @@ class XunleiClient extends BaseDrive {
   String _userId = '';
   String _deviceId = '';
   String _cookie = '';
+  String _captchaToken = '';
   DriveUserInfo? _userInfo;
 
   // ---- 短信验证码流程上下文（sendsms 返回，smslogin 需要） ----
@@ -141,6 +144,14 @@ class XunleiClient extends BaseDrive {
       userAgent: userAgent,
       extraHeaders: extraHeaders,
     );
+    // api-pan 盘接口要求携带账号/设备/会话上下文，缺省会触发「验证码无效/captcha_token is empty」。
+    if (url.contains('api-pan.xunlei.com')) {
+      headers['X-Request-Env'] = '{"client":"xunlei.com","version":"8.0.0"}';
+      headers['X-Client-Version'] = '8.0.0';
+      headers['Origin'] = 'https://pan.xunlei.com/';
+      if (_userId.isNotEmpty) headers['User-Id'] = _userId;
+      if (_captchaToken.isNotEmpty) headers['X-Captcha-Token'] = _captchaToken;
+    }
     final resp = await _dio.request(
       url,
       data: data,
@@ -165,6 +176,25 @@ class XunleiClient extends BaseDrive {
             userAgent: userAgent,
             extraHeaders: extraHeaders,
             retried: true);
+      }
+    }
+    // 盘接口命中验证码（400 captcha_invalid / captcha_token is empty）：
+    // 尝试走 captcha/init 获取验证码 token，成功后缓存并重试一次。
+    if (resp.statusCode == 400 &&
+        !retried &&
+        url.contains('api-pan.xunlei.com')) {
+      final bodyStr = resp.data?.toString() ?? '';
+      if (bodyStr.contains('captcha') || bodyStr.contains('验证码')) {
+        AppLogger.I.w('xunlei', '命中验证码，尝试获取 captcha_token');
+        final ok = await _tryAcquireCaptcha();
+        if (ok) {
+          return _request(method, url,
+              params: params,
+              data: data,
+              userAgent: userAgent,
+              extraHeaders: extraHeaders,
+              retried: true);
+        }
       }
     }
     _mergeSetCookie(resp);
@@ -232,6 +262,71 @@ class XunleiClient extends BaseDrive {
     } catch (e) {
       AppLogger.I.e('xunlei', 'token 续期异常: $e');
       return false;
+    }
+  }
+
+  /// 磁盘接口命中验证码时，调用 captcha/init 尽可能获取 captcha_token。
+  /// init 通常返回一个待解验证码链接（需交互），能直接读出 token 时缓存并使用；
+  /// 否则返回 false，由调用方把错误如实抛给用户。
+  Future<bool> _tryAcquireCaptcha() async {
+    if (_captchaToken.isNotEmpty) return true;
+    try {
+      final ts = '${DateTime.now().millisecondsSinceEpoch}';
+      final resp = await _dio.request(
+        _captchaInit,
+        data: {
+          'action': 'GET:/drive/v1/files',
+          'client_id': _oauthClientId,
+          'device_id': _deviceId.isEmpty ? _sdkDeviceSign : _deviceId,
+          'captcha_token': '',
+          'meta': {
+            'captcha_sign': '1.${_md5String(_userId + _deviceId)}',
+            'client_version': '3.21.0',
+            'package_name': 'pan.xunlei.cli.synology',
+            'timestamp': ts,
+            'user_id': _userId,
+          },
+        },
+        options: Options(
+          method: 'POST',
+          headers: {
+            'Accept': 'application/json, text/plain, */*',
+            'Content-Type': 'application/json',
+            'User-Agent': defaultUserAgent,
+            'Referer': _panHome,
+            if (_userId.isNotEmpty) 'User-Id': _userId,
+          },
+          validateStatus: (_) => true,
+        ),
+      );
+      final body = _parseBody(resp);
+      final data = body['data'];
+      String? got;
+      if (data is Map) {
+        final t = data['captcha_token'] ?? data['token'];
+        if (t != null && t.toString().isNotEmpty) got = t.toString();
+      }
+      if (got == null || got.isEmpty) {
+        AppLogger.I.w('xunlei',
+            'captcha/init 未直接返回 token（需交互验证），body=${resp.data}');
+        return false;
+      }
+      _captchaToken = got;
+      AppLogger.I.i('xunlei', 'captcha_token 获取成功 len=${got.length}');
+      return true;
+    } catch (e) {
+      AppLogger.I.e('xunlei', 'captcha/init 异常: $e');
+      return false;
+    }
+  }
+
+  String _md5String(String input) {
+    try {
+      final bytes = Uint8List.fromList(utf8.encode(input));
+      final digest = md5.convert(bytes);
+      return digest.toString();
+    } catch (_) {
+      return '';
     }
   }
 
