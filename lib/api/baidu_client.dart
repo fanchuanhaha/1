@@ -126,6 +126,7 @@ class BaiduClient extends BaseDrive {
     Object? data,
     bool isJson = false,
     bool isForm = false,
+    Map<String, String>? extraHeaders,
   }) async {
     final headers = Map<String, dynamic>.from(_buildHeaders());
     if (isJson) {
@@ -135,6 +136,7 @@ class BaiduClient extends BaseDrive {
       // 百度部分接口（api/filemanager）要求 application/x-www-form-urlencoded
       headers['Content-Type'] = 'application/x-www-form-urlencoded';
     }
+    if (extraHeaders != null) headers.addAll(extraHeaders);
 
     Response<dynamic> resp;
     try {
@@ -177,15 +179,68 @@ class BaiduClient extends BaseDrive {
   void _mergeSetCookie(Response<dynamic> resp) {
     final setCookies = resp.headers['set-cookie'];
     if (setCookies == null || setCookies.isEmpty) return;
+    // 合并所有 set-cookie。BDUSS/STOKEN 单独留存到字段；
+    // 其余辅助 cookie（BAIDUID 等）整体并入 _rawCookie，发送请求时随 Cookie 头带给百度。
+    final all = _cookieToMap(_rawCookie);
+    // 无论是否从 set-cookie 拿到 BDUSS/STOKEN，都保证字段值在 Cookie 头中
+    if (_bduss.isNotEmpty) all['BDUSS'] = _bduss;
+    if (_stoken.isNotEmpty) all['STOKEN'] = _stoken;
     for (final raw in setCookies) {
       final seg = raw.split(';').first.trim();
       final eq = seg.indexOf('=');
       if (eq <= 0) continue;
-      final key = seg.substring(0, eq).trim();
-      final value = seg.substring(eq + 1).trim();
-      if (key == 'BDUSS') _bduss = value;
-      if (key == 'STOKEN') _stoken = value;
+      all[seg.substring(0, eq).trim()] = seg.substring(eq + 1).trim();
     }
+    if (all.containsKey('BDUSS')) _bduss = all['BDUSS']!;
+    if (all.containsKey('STOKEN')) _stoken = all['STOKEN']!;
+    _rawCookie = all.entries.map((e) => '${e.key}=${e.value}').join('; ');
+  }
+
+  /// 把 cookie 字符串解析为 {key: value}
+  static Map<String, String> _cookieToMap(String cookie) {
+    final map = <String, String>{};
+    for (final seg in cookie.split(';')) {
+      final t = seg.trim();
+      final eq = t.indexOf('=');
+      if (eq <= 0) continue;
+      final k = t.substring(0, eq).trim();
+      final v = t.substring(eq + 1).trim();
+      if (v.isNotEmpty) map[k] = v;
+    }
+    return map;
+  }
+
+  /// 补齐 baidu 依赖的基础 cookie（BAIDUID 等）。
+  /// 百度分享/解析接口（share/init、share/list、shorturlinfo）无 BAIDUID 时经常
+  /// 直接返回 errno=-3/-12；先请求一次首页拿到 set-cookie，行为与 BaiduPCS-Py 一致。
+  Future<void> _ensureBaseCookie() async {
+    if (_rawCookie.contains('BAIDUID=') || _hasCookieKey('BAIDUID')) return;
+    try {
+      final resp = await _dio.request(
+        '$_baseUrl/',
+        options: Options(
+          method: 'GET',
+          headers: {
+            'User-Agent': _ua,
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          },
+          validateStatus: (_) => true,
+        ),
+      );
+      _mergeSetCookie(resp);
+      AppLogger.I.i('baidu',
+          '基础 cookie 补齐 BAIDUID=${_rawCookie.contains("BAIDUID")}');
+    } catch (e) {
+      AppLogger.I.e('baidu', '补齐基础 cookie 失败: $e');
+    }
+  }
+
+  bool _hasCookieKey(String key) {
+    final lower = key.toLowerCase();
+    for (final k in _cookieToMap(_rawCookie).keys) {
+      if (k.toLowerCase() == lower) return true;
+    }
+    return false;
   }
 
   void _check(Map<String, dynamic> body) {
@@ -569,6 +624,9 @@ class BaiduClient extends BaseDrive {
 
   @override
   Future<DriveShareSession> getShareToken(String pwdId, String passcode) async {
+    // 先确保 BAIDUID 等基础 cookie 就位，否则 shorturlinfo/verify 易返回 errno=-3/-12
+    // （该做法与 BaiduPCS-Py 先访问分享首页拿 cookie 一致）。
+    await _ensureBaseCookie();
     // 百度分享链接的 pwdId 是 surl 短码（如 1XXXXX）。share/verify 需要的是
     // 真实数字 shareid + 来源 uk，需先解析（否则返回 errno=-12）。
     // 注意：网页端的 /share/init 现返回 404 页面，改走 JSON 接口 api/shorturlinfo 解析。
@@ -576,14 +634,17 @@ class BaiduClient extends BaseDrive {
     var uk = 0;
     final looksSurl = RegExp(r'^1[A-Za-z0-9]{3,}$').hasMatch(pwdId);
     if (looksSurl) {
-      final short = await _get('$_baseUrl/api/shorturlinfo', params: {
+      // 用 _request（不 auto-throw）而非 _get：对带提取码的私密分享，
+      // shorturlinfo 会返回 errno=-9「提取码验证失败」但 body 里仍带有正确的
+      // shareid/uk，此时不应直接判失败，而是继续走 verify 去校验提取码。
+      final short = await _request('GET', '$_baseUrl/api/shorturlinfo', params: {
         'shorturl': pwdId,
         'clienttype': 0,
         'app_id': 250528,
         'web': 1,
         'channel': 'chunlei',
       });
-      // shorturlinfo 返回的是扁平结构：shareid/uk/errno 都在顶层，没有 data 包裹。
+      // shorturlinfo 返回扁平结构：shareid/uk/errno 都在顶层，没有 data 包裹。
       final errno = toInt(short['errno'], fallback: -1);
       final initShare = short['shareid']?.toString() ?? '';
       if (initShare.isNotEmpty) {
@@ -595,41 +656,47 @@ class BaiduClient extends BaseDrive {
       final msg = short['errmsg']?.toString() ??
           short['show_msg']?.toString() ??
           '分享链接解析失败';
-      // errno != 0（如 -3=分享已删除）说明该链接本身已不可用，直接给出准确提示，
-      // 避免继续走 verify 后给不出明确原因、看起来「解析不了」。
-      if (errno != 0) {
-        throw BaiduException(errno, msg);
-      }
-      // errno=0 但没有解析出数字 shareid 时也视为失败
-      if (shareId == pwdId || initShare.isEmpty) {
+      // 只有当 shareid/uk 都没拿到（如 -3=分享已删除）才判失败；
+      // -9 需要提取码等情形 shareid/uk 已具备，可继续走 verify。
+      if (initShare.isEmpty && uk <= 0) {
         throw BaiduException(errno, msg);
       }
     }
 
-    final body = await _post('$_baseUrl/share/verify', params: {
-      'bdstoken': _bdstoken,
-      'clienttype': 0,
-      'app_id': 250528,
-      'web': 1,
+    // 校验提取码：与网页端一致——query 带 t/bioc/surl/shareid/uk，
+    // 表单带 pwd/vcode/vcode_str。缺 shareid/uk 或 Referer 会返回 errno 2/105。
+    final t = '${DateTime.now().millisecondsSinceEpoch}';
+    final verify = await _request('POST', '$_baseUrl/share/verify', params: {
+      't': t,
+      'bioc': 1,
       'surl': pwdId,
-    }, data: {
       'shareid': shareId,
       'uk': uk,
+    }, data: {
       'pwd': passcode,
       'vcode': '',
       'vcode_str': '',
+    }, extraHeaders: {
+      'Referer': '$_baseUrl/s/$pwdId${passcode.isNotEmpty ? '?pwd=$passcode' : ''}',
     });
+    AppLogger.I.i('baidu',
+        'share/verify 结果 errno=${verify['errno']} randsk=${verify['randsk']}');
 
-    // 验证成功返回 errno=0
-    final stoken = body['randsk']?.toString() ?? '';
-    if (stoken.isEmpty) {
-      // 如果 randsk 为空，尝试从 logid 判断
-      if (body['errno']?.toString() != '0') {
-        throw BaiduException(
-          toInt(body['errno'], fallback: -1),
-          body['errmsg']?.toString() ?? '分享链接已失效或提取码错误',
-        );
-      }
+    final verr = toInt(verify['errno'], fallback: -1);
+    var stoken = verify['randsk']?.toString() ?? '';
+    if (stoken.isNotEmpty) {
+      // randsk 返回 URL 编码（含 %2B/%3D），解码后再交给 list/download 接口使用
+      try {
+        stoken = Uri.decodeComponent(stoken);
+      } catch (_) {}
+    }
+    if (verr != 0 || stoken.isEmpty) {
+      throw BaiduException(
+        verr != 0 ? verr : -1,
+        verify['errmsg']?.toString() ??
+            verify['show_msg']?.toString() ??
+            '提取码错误或分享已失效',
+      );
     }
 
     return DriveShareSession(
@@ -645,17 +712,18 @@ class BaiduClient extends BaseDrive {
   Future<List<DriveShareFile>> listShare(DriveShareSession session,
       String pdirFid,
       {int page = 1, int size = 50}) async {
-    final body = await _get('$_baseUrl/rest/2.0/xpan/share', params: {
+    final body = await _request('GET', '$_baseUrl/rest/2.0/xpan/share', params: {
       'method': 'list',
       'app_id': 250528,
       'web': 1,
-      'bdstoken': _bdstoken,
       'shareid': session.shareId,
       'uk': session.uk,
       'randsk': session.stoken,
-      'dir': pdirFid.isEmpty ? '/' : pdirFid,
-      'start': (page - 1) * size,
-      'limit': size,
+      // 根目录 root=1 且 dir='/'；子目录 root=0 且 dir 为该目录的分享路径
+      'root': (pdirFid.isEmpty || pdirFid == '/' || pdirFid == '0') ? 1 : 0,
+      'dir': (pdirFid.isEmpty || pdirFid == '0') ? '/' : pdirFid,
+      'page': page,
+      'num': size,
       'order': 'time',
       'desc': 1,
     });
@@ -671,13 +739,15 @@ class BaiduClient extends BaseDrive {
   DriveShareFile _parseShareFile(Map<String, dynamic> json) {
     final isDir = json['isdir'] == 1 || json['isdir'] == true;
     final filename = json['server_filename']?.toString() ?? json['filename']?.toString() ?? '';
+    final path = json['path']?.toString() ?? '';
     return DriveShareFile(
       fid: json['fs_id']?.toString() ?? '',
       fileName: filename,
       fileType: isDir ? 'folder' : '',
       isDir: isDir,
       size: toInt(json['size']),
-      pdirFid: '',
+      // path 形如 /apps/xxx.apk，父目录用于分割线/子目录跳转；根目录统一为 '/'
+      pdirFid: path.contains('/') ? path.substring(0, path.lastIndexOf('/')) : '/',
       shareFidToken: json['shareuk']?.toString() ?? '',
     );
   }

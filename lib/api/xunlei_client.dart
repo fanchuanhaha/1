@@ -149,6 +149,7 @@ class XunleiClient extends BaseDrive {
       headers['X-Request-Env'] = '{"client":"xunlei.com","version":"8.0.0"}';
       headers['X-Client-Version'] = '8.0.0';
       headers['Origin'] = 'https://pan.xunlei.com/';
+      headers['X-Device-Id'] = _effectiveDeviceId();
       if (_userId.isNotEmpty) headers['User-Id'] = _userId;
       if (_captchaToken.isNotEmpty) headers['X-Captcha-Token'] = _captchaToken;
     }
@@ -268,24 +269,38 @@ class XunleiClient extends BaseDrive {
     }
   }
 
-  /// 磁盘接口命中验证码时，调用 captcha/init 尽可能获取 captcha_token。
-  /// init 通常返回一个待解验证码链接（需交互），能直接读出 token 时缓存并使用；
-  /// 否则返回 false，由调用方把错误如实抛给用户。
+  /// 签名使用的客户端版本与包名（与 [ _oauthClientId ] 配对的 pan.xunlei.com Web 端，
+  /// 取自 LinkSwift / Oplist 等公共逆向资料公认可用的一组值）。
+  static const String _panClientVersion = '1.92.62';
+  static const String _panPackageName = 'pan.xunlei.com';
+
+  /// 磁盘接口命中验证码时，调用 captcha/init 获取 captcha_token。
+  /// init 返回 capture_token 时缓存并复用；失败返回 false，由调用方把错误抛给用户。
   Future<bool> _tryAcquireCaptcha() async {
     if (_captchaToken.isNotEmpty) return true;
     try {
       final ts = '${DateTime.now().millisecondsSinceEpoch}';
+      final deviceId = _effectiveDeviceId();
+      final sign = _captchaSign(
+        clientId: _oauthClientId,
+        version: _panClientVersion,
+        host: _panPackageName,
+        deviceId: deviceId,
+        ts: ts,
+      );
+      AppLogger.I.i('xunlei',
+          'captcha/init 请求 deviceId=$deviceId sign=$sign');
       final resp = await _dio.request(
         _captchaInit,
         data: {
-          'action': 'GET:/drive/v1/files',
+          'action': 'get:/drive/v1/about',
           'client_id': _oauthClientId,
-          'device_id': _deviceId.isEmpty ? _sdkDeviceSign : _deviceId,
+          'device_id': deviceId,
           'captcha_token': '',
           'meta': {
-            'captcha_sign': '1.${_md5String(_userId + _deviceId)}',
-            'client_version': '3.21.0',
-            'package_name': 'pan.xunlei.cli.synology',
+            'captcha_sign': sign,
+            'client_version': _panClientVersion,
+            'package_name': _panPackageName,
             'timestamp': ts,
             'user_id': _userId,
           },
@@ -297,19 +312,24 @@ class XunleiClient extends BaseDrive {
             'Content-Type': 'application/json',
             'User-Agent': defaultUserAgent,
             'Referer': _panHome,
+            'X-Device-Id': deviceId,
             if (_userId.isNotEmpty) 'User-Id': _userId,
           },
           validateStatus: (_) => true,
         ),
       );
       final body = _parseBody(resp);
-      final data = body['data'];
-      String? got;
-      if (data is Map) {
-        final t = data['captcha_token'] ?? data['token'];
-        if (t != null && t.toString().isNotEmpty) got = t.toString();
+      // LinkSwift 的响应是扁平结构 {captcha_token, expires_in, ...}，
+      // 某些实现会包一层 data，两种情况都兼容。
+      dynamic t = body['captcha_token'];
+      if (t == null) {
+        final data = body['data'];
+        if (data is Map) {
+          t = data['captcha_token'] ?? data['token'];
+        }
       }
-      if (got == null || got.isEmpty) {
+      final got = (t == null || t.toString().isEmpty) ? '' : t.toString();
+      if (got.isEmpty) {
         AppLogger.I.w('xunlei',
             'captcha/init 未直接返回 token（需交互验证），body=${resp.data}');
         return false;
@@ -331,6 +351,44 @@ class XunleiClient extends BaseDrive {
     } catch (_) {
       return '';
     }
+  }
+
+  /// 当前生效的设备 ID：优先用登录会话保存的，否则用 SDK 内置的设备指纹。
+  String _effectiveDeviceId() =>
+      _deviceId.isNotEmpty ? _deviceId : _sdkDeviceId;
+
+  /// 生成迅雷验证码签名。
+  /// 算法（LinkSwift / Oplist / Thunder 公共逆向资料一致）：
+  ///   str = ClientId + ClientVersion + PackageName + DeviceId + Timestamp
+  ///   对 12 个盐值依次执行 str = md5(str + salt)
+  ///   CaptchaSign = "1." + str
+  String _captchaSign({
+    required String clientId,
+    required String version,
+    required String host,
+    required String deviceId,
+    required String ts,
+  }) {
+    var str = '$clientId$version$host$deviceId$ts';
+    // 12 层哈希盐值（LinkSwift `_getCaptchaSign`，与原项目一致）
+    const salts = <String>[
+      'o6b11ImBwJA1KSNMTALjL0xMkMjTP',
+      'oVHCQaox9N6+R91GY63sbxci9K9ymFl',
+      'XReS2zbwYB/+vUnYDwZ',
+      'O56ssQHYiK5enUTKaV',
+      'sGKNxaX7aUzpjJ2n+/2f1I0',
+      '1oyQWde2s4zvz',
+      'ziq13Yyc6HUXr3477c20PJfwBjg7ux',
+      'xKMXTJmlEqamEpkWfp6WeP1qZezdCA',
+      'rUA',
+      'XVIzRTbY7MGdUXn0+qLjw',
+      'aGrpbD3EUDGo0wmvaKPDGxVRaNVN6',
+      'ieQk/',
+    ];
+    for (final salt in salts) {
+      str = _md5String(str + salt);
+    }
+    return '1.$str';
   }
 
   void _mergeSetCookie(Response<dynamic> resp) {
