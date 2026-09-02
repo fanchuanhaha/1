@@ -154,13 +154,13 @@ class _DriveListPageState extends State<DriveListPage> {
     try {
       await Clipboard.setData(ClipboardData(text: text));
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        AppMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Cookie 已复制')),
         );
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        AppMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('复制失败')),
         );
       }
@@ -195,7 +195,7 @@ class _DriveListPageState extends State<DriveListPage> {
     if (confirmed != true) return;
     await DriveManager.I.logoutOf(type);
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      AppMessenger.of(context).showSnackBar(
         SnackBar(content: Text('已退出 ${type.label}')),
       );
     }

@@ -395,7 +395,7 @@ class _WebLoginPageState extends State<WebLoginPage> {
 
   void _toast(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+    AppMessenger.of(context).showSnackBar(SnackBar(
       content: Text(msg),
       duration: const Duration(seconds: 2),
     ));

@@ -43,14 +43,14 @@ Future<bool> ensureStoragePermission(BuildContext context) async {
 
 void toast(BuildContext context, String msg) {
   if (!context.mounted) return;
-  ScaffoldMessenger.of(context)
+  AppMessenger.of(context)
       .showSnackBar(SnackBar(content: Text(msg)));
 }
 
 /// 下载成功提示：SnackBar 附带「查看」按钮，点击跳转到下载管理页（底部第 3 个 tab）
 void showDownloadAddedToast(BuildContext context, String msg) {
   if (!context.mounted) return;
-  ScaffoldMessenger.of(context)
+  AppMessenger.of(context)
     ..hideCurrentSnackBar()
     ..showSnackBar(
       SnackBar(

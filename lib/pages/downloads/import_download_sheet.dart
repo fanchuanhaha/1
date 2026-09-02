@@ -273,7 +273,7 @@ class _ImportDownloadSheetState extends State<ImportDownloadSheet> {
 
   void _toast(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
+    AppMessenger.of(context)
         .showSnackBar(SnackBar(content: Text(msg)));
   }
 }

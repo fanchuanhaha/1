@@ -245,7 +245,7 @@ class MePage extends StatelessWidget {
                   onPressed: () async {
                     final r = await AppLogger.I.exportTo('/sdcard/1.log');
                     if (!ctx.mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    AppMessenger.of(context).showSnackBar(SnackBar(
                         content: Text(r.ok
                             ? '日志已导出到 ${r.message}'
                             : r.message)));
@@ -265,7 +265,7 @@ class MePage extends StatelessWidget {
                     lastContent = content;
                     if (!ctx.mounted) return;
                     setDialogState(() {});
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                    AppMessenger.of(context).showSnackBar(const SnackBar(
                         content: Text('日志已清空')));
                   },
                 ),
@@ -276,7 +276,7 @@ class MePage extends StatelessWidget {
                     await Clipboard.setData(ClipboardData(text: content));
                     if (ctx.mounted) {
                       Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                      AppMessenger.of(context).showSnackBar(const SnackBar(
                           content: Text('日志已复制，请直接粘贴发送给开发者')));
                     }
                   },
@@ -915,7 +915,7 @@ class _InterfaceTileState extends State<_InterfaceTile> {
       await widget.onEnabledChanged(true);
     }
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      AppMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('解析密码已保存')));
     }
   }

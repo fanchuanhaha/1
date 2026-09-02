@@ -542,7 +542,7 @@ class _LoginPageState extends State<LoginPage> {
 
   void _toast(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    AppMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 }
 
@@ -1011,7 +1011,7 @@ class _CookieLoginFormState extends State<_CookieLoginForm> {
 
   void _toast(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    AppMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 }
 
@@ -1158,7 +1158,7 @@ class _AliTokenLoginPageState extends State<_AliTokenLoginPage> {
 
   void _toast(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    AppMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 }
 
@@ -1295,7 +1295,7 @@ class _AliSmsCodeLoginPageState extends State<_AliSmsCodeLoginPage> {
 
   void _toast(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+    AppMessenger.of(context).showSnackBar(SnackBar(
       content: Text(msg),
       duration: const Duration(seconds: 2),
     ));
@@ -1517,6 +1517,6 @@ class _BaiduTokenLoginPageState extends State<_BaiduTokenLoginPage> {
 
   void _toast(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    AppMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 }

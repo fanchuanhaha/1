@@ -142,7 +142,7 @@ class UpdateChecker {
     if (!context.mounted) return;
     if (update == null) {
       if (manual) {
-        ScaffoldMessenger.of(context)
+        AppMessenger.of(context)
             .showSnackBar(const SnackBar(content: Text('当前已是最新版本')));
       }
       return;
@@ -247,7 +247,7 @@ class UpdateChecker {
       connections: 4,
     );
     if (!root.mounted) return;
-    ScaffoldMessenger.of(root).showSnackBar(SnackBar(
+    AppMessenger.of(root).showSnackBar(SnackBar(
         content: Text(err == null
             ? '已加入下载任务，请到「任务」页查看进度'
             : '下载失败：$err')));
@@ -293,7 +293,7 @@ class UpdateChecker {
 
   static void _toast(BuildContext context, String msg) {
     if (context.mounted) {
-      ScaffoldMessenger.of(context)
+      AppMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(msg)));
     }
   }

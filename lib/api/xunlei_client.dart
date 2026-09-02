@@ -228,8 +228,11 @@ class XunleiClient extends BaseDrive {
           headers: {
             'Accept': 'application/json, text/plain, */*',
             'Content-Type': 'application/json',
-            'User-Agent': defaultUserAgent,
+            // 关键：refresh 走 /v1/auth/token，浏览器 UA 携带 client_secret 会被 403 拒绝
+            // ([Danger] Do Not Save client_secret in browser)。改用官方 Android 客户端 UA。
+            'User-Agent': _sdkUa,
             'Referer': _panHome,
+            if (_userId.isNotEmpty) 'User-Id': _userId,
           },
           validateStatus: (_) => true,
         ),

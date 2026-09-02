@@ -1,5 +1,16 @@
 import 'package:flutter/material.dart';
 
+/// 底部提示包装：调 showSnackBar 前先隐藏当前显示的提示，
+/// 实现「不管现在显示的是什么，出现新的就覆盖在上面的」。
+class AppMessenger {
+  static ScaffoldMessengerState of(BuildContext context) {
+    final messenger = ScaffoldMessenger.of(context);
+    // 先关闭当前提示，避免堆积排队，新提示直接覆盖旧的
+    messenger.hideCurrentSnackBar();
+    return messenger;
+  }
+}
+
 @immutable
 class AppColors extends ThemeExtension<AppColors> {
   final Color bg;

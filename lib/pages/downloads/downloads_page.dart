@@ -381,6 +381,6 @@ class _DownloadsPageState extends State<DownloadsPage>
 
   void _toast(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    AppMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 }

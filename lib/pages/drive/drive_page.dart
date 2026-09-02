@@ -721,7 +721,7 @@ class _DrivePageState extends State<DrivePage>
 
   void _showSnack(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
+    AppMessenger.of(context)
         .showSnackBar(SnackBar(content: Text(msg)));
   }
 
@@ -777,7 +777,7 @@ class _DrivePageState extends State<DrivePage>
 
   void _toast(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    AppMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
   // ---------------- 上传 ----------------

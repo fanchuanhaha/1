@@ -611,6 +611,7 @@ class BaiduClient extends BaseDrive {
       'clienttype': 0,
       'app_id': 250528,
       'web': 1,
+      'surl': pwdId,
     }, data: {
       'shareid': shareId,
       'uk': uk,

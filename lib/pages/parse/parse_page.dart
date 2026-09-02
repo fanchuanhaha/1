@@ -338,7 +338,7 @@ class _ParsePageState extends State<ParsePage> {
 
   void _toast(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    AppMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
   @override

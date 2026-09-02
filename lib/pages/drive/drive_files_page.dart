@@ -310,7 +310,7 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
   void _accelWarn(String msg) {
     AppLogger.I.w('drive_files', '[百度加速] $msg');
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      AppMessenger.of(context).showSnackBar(SnackBar(
         content: Text(msg),
         duration: const Duration(seconds: 2),
         behavior: SnackBarBehavior.floating,
@@ -633,7 +633,7 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
 
   void _toast(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    AppMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
   // ---------------- 文件管理操作：分享 / 重命名 / 移动 ----------------

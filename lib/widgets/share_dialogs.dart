@@ -202,7 +202,7 @@ Future<void> showShareResultDialog(
             await Clipboard.setData(ClipboardData(text: fullUrl));
             if (!ctx.mounted) return;
             Navigator.pop(ctx);
-            ScaffoldMessenger.of(context)
+            AppMessenger.of(context)
                 .showSnackBar(const SnackBar(content: Text('链接已复制')));
           },
           child: const Text('复制'),

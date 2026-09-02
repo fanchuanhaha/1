@@ -38,7 +38,7 @@ class _XunleiSmsLoginPageState extends State<XunleiSmsLoginPage> {
 
   void _toast(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
+    AppMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(msg)));
   }
