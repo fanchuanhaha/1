@@ -790,18 +790,35 @@ class BaiduClient extends BaseDrive {
     List<DriveShareFile> files,
     String toPdirFid,
   ) async {
-    final fidList = files.map((f) => f.fid).toList();
+    // 百度网页端 share/transfer 的协议（与 BaiduPCS-Go / 浏览器抓包一致）：
+    //  query: shareid + from(=分享者 uk) + sekey(=verify 返回的 randsk) + bdstoken + 固定项
+    //  form : filelist(选中资源在分享里的路径, JSON 数组) + path(保存到本账号的目标目录) + ondup + async
+    // 注意：from 是分享者 uk，不是 fs_id 列表；缺 sekey 私密分享会被拒绝。
+    final filelist = files.map((f) {
+      final parent = (f.pdirFid ?? '').trim();
+      if (parent == '/' || parent.isEmpty) return '/${f.fileName}';
+      return parent.endsWith('/')
+          ? '$parent${f.fileName}'
+          : '$parent/${f.fileName}';
+    }).toList();
+    final targetDir =
+        (toPdirFid == null || toPdirFid.isEmpty || toPdirFid == '0')
+            ? '/'
+            : toPdirFid;
     final body = await _post('$_baseUrl/share/transfer', params: {
+      'shareid': session.shareId,
+      'from': session.uk.toString(),
+      if (session.stoken.isNotEmpty) 'sekey': session.stoken,
       'bdstoken': _bdstoken,
       'clienttype': 0,
       'app_id': 250528,
       'web': 1,
+      'channel': 'chunlei',
     }, data: {
-      'shareid': session.shareId,
-      'from': fidList,
+      'filelist': jsonEncode(filelist),
+      'path': targetDir,
       'ondup': 'newcopy',
       'async': 1,
-      'filelist': jsonEncode(fidList),
     });
 
     // 检查转存结果

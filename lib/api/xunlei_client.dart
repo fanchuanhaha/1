@@ -810,6 +810,13 @@ class XunleiClient extends BaseDrive {
 
   @override
   Future<DriveShareSession> getShareToken(String pwdId, String passcode) async {
+    // api-pan 的 share 解析普遍要求携带 X-Captcha-Token；若尚未持有则先主动获取，
+    // 避免 share:verify 因 captcha_token 为空直接失败（拿不到则安全空转，仍走懒加载重试）。
+    if (_captchaToken.isEmpty) {
+      try {
+        await _tryAcquireCaptcha();
+      } catch (_) {}
+    }
     try {
       final data = await _post(
         '$_shareApi:verify',
