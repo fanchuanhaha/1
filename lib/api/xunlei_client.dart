@@ -354,8 +354,17 @@ class XunleiClient extends BaseDrive {
   }
 
   /// 当前生效的设备 ID：优先用登录会话保存的，否则用 SDK 内置的设备指纹。
-  String _effectiveDeviceId() =>
-      _deviceId.isNotEmpty ? _deviceId : _sdkDeviceId;
+  /// 注意：smslogin 返回的 deviceid 是 devicesign（形如 div101.<32位hex>...），
+  /// 而 captcha/init 签名与 api-pan 的 x-device-id 需要的是纯 32 位 hex device_id。
+  /// 这里统一清洗：带 div101. 前缀时截取前 32 位 hex，避免 invalid captcha_sign。
+  String _effectiveDeviceId() {
+    var id = _deviceId.isNotEmpty ? _deviceId : _sdkDeviceId;
+    if (id.startsWith('div101.')) {
+      final rest = id.substring('div101.'.length);
+      if (rest.length >= 32) id = rest.substring(0, 32);
+    }
+    return id;
+  }
 
   /// 生成迅雷验证码签名。
   /// 算法（LinkSwift / Oplist / Thunder 公共逆向资料一致）：

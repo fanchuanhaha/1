@@ -473,7 +473,8 @@ class BaiduClient extends BaseDrive {
   }
 
   DriveFile _parseDriveFile(Map<String, dynamic> json) {
-    final isDir = json['isdir'] == 1 || json['isdir'] == true;
+    // 百度接口 isdir 可能是 int 1 或字符串 "1"，统一按字符串判断
+    final isDir = json['isdir']?.toString() == '1';
     final serverFilename = json['server_filename']?.toString() ?? '';
     final filename = json['filename']?.toString() ?? json['server_filename']?.toString() ?? '';
     final path = json['path']?.toString() ?? '';
@@ -737,7 +738,8 @@ class BaiduClient extends BaseDrive {
   }
 
   DriveShareFile _parseShareFile(Map<String, dynamic> json) {
-    final isDir = json['isdir'] == 1 || json['isdir'] == true;
+    // 百度接口 isdir 可能是 int 1 或字符串 "1"，统一按字符串判断
+    final isDir = json['isdir']?.toString() == '1';
     final filename = json['server_filename']?.toString() ?? json['filename']?.toString() ?? '';
     final path = json['path']?.toString() ?? '';
     return DriveShareFile(
