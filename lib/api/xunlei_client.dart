@@ -725,10 +725,13 @@ class XunleiClient extends BaseDrive {
       //      &parent_id=...&page_token=&with_audit=true&limit=100
       //      &filters={"phase":{"eq":"PHASE_TYPE_COMPLETE"},"trashed":{"eq":false}}
       // 顶层/子目录 parent_id 直接传 id，根目录传 "0"。
+      // 根目录：App 内部用 "0" 作根哨兵，但 api-pan 的根目录 parent_id 必须传空串。
+      // 传 "0" 会被当作一个不存在的文件夹 id，返回 404 file_not_found / record not found。
+      final parentId = (pdirFid == '0' || pdirFid.isEmpty) ? '' : pdirFid;
       final data = await _get(
         _fileList,
         params: {
-          'parent_id': pdirFid,
+          'parent_id': parentId,
           'page_token': '',
           'limit': size,
           // 主云盘 space 传空串即可（OpenList Android 驱动即用空 space+parent_id 成功列出）。
