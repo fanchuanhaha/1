@@ -100,6 +100,12 @@ class XunleiClient extends BaseDrive {
   String _deviceId = '';
   String _cookie = '';
   String _captchaToken = '';
+
+  /// 当前访问令牌所属的客户端 ID。
+  /// 必须与 access_token 签发时一致：SMS/Android 登录=Android 客户端 Xp6vsxz_7IYVw2BB；
+  /// 网页(Cookie)登录=Web 客户端。api-pan 接口通过 X-Client-Id 头校验，
+  /// 与令牌不一致会返回 captcha_invalid/客户端不匹配。
+  String _clientId = _oauthClientId;
   DriveUserInfo? _userInfo;
 
   // ---- 短信验证码流程上下文（sendsms 返回，smslogin 需要） ----
@@ -150,6 +156,7 @@ class XunleiClient extends BaseDrive {
       headers['X-Client-Version'] = '8.0.0';
       headers['Origin'] = 'https://pan.xunlei.com/';
       headers['X-Device-Id'] = _effectiveDeviceId();
+      headers['X-Client-Id'] = _clientId;
       if (_userId.isNotEmpty) headers['User-Id'] = _userId;
       if (_captchaToken.isNotEmpty) headers['X-Captcha-Token'] = _captchaToken;
     }
@@ -217,10 +224,10 @@ class XunleiClient extends BaseDrive {
     if (_refreshToken.isEmpty) return false;
     try {
       final resp = await _dio.request(
-        '$_authToken?client_id=$_oauthClientId',
+        '$_authToken?client_id=$_clientId',
         data: {
-          'client_id': _oauthClientId,
-          'client_secret': _oauthClientSecret,
+          'client_id': _clientId,
+          if (_clientId == _oauthClientId) 'client_secret': _oauthClientSecret,
           'grant_type': 'refresh_token',
           'refresh_token': _refreshToken,
         },
@@ -277,6 +284,13 @@ class XunleiClient extends BaseDrive {
   /// 磁盘接口命中验证码时，调用 captcha/init 获取 captcha_token。
   /// init 返回 capture_token 时缓存并复用；失败返回 false，由调用方把错误抛给用户。
   Future<bool> _tryAcquireCaptcha() async {
+    // 签名盐值与客户端(包名/版本)绑定：仅 Android 客户端会话的签名算法可用。
+    // Web 会话的 captcha 签名参数未知，强行用 Android 签名只会得到非法 token，直接返回 false。
+    if (_clientId != _oauthClientId) {
+      AppLogger.I.w('xunlei',
+          '当前会话客户端 $_clientId 非 Android 客户端，跳过 captcha 自动获取');
+      return false;
+    }
     if (_captchaToken.isNotEmpty) return true;
     try {
       final ts = '${DateTime.now().millisecondsSinceEpoch}';
@@ -470,12 +484,13 @@ class XunleiClient extends BaseDrive {
   // ---- 公开的 setter ----
 
   /// 设置访问令牌（由上层调用方注入持久化的凭证）
-  void setToken(String accessToken, {String refreshToken = '', String userId = '', String deviceId = '', String cookie = ''}) {
+  void setToken(String accessToken, {String refreshToken = '', String userId = '', String deviceId = '', String cookie = '', String clientId = ''}) {
     _accessToken = accessToken;
     _refreshToken = refreshToken;
     _userId = userId;
     _deviceId = deviceId;
     _cookie = cookie;
+    if (clientId.isNotEmpty) _clientId = clientId;
   }
 
   /// 获取当前访问令牌
@@ -500,6 +515,7 @@ class XunleiClient extends BaseDrive {
       'user_id': _userId,
       'device_id': _deviceId,
       'cookie': _cookie,
+      'client_id': _clientId,
     });
   }
 
@@ -524,6 +540,7 @@ class XunleiClient extends BaseDrive {
           userId: m['user_id']?.toString() ?? '',
           deviceId: m['device_id']?.toString() ?? '',
           cookie: m['cookie']?.toString() ?? '',
+          clientId: m['client_id']?.toString() ?? '',
         );
         return;
       } catch (_) {}
@@ -552,6 +569,7 @@ class XunleiClient extends BaseDrive {
             userId: credential['user_id']?.toString() ?? '',
             deviceId: credential['device_id']?.toString() ?? '',
             cookie: credential['cookie']?.toString() ?? '',
+            clientId: credential['client_id']?.toString() ?? '',
           );
           return null;
         }
@@ -687,15 +705,24 @@ class XunleiClient extends BaseDrive {
   Future<List<DriveFile>> listFiles(String pdirFid,
       {int page = 1, int size = 100}) async {
     try {
+      // OpenList(Thunder) 真实请求：
+      //   GET /drive/v1/files?space=&__type=drive&refresh=true&__sync=true
+      //      &parent_id=...&page_token=&with_audit=true&limit=100
+      //      &filters={"phase":{"eq":"PHASE_TYPE_COMPLETE"},"trashed":{"eq":false}}
+      // 顶层/子目录 parent_id 直接传 id，根目录传 "0"。
       final data = await _get(
         _fileList,
         params: {
           'parent_id': pdirFid,
-          'page': page,
-          'page_size': size,
-          'sort_by': 'updated_at',
-          'sort_order': 'desc',
-          'thumbnail_size': 'SIZE_LARGE',
+          'page_token': '',
+          'limit': size,
+          'space': '',
+          '__type': 'drive',
+          'refresh': 'true',
+          '__sync': 'true',
+          'with_audit': 'true',
+          'filters':
+              '{"phase":{"eq":"PHASE_TYPE_COMPLETE"},"trashed":{"eq":false}}',
         },
       );
       final list = data['files'];
