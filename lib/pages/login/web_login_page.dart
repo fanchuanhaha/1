@@ -264,6 +264,7 @@ class _WebLoginPageState extends State<WebLoginPage> {
 (function() {
   try {
     var keys = ${jsonEncode(_tokenKeys[widget.driveType] ?? [])};
+    var isXunlei = ${widget.driveType == DriveType.xunlei};
     function pick(o) {
       if (!o) return '';
       if (o.refresh_token) return JSON.stringify({type: 'refresh_token', value: o.refresh_token});
@@ -272,6 +273,27 @@ class _WebLoginPageState extends State<WebLoginPage> {
       if (o.sessionId) return JSON.stringify({type: 'sessionId', value: o.sessionId});
       if (typeof o === 'string' && o.length > 20) return JSON.stringify({type: 'raw', value: o});
       return '';
+    }
+    // 迅雷网页登录：token 存于 credentials_<clientId> 的 JSON 对象里，
+    // 这里精确定位并连同 client_id 一起返回，避免兜底扫描取到别的长字符串。
+    if (isXunlei) {
+      for (var c = 0; c < localStorage.length; c++) {
+        var ck = localStorage.key(c);
+        if (!ck || ck.indexOf('credentials_') !== 0) continue;
+        try {
+          var cv = JSON.parse(localStorage.getItem(ck));
+          if (cv && (cv.access_token || cv.refresh_token)) {
+            var cid = ck.substring('credentials_'.length);
+            return JSON.stringify({type: 'token', value: JSON.stringify({
+              access_token: cv.access_token || '',
+              refresh_token: cv.refresh_token || '',
+              user_id: cv.user_id || cv.uid || '',
+              device_id: cv.deviceid || '',
+              client_id: cid
+            })});
+          }
+        } catch(e) {}
+      }
     }
     for (var i = 0; i < keys.length; i++) {
       var val = localStorage.getItem(keys[i]);

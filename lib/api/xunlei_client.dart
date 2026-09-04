@@ -276,10 +276,11 @@ class XunleiClient extends BaseDrive {
     }
   }
 
-  /// 签名使用的客户端版本与包名（与 [ _oauthClientId ] 配对的 pan.xunlei.com Web 端，
-  /// 取自 LinkSwift / Oplist 等公共逆向资料公认可用的一组值）。
-  static const String _panClientVersion = '1.92.62';
-  static const String _panPackageName = 'pan.xunlei.com';
+  /// captcha 签名使用的客户端参数（OpenList meta.go 默认值，与 Android 客户端 [_oauthClientId]
+  /// 配对）：版本 8.31.0.9726、包名 com.xunlei.downloadprovider。签名与账号令牌必须同属
+  /// 一个客户端，否则 captcha/init 会返回 invalid captcha_sign → 文件列表 400。
+  static const String _captchaClientVersion = '8.31.0.9726';
+  static const String _captchaPackageName = 'com.xunlei.downloadprovider';
 
   /// 磁盘接口命中验证码时，调用 captcha/init 获取 captcha_token。
   /// init 返回 capture_token 时缓存并复用；失败返回 false，由调用方把错误抛给用户。
@@ -297,8 +298,8 @@ class XunleiClient extends BaseDrive {
       final deviceId = _effectiveDeviceId();
       final sign = _captchaSign(
         clientId: _oauthClientId,
-        version: _panClientVersion,
-        host: _panPackageName,
+        version: _captchaClientVersion,
+        host: _captchaPackageName,
         deviceId: deviceId,
         ts: ts,
       );
@@ -307,14 +308,15 @@ class XunleiClient extends BaseDrive {
       final resp = await _dio.request(
         _captchaInit,
         data: {
-          'action': 'get:/drive/v1/about',
+          'action': 'get:/drive/v1/files',
           'client_id': _oauthClientId,
           'device_id': deviceId,
           'captcha_token': '',
+          'redirect_uri': 'xlaccsdk01://xunlei.com/callback?state=harbor',
           'meta': {
             'captcha_sign': sign,
-            'client_version': _panClientVersion,
-            'package_name': _panPackageName,
+            'client_version': _captchaClientVersion,
+            'package_name': _captchaPackageName,
             'timestamp': ts,
             'user_id': _userId,
           },
@@ -381,9 +383,9 @@ class XunleiClient extends BaseDrive {
   }
 
   /// 生成迅雷验证码签名。
-  /// 算法（LinkSwift / Oplist / Thunder 公共逆向资料一致）：
+  /// 算法（OpenList Thunder meta.go 默认值，公共逆向资料一致）：
   ///   str = ClientId + ClientVersion + PackageName + DeviceId + Timestamp
-  ///   对 12 个盐值依次执行 str = md5(str + salt)
+  ///   对 10 个盐值依次执行 str = md5(str + salt)
   ///   CaptchaSign = "1." + str
   String _captchaSign({
     required String clientId,
@@ -393,20 +395,18 @@ class XunleiClient extends BaseDrive {
     required String ts,
   }) {
     var str = '$clientId$version$host$deviceId$ts';
-    // 12 层哈希盐值（LinkSwift `_getCaptchaSign`，与原项目一致）
+    // 10 层哈希盐值（OpenList meta.go Algorithms 默认值，与 Android 客户端参数配套）
     const salts = <String>[
-      'o6b11ImBwJA1KSNMTALjL0xMkMjTP',
-      'oVHCQaox9N6+R91GY63sbxci9K9ymFl',
-      'XReS2zbwYB/+vUnYDwZ',
-      'O56ssQHYiK5enUTKaV',
-      'sGKNxaX7aUzpjJ2n+/2f1I0',
-      '1oyQWde2s4zvz',
-      'ziq13Yyc6HUXr3477c20PJfwBjg7ux',
-      'xKMXTJmlEqamEpkWfp6WeP1qZezdCA',
-      'rUA',
-      'XVIzRTbY7MGdUXn0+qLjw',
-      'aGrpbD3EUDGo0wmvaKPDGxVRaNVN6',
-      'ieQk/',
+      '9uJNVj/wLmdwKrJaVj/omlQ',
+      'Oz64Lp0GigmChHMf/6TNfxx7O9PyopcczMsnf',
+      'Eb+L7Ce+Ej48u',
+      'jKY0',
+      'ASr0zCl6v8W4aidjPK5KHd1Lq3t+vBFf41dqv5+fnOd',
+      'wQlozdg6r1qxh0eRmt3QgNXOvSZO6q/GXK',
+      'gmirk+ciAvIgA/cxUUCema47jr/YToixTT+Q6O',
+      '5IiCoM9B1/788ntB',
+      'P07JH0h6qoM6TSUAK2aL9T5s2QBVeY9JWvalf',
+      '+oK0AN',
     ];
     for (final salt in salts) {
       str = _md5String(str + salt);
@@ -554,6 +554,12 @@ class XunleiClient extends BaseDrive {
 
   @override
   Future<String?> login(dynamic credential) async {
+    // 兼容直接传入 JSON 字符串凭证（网页登录返回的 {access_token, refresh_token, client_id, ...} 字符串）
+    if (credential is String && credential.trimLeft().startsWith('{')) {
+      try {
+        credential = jsonDecode(credential);
+      } catch (_) {}
+    }
     // credential 支持多种登录方式：
     //   {type: 'token', access_token, refresh_token, user_id, device_id}
     //   {type: 'password', username, password, captcha_token}
