@@ -49,6 +49,14 @@ class XunleiClient extends BaseDrive {
   static const String defaultUserAgent =
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
+  /// api-pan 盘接口专用 Android 客户端 UA（OpenList meta.go 默认值，版本 8.31.0.9726，
+  /// 与 [_oauthClientId] / [_captchaClientVersion] 配套）。用浏览器 UA 会被识别为网页端，
+  /// 进而要求 X-Session-Id/X-LA-UUID 等网页端专用头，导致 Android 会话列表失败。
+  static const String _apiUserAgent =
+      'ANDROID-com.xunlei.downloadprovider/8.31.0.9726 netWorkType/5G appid/40 '
+      'deviceName/Xiaomi_M2004j7ac deviceModel/M2004J7AC OSVersion/12 protocolVersion/301 '
+      'platformVersion/10 sdkVersion/512000 Oauth2Client/0.9 (Linux 4_14_186-perf-gddfs8vbb238b) (JAVA 0)';
+
   // ---- 短信验证码登录（Android 客户端协议，参考参考 APK / 迅雷.hiker） ----
   static const String _sdkAppId = '40';
   static const String _sdkAppName = 'ANDROID-com.xunlei.downloadprovider';
@@ -152,8 +160,9 @@ class XunleiClient extends BaseDrive {
     );
     // api-pan 盘接口要求携带账号/设备/会话上下文，缺省会触发「验证码无效/captcha_token is empty」。
     if (url.contains('api-pan.xunlei.com')) {
-      headers['X-Request-Env'] = '{"client":"xunlei.com","version":"8.0.0"}';
-      headers['X-Client-Version'] = '8.0.0';
+      headers['User-Agent'] = _apiUserAgent;
+      headers['X-Request-Env'] = '{"client":"xunlei.com","version":"8.31.0.9726"}';
+      headers['X-Client-Version'] = _captchaClientVersion;
       headers['Origin'] = 'https://pan.xunlei.com/';
       headers['X-Device-Id'] = _effectiveDeviceId();
       headers['X-Client-Id'] = _clientId;
@@ -722,6 +731,8 @@ class XunleiClient extends BaseDrive {
           'parent_id': pdirFid,
           'page_token': '',
           'limit': size,
+          // 主云盘 space 传空串即可（OpenList Android 驱动即用空 space+parent_id 成功列出）。
+          // 注意：不要传 "0"——服务端会按 space_name_invalid 拒绝。
           'space': '',
           '__type': 'drive',
           'refresh': 'true',
