@@ -596,10 +596,13 @@ class _DrivePageState extends State<DrivePage>
   void _showFileActions(QuarkFile file) {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
+        top: false,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
             const SizedBox(height: 12),
             FileIcon(isDir: false, name: file.fileName, size: 52),
             const SizedBox(height: 10),
@@ -671,6 +674,7 @@ class _DrivePageState extends State<DrivePage>
             ),
             const SizedBox(height: 8),
           ],
+          ),
         ),
       ),
     );

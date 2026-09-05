@@ -91,6 +91,7 @@ class DownloadService {
     BaseDrive drive,
     DriveDownloadInfo info, {
     int connections = 16,
+    String? cookie,
   }) async {
     if (info.url.isEmpty) {
       AppLogger.I.w('download', 'addDriveUrl: 下载地址为空，跳过 type=${drive.type} fid=${info.fid}');
@@ -101,11 +102,15 @@ class DownloadService {
         'download',
         'addDriveUrl: type=${drive.type.name} fid=${info.fid} '
         'name=${info.fileName} redirectUrl=${_short(info.url)}');
+    // 外部可覆盖 cookie（如夸克需用其下载专用 cookie）；否则回退到驱动器登录 cookie。
+    final effCookie = (cookie != null && cookie.isNotEmpty)
+        ? cookie
+        : (drive.loginCookie ?? '');
     final err = await addDirectUrl(
       url: info.url,
       fileName: info.fileName,
       // 加速直链属于分享/匿名上下文，不能带本账号个人 cookie（会触发 CDN 拒签）。
-      cookie: info.skipCookie ? '' : (drive.loginCookie ?? ''),
+      cookie: info.skipCookie ? '' : effCookie,
       referer: http.referer,
       // 直链若指定了专用 UA（如百度加速返回的 netdisk;8.42.0.5;PC）则优先使用。
       userAgent: info.userAgent.isNotEmpty ? info.userAgent : http.ua,

@@ -566,10 +566,13 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
   void _showFileActions(DriveFile file) {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
+        top: false,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
             const SizedBox(height: 12),
             FileIcon(isDir: false, name: file.fileName, size: 52),
             const SizedBox(height: 10),
@@ -651,6 +654,7 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
             ],
             const SizedBox(height: 8),
           ],
+          ),
         ),
       ),
     );

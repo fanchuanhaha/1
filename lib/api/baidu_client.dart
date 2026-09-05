@@ -1092,7 +1092,19 @@ class BaiduClient extends BaseDrive {
       });
       final errno = toInt(body['errno'], fallback: 0);
       if (errno != 0) {
-        return body['errmsg']?.toString() ?? body['show_msg']?.toString() ?? '操作失败($errno)';
+        final msg = body['errmsg']?.toString() ?? body['show_msg']?.toString() ?? '';
+        if (msg.isNotEmpty && errno != 132) return msg;
+        // errno=132：百度风控安全验证，服务器要求完成验证后才能执行管理操作。
+        switch (errno) {
+          case 132:
+            return '百度安全验证拦截本次操作，请到百度网盘App/网页完成验证后再试';
+          case 12:
+            return '文件不存在或已被移动，请刷新列表后重试';
+          case 31003:
+            return '网络异常，请重试';
+          default:
+            return msg.isNotEmpty ? msg : '操作失败($errno)';
+        }
       }
       // async=2 时仅返回 taskid，任务异步执行成功与否见 errno
       return null;

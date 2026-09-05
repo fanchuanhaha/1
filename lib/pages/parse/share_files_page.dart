@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../api/base_drive.dart';
+import '../../state/app_state.dart';
 import '../../state/download_manager.dart';
 import '../../state/download_service.dart';
 import '../../theme/app_theme.dart';
@@ -161,11 +162,13 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
       var added = 0;
       for (final info in infos) {
         if (info.url.isEmpty) continue;
-        final err = await DownloadService.addDirectUrl(
-          url: info.url,
-          fileName: info.fileName,
+        // 走 addDriveUrl：按网盘类型自动带上专属 cookie / Referer / UA。
+        // 百度直链必须带登录 cookie + pan.baidu.com 头，否则 dlink 404。
+        final err = await DownloadService.addDriveUrl(
+          widget.drive,
+          info,
           cookie: widget.cookie,
-          connections: 16,
+          connections: AppState.I.connectionsFor(widget.drive.type),
         );
         if (err == null) added++;
       }
@@ -446,11 +449,11 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
         return;
       }
       final info = infos.first;
-      final err = await DownloadService.addDirectUrl(
-        url: info.url,
-        fileName: info.fileName.isNotEmpty ? info.fileName : file.fileName,
+      final err = await DownloadService.addDriveUrl(
+        widget.drive,
+        info,
         cookie: widget.cookie,
-        connections: 16,
+        connections: AppState.I.connectionsFor(widget.drive.type),
       );
       if (err != null) throw Exception(err);
       showDownloadAddedToast(context, '已加入下载队列');
