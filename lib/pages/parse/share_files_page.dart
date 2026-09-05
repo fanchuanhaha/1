@@ -48,11 +48,13 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
   }
 
   Future<void> _openDir(DriveShareFile dir) async {
+    // 部分盘（如百度）进目录需要文件夹自身路径，存于 dirId；其余盘沿用 fid。
+    final target = dir.dirId.isNotEmpty ? dir.dirId : dir.fid;
     setState(() {
       _loading = true;
       _error = null;
       _stack.add(_dirFid);
-      _dirFid = dir.fid;
+      _dirFid = target;
     });
     try {
       final files = await widget.drive.listShare(widget.session, _dirFid);

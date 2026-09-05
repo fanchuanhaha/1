@@ -57,6 +57,10 @@ class XunleiClient extends BaseDrive {
       'deviceName/Xiaomi_M2004j7ac deviceModel/M2004J7AC OSVersion/12 protocolVersion/301 '
       'platformVersion/10 sdkVersion/512000 Oauth2Client/0.9 (Linux 4_14_186-perf-gddfs8vbb238b) (JAVA 0)';
 
+  /// 下载 web_content_link 时使用的 UA（OpenList DownloadUserAgent）。
+  static const String _downloadUa =
+      'Dalvik/2.1.0 (Linux; U; Android 12; M2004J7AC Build/SP1A.210812.016)';
+
   // ---- 短信验证码登录（Android 客户端协议，参考参考 APK / 迅雷.hiker） ----
   static const String _sdkAppId = '40';
   static const String _sdkAppName = 'ANDROID-com.xunlei.downloadprovider';
@@ -848,40 +852,41 @@ class XunleiClient extends BaseDrive {
 
   @override
   Future<List<DriveDownloadInfo>> getDownloadInfo(List<String> fids) async {
-    try {
-      final data = await _apiPost(
-        _batchGet,
-        data: {
-          'ids': fids,
-        },
-      );
-      final list = data['files'];
-      if (list is! List) return [];
-      return list.whereType<Map>().map((e) {
-        final m = e.cast<String, dynamic>();
-        String url = '';
-        // 尝试从不同字段获取下载链接
-        final downloadUrl = m['download_url'];
-        if (downloadUrl != null) {
-          url = downloadUrl.toString();
+    // 取下载链接的正确方式是逐个 GET /drive/v1/files/{id}，取 web_content_link；
+    // POST /drive/v1/files:batchGet 不被支持（返回 501 unimplemented / Method Not Allowed）。
+    final out = <DriveDownloadInfo>[];
+    for (final fid in fids) {
+      try {
+        final m = await _apiGet('$_fileList/$fid', params: {'space': ''});
+        String url = m['web_content_link']?.toString() ?? '';
+        if (url.isEmpty) {
+          // 视频可回退到 medias[].link.url（OpenList UseVideoUrl 分支）
+          final medias = m['medias'];
+          if (medias is List) {
+            for (final media in medias) {
+              final link = (media is Map) ? media['link'] : null;
+              final mediaUrl = (link is Map) ? (link['url']?.toString() ?? '') : '';
+              if (mediaUrl.isNotEmpty) {
+                url = mediaUrl;
+                break;
+              }
+            }
+          }
         }
-        final mediaInfo = m['media_info'];
-        if (mediaInfo is Map) {
-          final mediaUrl = mediaInfo['download_url']?.toString() ?? '';
-          if (mediaUrl.isNotEmpty) url = mediaUrl;
-        }
-        return DriveDownloadInfo(
+        out.add(DriveDownloadInfo(
           url: url,
           fileName: m['name']?.toString() ?? '',
           size: toInt(m['size']),
-          fid: m['id']?.toString() ?? '',
-        );
-      }).toList();
-    } on XunleiException {
-      rethrow;
-    } catch (e) {
-      throw XunleiException(-1, '获取下载链接失败: $e');
+          fid: m['id']?.toString() ?? fid,
+          userAgent: _downloadUa,
+        ));
+      } on XunleiException {
+        rethrow;
+      } catch (e) {
+        throw XunleiException(-1, '获取下载链接失败: $e');
+      }
     }
+    return out;
   }
 
   @override

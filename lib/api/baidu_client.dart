@@ -750,6 +750,8 @@ class BaiduClient extends BaseDrive {
       size: toInt(json['size']),
       // path 形如 /apps/xxx.apk，父目录用于分割线/子目录跳转；根目录统一为 '/'
       pdirFid: path.contains('/') ? path.substring(0, path.lastIndexOf('/')) : '/',
+      // 进入该文件夹时，listShare 的 dir 必须是文件夹自身的完整路径（不是 fs_id）。
+      dirId: path,
       shareFidToken: json['shareuk']?.toString() ?? '',
     );
   }

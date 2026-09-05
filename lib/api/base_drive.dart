@@ -39,6 +39,10 @@ class DriveShareFile {
   final String pdirFid;
   final String shareFidToken;
 
+  /// 进入目录时用的导航 id。与 [fid] 分离：部分盘（如百度）listShare 的 dir 参数
+  /// 需要文件夹自身的完整路径，而 [fid] 需保持数字 fs_id 供下载/转存。为空则用 [fid] 导航。
+  final String dirId;
+
   DriveShareFile({
     required this.fid,
     required this.fileName,
@@ -47,6 +51,7 @@ class DriveShareFile {
     required this.size,
     required this.pdirFid,
     required this.shareFidToken,
+    this.dirId = '',
   });
 }
 
