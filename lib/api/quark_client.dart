@@ -494,6 +494,20 @@ class QuarkClient {
     }
   }
 
+  /// 删除文件/文件夹（到回收站），返回 null 表示成功，否则返回错误信息。
+  Future<String?> deleteFiles(List<String> fids) async {
+    if (fids.isEmpty) return null;
+    try {
+      await _post('$drivePcApi/file/delete',
+          params: _pcParams, data: {'fids': fids});
+      return null;
+    } on QuarkException catch (e) {
+      return '删除失败: ${e.message}';
+    } catch (e) {
+      return '删除失败: $e';
+    }
+  }
+
   /// 创建分享链接。默认生成私密分享（带 4 位提取码）。
   /// [passcode] 不传或为空时自动生成。返回 [QuarkShareResult]，失败抛 [QuarkException]。
   /// [requirePwd] 为 false 时生成公开分享、不设置提取码。

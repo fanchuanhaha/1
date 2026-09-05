@@ -459,6 +459,16 @@ class _DrivePageState extends State<DrivePage>
                 style: TextStyle(
                     color: AppColors.of(context).textPrimary, fontSize: 14)),
             const Spacer(),
+            TextButton.icon(
+              onPressed: _downloading || count == 0 ? null : _deleteSelected,
+              style: TextButton.styleFrom(
+                  foregroundColor: Colors.redAccent,
+                  disabledForegroundColor:
+                      AppColors.of(context).textSecondary),
+              icon: const Icon(Icons.delete_outline_rounded, size: 18),
+              label: Text('删除($count)'),
+            ),
+            const SizedBox(width: 10),
             FilledButton.icon(
               onPressed: _downloading || count == 0 ? null : _batchDownload,
               style: FilledButton.styleFrom(
@@ -649,6 +659,16 @@ class _DrivePageState extends State<DrivePage>
                 _moveFile(file);
               },
             ),
+            ListTile(
+              leading: Icon(Icons.delete_outline_rounded,
+                  color: Colors.redAccent),
+              title: const Text('删除'),
+              subtitle: const Text('移到网盘回收站'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _deleteFiles([file.fid]);
+              },
+            ),
             const SizedBox(height: 8),
           ],
         ),
@@ -718,6 +738,49 @@ class _DrivePageState extends State<DrivePage>
     _showSnack(err == null ? '已移动「${file.fileName}」' : err);
     if (err == null) _load();
   }
+
+  Future<void> _deleteFiles(List<String> fids) async {
+    if (fids.isEmpty) return;
+    final names = fids
+        .map((fid) {
+          final m = _files.where((f) => f.fid == fid).toList();
+          return m.isNotEmpty ? m.first.fileName : fid;
+        })
+        .join('、');
+    if (!mounted) return;
+    final app = AppState.I;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.of(ctx).card,
+        title: const Text('删除文件'),
+        content: Text(
+          '确定删除「$names」吗？会移到网盘回收站（可恢复）。',
+          style: TextStyle(color: AppColors.of(ctx).textPrimary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('删除', style: TextStyle(color: Colors.redAccent)),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final err = await app.quark.deleteFiles(fids);
+    if (!mounted) return;
+    _showSnack(err == null ? '已删除 ${fids.length} 项' : err);
+    if (err == null) {
+      _exitSelectMode();
+      _load();
+    }
+  }
+
+  void _deleteSelected() => _deleteFiles(_selected.toList());
 
   void _showSnack(String msg) {
     if (!mounted) return;

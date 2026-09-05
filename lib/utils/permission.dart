@@ -47,7 +47,8 @@ void toast(BuildContext context, String msg) {
       .showSnackBar(SnackBar(content: Text(msg)));
 }
 
-/// 下载成功提示：SnackBar 附带「查看」按钮，点击跳转到下载管理页（底部第 3 个 tab）
+/// 下载成功提示：SnackBar 附带「查看」按钮，点击跳转到下载管理页（底部第 3 个 tab）。
+/// 优先弹回根导航再切 tab，确保从分享/文件浏览等二级页面跳转后下载页可见。
 void showDownloadAddedToast(BuildContext context, String msg) {
   if (!context.mounted) return;
   AppMessenger.of(context)
@@ -59,7 +60,13 @@ void showDownloadAddedToast(BuildContext context, String msg) {
         action: SnackBarAction(
           label: '查看',
           textColor: AppColors.of(context).accent,
-          onPressed: () => AppState.I.tabIndex.value = 2,
+          onPressed: () {
+            try {
+              Navigator.of(context, rootNavigator: true)
+                  .popUntil((route) => route.isFirst);
+            } catch (_) {}
+            AppState.I.tabIndex.value = 2;
+          },
         ),
       ),
     );

@@ -6,6 +6,7 @@ import '../../state/download_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/format.dart';
 import '../../utils/permission.dart';
+import '../../widgets/drive_folder_picker.dart';
 import '../../widgets/empty_view.dart';
 import '../../widgets/file_icon.dart';
 
@@ -156,7 +157,7 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
     setState(() => _busy = true);
     try {
       final infos = await widget.drive
-          .getShareDownloadInfo(widget.session, _selected.toList());
+          .downloadShare(widget.session, _selectedFiles());
       var added = 0;
       for (final info in infos) {
         if (info.url.isEmpty) continue;
@@ -180,10 +181,14 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
 
   Future<void> _batchSave() async {
     if (_selected.isEmpty || _busy) return;
+    // 先让用户选择保存到网盘的哪个目录（支持自定义位置，默认根目录）
+    final to = await DriveFolderPicker.show(context,
+        drive: widget.drive, title: '选择保存位置');
+    if (to == null || !mounted) return; // 用户取消
     setState(() => _busy = true);
     try {
-      await widget.drive.saveShare(widget.session, _selectedFiles(), '0');
-      _toast('已保存 ${_selected.length} 项到网盘根目录');
+      await widget.drive.saveShare(widget.session, _selectedFiles(), to);
+      _toast('已保存 ${_selected.length} 项到网盘');
       _exitSelectMode();
     } catch (e) {
       _toast('保存失败: $e');
@@ -432,8 +437,10 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
 
   Future<void> _downloadFile(DriveShareFile file) async {
     try {
-      final infos = await widget.drive
-          .getShareDownloadInfo(widget.session, [file.fid]);
+      // 走 downloadShare：普通盘取分享直链；百度则先转存到自己的网盘再取直链，
+      // 避免分享 PCS 直链的 31023 参数错误。
+      final infos =
+          await widget.drive.downloadShare(widget.session, [file]);
       if (infos.isEmpty) {
         _toast('未获取到下载地址');
         return;
@@ -454,9 +461,12 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
   }
 
   Future<void> _saveFile(DriveShareFile file) async {
+    final to = await DriveFolderPicker.show(context,
+        drive: widget.drive, title: '选择保存位置');
+    if (to == null || !mounted) return; // 用户取消
     try {
-      await widget.drive.saveShare(widget.session, [file], '0');
-      _toast('已保存到网盘根目录');
+      await widget.drive.saveShare(widget.session, [file], to);
+      _toast('已保存到网盘');
     } catch (e) {
       _toast('保存失败: $e');
     }

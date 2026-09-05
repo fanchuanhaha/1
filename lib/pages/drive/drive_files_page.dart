@@ -10,6 +10,7 @@ import '../../theme/app_theme.dart';
 import '../../utils/app_logger.dart';
 import '../../utils/format.dart';
 import '../../widgets/empty_view.dart';
+import '../../widgets/drive_folder_picker.dart';
 import '../../widgets/file_icon.dart';
 import '../../widgets/share_dialogs.dart';
 
@@ -430,6 +431,18 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
                 style: TextStyle(
                     color: AppColors.of(context).textPrimary, fontSize: 14)),
             const Spacer(),
+            if (widget.drive.supportsDelete) ...[
+              TextButton.icon(
+                onPressed: _downloading || count == 0 ? null : _deleteSelected,
+                style: TextButton.styleFrom(
+                    foregroundColor: Colors.redAccent,
+                    disabledForegroundColor:
+                        AppColors.of(context).textSecondary),
+                icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                label: Text('删除($count)'),
+              ),
+              const SizedBox(width: 10),
+            ],
             FilledButton.icon(
               onPressed: _downloading || count == 0 ? null : _batchDownload,
               style: FilledButton.styleFrom(
@@ -624,6 +637,18 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
                 },
               ),
             ],
+            if (widget.drive.supportsDelete) ...[
+              ListTile(
+                leading: Icon(Icons.delete_outline_rounded,
+                    color: Colors.redAccent),
+                title: const Text('删除'),
+                subtitle: const Text('移到网盘回收站'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _deleteFiles([file.fid]);
+                },
+              ),
+            ],
             const SizedBox(height: 8),
           ],
         ),
@@ -688,7 +713,7 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
   }
 
   Future<void> _moveFile(DriveFile file) async {
-    final toDirFid = await _FolderPicker.show(context, drive: widget.drive);
+    final toDirFid = await DriveFolderPicker.show(context, drive: widget.drive);
     if (toDirFid == null || toDirFid.isEmpty) return;
     if (toDirFid == file.pdirFid) {
       _toast('已在目标文件夹中');
@@ -703,216 +728,48 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
       _load();
     }
   }
-}
 
-/// 移动/复制文件时的目标文件夹选择器：从网盘根目录逐级浏览文件夹，
-/// 点击「移动至此」返回当前目录 fid。返回 null 表示用户取消。
-class _FolderPicker extends StatefulWidget {
-  final BaseDrive drive;
-
-  const _FolderPicker({required this.drive});
-
-  /// 弹出文件夹选择，返回选中的目录 fid（取消返回 null）。
-  static Future<String?> show(BuildContext context, {required BaseDrive drive}) {
-    return showModalBottomSheet<String>(
+  Future<void> _deleteFiles(List<String> fids) async {
+    if (fids.isEmpty) return;
+    final names = fids
+        .map((fid) {
+          final m = _files.where((f) => f.fid == fid).toList();
+          return m.isNotEmpty ? m.first.fileName : fid;
+        })
+        .join('、');
+    if (!mounted) return;
+    final ok = await showDialog<bool>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: AppColors.of(context).card,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
-      ),
-      builder: (_) => FractionallySizedBox(
-        heightFactor: 0.75,
-        child: _FolderPicker(drive: drive),
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.of(ctx).card,
+        title: const Text('删除文件'),
+        content: Text(
+          '确定删除「$names」吗？会移到网盘回收站（可恢复）。',
+          style: TextStyle(color: AppColors.of(ctx).textPrimary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('删除', style: TextStyle(color: Colors.redAccent)),
+          ),
+        ],
       ),
     );
-  }
-
-  @override
-  State<_FolderPicker> createState() => _FolderPickerState();
-}
-
-class _FolderPickerState extends State<_FolderPicker> {
-  final List<(String, String)> _crumbs = [('0', '根目录')];
-  String _currentFid = '0';
-  bool _loading = false;
-  List<DriveFile> _dirs = [];
-  String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    try {
-      final files = await widget.drive.listFiles(_currentFid);
-      if (mounted) {
-        setState(() {
-          _dirs = files.where((f) => f.isDir).toList();
-          _loading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _loading = false;
-          _error = e.toString();
-        });
-      }
+    if (ok != true) return;
+    final err = await widget.drive.deleteFiles(fids);
+    if (!mounted) return;
+    if (err != null) {
+      _toast(err);
+    } else {
+      _toast('已删除 ${fids.length} 项');
+      _exitSelectMode();
+      _load();
     }
   }
 
-  void _enterDir(DriveFile dir) {
-    setState(() {
-      _crumbs.add((_currentFid, dir.fileName));
-      _currentFid = dir.fid;
-      _dirs = [];
-      _loading = true;
-    });
-    _load();
-  }
-
-  void _goTo(int index) {
-    if (index >= _crumbs.length - 1) return;
-    setState(() {
-      _crumbs.removeRange(index + 1, _crumbs.length);
-      _currentFid = _crumbs.last.$1;
-      _dirs = [];
-    });
-    _load();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
-          child: Row(
-            children: [
-              const Expanded(
-                child: Text('选择目标文件夹',
-                    style: TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.w700)),
-              ),
-              IconButton(
-                onPressed: () => Navigator.pop(context),
-                icon: Icon(Icons.close_rounded,
-                    color: AppColors.of(context).textSecondary),
-              ),
-            ],
-          ),
-        ),
-        // 面包屑
-        SizedBox(
-          height: 32,
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                for (var i = 0; i < _crumbs.length; i++) ...[
-                  if (i > 0)
-                    Icon(Icons.chevron_right_rounded,
-                        size: 15, color: AppColors.of(context).textSecondary),
-                  InkWell(
-                    onTap: () => _goTo(i),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 3),
-                      child: Text(
-                        _crumbs[i].$2,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: i == _crumbs.length - 1
-                              ? AppColors.of(context).accent
-                              : AppColors.of(context).textSecondary,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-        const Divider(height: 1),
-        // 目录列表
-        Expanded(
-          child: _loading
-              ? const Center(child: CircularProgressIndicator())
-              : _error != null
-                  ? EmptyView(
-                      icon: Icons.cloud_off_rounded,
-                      text: '加载失败',
-                      subText: _error!,
-                      action: OutlinedButton(
-                          onPressed: _load, child: const Text('重试')),
-                    )
-                  : _dirs.isEmpty
-                      ? const EmptyView(
-                          icon: Icons.folder_open_rounded,
-                          text: '当前目录没有子文件夹')
-                      : ListView.separated(
-                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                          itemCount: _dirs.length,
-                          separatorBuilder: (_, _) =>
-                              const SizedBox(height: 6),
-                          itemBuilder: (_, i) {
-                            final d = _dirs[i];
-                            return InkWell(
-                              onTap: () => _enterDir(d),
-                              borderRadius: BorderRadius.circular(10),
-                              child: Row(
-                                children: [
-                                  FileIcon(isDir: true, name: d.fileName),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: Text(d.fileName,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                            color: AppColors.of(context)
-                                                .textPrimary,
-                                            fontSize: 14)),
-                                  ),
-                                  Icon(Icons.chevron_right_rounded,
-                                      color: AppColors.of(context)
-                                          .textSecondary),
-                                ],
-                              ),
-                            );
-                          },
-                        ),
-        ),
-        const Divider(height: 1),
-        SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-            child: SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: () => Navigator.pop(context, _currentFid),
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.of(context).accent,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
-                ),
-                icon: const Icon(Icons.drive_file_move_rounded, size: 18),
-                label: const Text('移动至此'),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
+  void _deleteSelected() => _deleteFiles(_selected.toList());
 }

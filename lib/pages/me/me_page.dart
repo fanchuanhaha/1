@@ -403,7 +403,7 @@ class MePage extends StatelessWidget {
     );
   }
 
-  /// 「下载连接数」二级设置：列出常用网盘，各自可设置专属线程数（夸克最大 128）。
+  /// 「下载连接数」二级设置：列出常用网盘，各自可设置专属线程数（夸克/迅雷最大 512）。
   void _showDriveThreads(BuildContext dialogCtx, AppState app) {
     final drives = <DriveType>[
       DriveType.quark,
@@ -441,7 +441,7 @@ class MePage extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 4),
-                  Text('未设置的网盘沿用全局默认 ${app.connections} 线程。夸克最大可调 128。',
+                  Text('未设置的网盘沿用全局默认 ${app.connections} 线程。夸克、迅雷最大可调 512。',
                       style: TextStyle(
                           fontSize: 12,
                           color: AppColors.of(ctx).textSecondary)),
@@ -714,7 +714,7 @@ class _SheetTile extends StatelessWidget {
   }
 }
 
-/// 单个网盘的下载线程数设置行。点击弹出可选线程数，夸克最大 128，其它默认到 64。
+/// 单个网盘的下载线程数设置行。点击弹出可选线程数，夸克/迅雷最大 512，其它默认到 64。
 class _DriveThreadTile extends StatelessWidget {
   final DriveType drive;
   final int value;
@@ -726,12 +726,15 @@ class _DriveThreadTile extends StatelessWidget {
     required this.onChanged,
   });
 
-  int get _max => drive == DriveType.quark ? 128 : 64;
+  int get _max =>
+      drive == DriveType.quark || drive == DriveType.xunlei ? 512 : 64;
 
   List<int> get _options {
     final opts = <int>[...[1, 2, 4, 8, 16, 32]];
     if (_max >= 64 && !opts.contains(64)) opts.add(64);
     if (_max >= 128) opts.add(128);
+    if (_max >= 256) opts.add(256);
+    if (_max >= 512) opts.add(512);
     if (!opts.contains(value)) opts.add(value);
     opts.sort();
     return opts;
@@ -742,7 +745,7 @@ class _DriveThreadTile extends StatelessWidget {
     return ListTile(
       leading: Icon(Icons.cable_rounded, color: AppColors.of(context).accent),
       title: Text(drive.label),
-      subtitle: Text('$value 线程${drive == DriveType.quark ? ' · 最大 128' : ''}'),
+      subtitle: Text('$value 线程${_max >= 512 ? ' · 最大 512' : ''}'),
       trailing: Icon(Icons.edit_rounded,
           color: AppColors.of(context).textSecondary, size: 18),
       onTap: () {

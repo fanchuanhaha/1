@@ -762,6 +762,26 @@ class XunleiClient extends BaseDrive {
   @override
   Future<List<DriveFile>> listFiles(String pdirFid,
       {int page = 1, int size = 100}) async {
+    // 首次进盘偶发「空白/失败」（多为验证码或令牌时序）：
+    // 先补一次 captcha_token 再真正发起，失败时再补一次并重试，避免用户手动刷新。
+    if (_captchaToken.isEmpty) {
+      try {
+        await _tryAcquireCaptcha();
+      } catch (_) {}
+    }
+    try {
+      return await _listFilesOnce(pdirFid, page: page, size: size);
+    } on XunleiException {
+      // 首次失败（captcha/令牌）→ 补 token 后重试一次
+      try {
+        await _tryAcquireCaptcha();
+      } catch (_) {}
+      return await _listFilesOnce(pdirFid, page: page, size: size);
+    }
+  }
+
+  Future<List<DriveFile>> _listFilesOnce(String pdirFid,
+      {int page = 1, int size = 100}) async {
     try {
       // OpenList(Thunder) 真实请求：
       //   GET /drive/v1/files?space=&__type=drive&refresh=true&__sync=true
@@ -1056,6 +1076,19 @@ class XunleiClient extends BaseDrive {
       rethrow;
     } catch (e) {
       throw XunleiException(-1, '批量删除失败: $e');
+    }
+  }
+
+  @override
+  bool get supportsDelete => true;
+
+  @override
+  Future<String?> deleteFiles(List<String> fids) async {
+    try {
+      await batchDelete(fids);
+      return null;
+    } on Exception catch (e) {
+      return '删除失败: ${e.toString().replaceFirst('Exception: ', '')}';
     }
   }
 

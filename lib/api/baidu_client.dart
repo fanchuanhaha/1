@@ -789,6 +789,41 @@ class BaiduClient extends BaseDrive {
   }
 
   @override
+  Future<List<DriveDownloadInfo>> downloadShare(
+      DriveShareSession session, List<DriveShareFile> files) async {
+    // 百度分享「下载」走可靠路径：先转存到自己的网盘的临时目录，
+    // 再从自己网盘 filemetas 取 dlink 直链。直接走分享 PCS 下载常报
+    // errno=31023(param error,path)，故不用 getShareDownloadInfo。
+    if (files.isEmpty) return [];
+    final tempName = '分享下载${DateTime.now().millisecondsSinceEpoch}';
+    final tempDir = '/$tempName';
+    await createFolder(tempDir);
+    try {
+      await saveShare(session, files, tempDir);
+    } on BaiduException catch (e) {
+      throw BaiduException(e.code, '转存失败，无法下载：${e.message}');
+    }
+
+    // 转存为异步（async=1），轮询等待临时目录出现文件
+    List<DriveFile> saved = [];
+    for (var i = 0; i < 15; i++) {
+      try {
+        saved = await listFiles(tempDir);
+        if (saved.isNotEmpty) break;
+      } catch (_) {}
+      await Future.delayed(const Duration(milliseconds: 800));
+    }
+    if (saved.isEmpty) {
+      AppLogger.I.w('baidu', '分享转存到 $tempDir 后未发现文件');
+      throw BaiduException(-1, '转存后未找到文件，请稍后重试');
+    }
+    final fids = saved.map((f) => f.fid).toList();
+    AppLogger.I.i('baidu',
+        '分享转存到 $tempDir 成功，文件数=${fids.length}，目录可到网盘根目录删除');
+    return getDownloadInfo(fids);
+  }
+
+  @override
   Future<void> saveShare(
     DriveShareSession session,
     List<DriveShareFile> files,
@@ -1097,6 +1132,15 @@ class BaiduClient extends BaseDrive {
             })
         .toList();
     return _runManager('copy', entries);
+  }
+
+  @override
+  bool get supportsDelete => true;
+
+  @override
+  Future<String?> deleteFiles(List<String> fids) {
+    final entries = fids.map((p) => {'path': p}).toList();
+    return _runManager('delete', entries);
   }
 
   /// 获取配额（空间使用情况）

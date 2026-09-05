@@ -168,6 +168,14 @@ abstract class BaseDrive {
   /// 获取分享文件下载链接
   Future<List<DriveDownloadInfo>> getShareDownloadInfo(DriveShareSession session, List<String> fidList);
 
+  /// 分享「下载」的可选实现，默认直接取分享直链。
+  /// 部分盘（如百度）分享直链不稳定（实名 31023 参数错误），可覆写为
+  /// 「转存到自己的网盘 → 从自己网盘取直链下载」的可靠路径。
+  Future<List<DriveDownloadInfo>> downloadShare(
+      DriveShareSession session, List<DriveShareFile> files) {
+    return getShareDownloadInfo(session, files.map((f) => f.fid).toList());
+  }
+
   /// 转存分享文件
   Future<void> saveShare(DriveShareSession session, List<DriveShareFile> files, String toPdirFid);
 
@@ -185,6 +193,9 @@ abstract class BaseDrive {
 
   /// 是否支持移动
   bool get supportsMove => false;
+
+  /// 是否支持删除（到回收站/彻底删除）
+  bool get supportsDelete => false;
 
   /// 创建分享链接，返回分享结果（链接 + 提取码）。异常或失败抛 [StateError]。
   /// [pwd] 自定义提取码（为空时由网盘默认生成）；[period] 有效期时长（各网盘自定义）。
@@ -207,6 +218,11 @@ abstract class BaseDrive {
   /// 复制文件/文件夹到目标目录，返回 null 表示成功，否则返回错误信息。
   Future<String?> copyFiles(List<String> fids, String toDirFid) {
     return Future.value('当前网盘不支持复制');
+  }
+
+  /// 删除文件/文件夹（到回收站），返回 null 表示成功，否则返回错误信息。
+  Future<String?> deleteFiles(List<String> fids) {
+    return Future.value('当前网盘不支持删除');
   }
 
   /// 释放资源

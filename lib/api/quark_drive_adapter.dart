@@ -155,6 +155,13 @@ class QuarkDriveAdapter extends BaseDrive {
   bool get supportsMove => true;
 
   @override
+  bool get supportsDelete => true;
+
+  @override
+  Future<String?> deleteFiles(List<String> fids) =>
+      _client.deleteFiles(fids);
+
+  @override
   bool get supportsShare => true;
 
   @override
