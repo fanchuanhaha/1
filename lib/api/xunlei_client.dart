@@ -490,6 +490,45 @@ class XunleiClient extends BaseDrive {
     return _check(_parseBody(resp));
   }
 
+  /// 校验 api-pan 响应错误码，但返回【完整 body】（盘接口的数据都在顶层，如 files/user，
+  /// 不在 data 字段里，不能用 [_check] 取 body['data']）。
+  Map<String, dynamic> _checkBody(Map<String, dynamic> body) {
+    final errorCode = toInt(body['error_code'], fallback: toInt(body['code'], fallback: 0));
+    if (errorCode != 0) {
+      final msg = body['error_message']?.toString() ??
+          body['message']?.toString() ??
+          body['error']?.toString() ??
+          '请求失败';
+      throw XunleiException(errorCode, msg);
+    }
+    return body;
+  }
+
+  /// 盘接口专用 GET：返回完整 body（顶层含 files/user 等字段）。
+  Future<Map<String, dynamic>> _apiGet(
+    String url, {
+    Map<String, dynamic>? params,
+    String? userAgent,
+    Map<String, dynamic>? extraHeaders,
+  }) async {
+    final resp = await _request('GET', url,
+        params: params, userAgent: userAgent, extraHeaders: extraHeaders);
+    return _checkBody(_parseBody(resp));
+  }
+
+  /// 盘接口专用 POST：返回完整 body。
+  Future<Map<String, dynamic>> _apiPost(
+    String url, {
+    Map<String, dynamic>? params,
+    Object? data,
+    String? userAgent,
+    Map<String, dynamic>? extraHeaders,
+  }) async {
+    final resp = await _request('POST', url,
+        params: params, data: data, userAgent: userAgent, extraHeaders: extraHeaders);
+    return _checkBody(_parseBody(resp));
+  }
+
   // ---- 公开的 setter ----
 
   /// 设置访问令牌（由上层调用方注入持久化的凭证）
@@ -594,7 +633,7 @@ class XunleiClient extends BaseDrive {
         final captchaToken = credential['captcha_token']?.toString() ?? '';
         if (username.isNotEmpty && password.isNotEmpty) {
           try {
-            final data = await _post(
+            final data = await _apiPost(
               _authSignin,
               data: {
                 'client_id': 'XLP_ANDROID',
@@ -699,7 +738,7 @@ class XunleiClient extends BaseDrive {
   Future<void> refreshUser() async {
     if (_accessToken.isEmpty) return;
     try {
-      final data = await _get(_fileInfo);
+      final data = await _apiGet(_fileInfo);
       final user = data['user'];
       if (user is Map) {
         final m = user.cast<String, dynamic>();
@@ -728,7 +767,7 @@ class XunleiClient extends BaseDrive {
       // 根目录：App 内部用 "0" 作根哨兵，但 api-pan 的根目录 parent_id 必须传空串。
       // 传 "0" 会被当作一个不存在的文件夹 id，返回 404 file_not_found / record not found。
       final parentId = (pdirFid == '0' || pdirFid.isEmpty) ? '' : pdirFid;
-      final data = await _get(
+      final data = await _apiGet(
         _fileList,
         params: {
           'parent_id': parentId,
@@ -774,7 +813,7 @@ class XunleiClient extends BaseDrive {
   Future<List<DriveFile>> searchFiles(String keyword,
       {int page = 1, int size = 50}) async {
     try {
-      final data = await _get(
+      final data = await _apiGet(
         '$_fileList:search',
         params: {
           'query': keyword,
@@ -810,7 +849,7 @@ class XunleiClient extends BaseDrive {
   @override
   Future<List<DriveDownloadInfo>> getDownloadInfo(List<String> fids) async {
     try {
-      final data = await _post(
+      final data = await _apiPost(
         _batchGet,
         data: {
           'ids': fids,
@@ -874,7 +913,7 @@ class XunleiClient extends BaseDrive {
       } catch (_) {}
     }
     try {
-      final data = await _post(
+      final data = await _apiPost(
         '$_shareApi:verify',
         data: {
           'share_id': pwdId,
@@ -903,7 +942,7 @@ class XunleiClient extends BaseDrive {
   Future<List<DriveShareFile>> listShare(DriveShareSession session, String pdirFid,
       {int page = 1, int size = 50}) async {
     try {
-      final data = await _get(
+      final data = await _apiGet(
         _shareDetail,
         params: {
           'share_id': session.pwdId,
@@ -941,7 +980,7 @@ class XunleiClient extends BaseDrive {
       DriveShareSession session, List<String> fidList) async {
     try {
       // 迅雷分享下载需要先获取文件详情，再提取下载链接
-      final data = await _post(
+      final data = await _apiPost(
         _shareDetail,
         data: {
           'share_id': session.pwdId,
@@ -1018,7 +1057,7 @@ class XunleiClient extends BaseDrive {
   /// 批量获取文件信息
   Future<List<DriveFile>> batchGet(List<String> fids) async {
     try {
-      final data = await _post(
+      final data = await _apiPost(
         _batchGet,
         data: {
           'ids': fids,
@@ -1069,7 +1108,7 @@ class XunleiClient extends BaseDrive {
   /// 获取资源列表（迅雷特有资源聚合接口）
   Future<List<DriveFile>> listResource({int page = 1, int size = 100}) async {
     try {
-      final data = await _get(
+      final data = await _apiGet(
         _resourceList,
         params: {
           'page': page,
@@ -1104,7 +1143,7 @@ class XunleiClient extends BaseDrive {
   /// 获取任务列表（离线下载/转存任务）
   Future<List<Map<String, dynamic>>> listTasks({int page = 1, int size = 20}) async {
     try {
-      final data = await _get(
+      final data = await _apiGet(
         _taskApi,
         params: {
           'page': page,
@@ -1124,7 +1163,7 @@ class XunleiClient extends BaseDrive {
   /// 创建离线下载任务
   Future<String> createTask(String url, {String? name, String? parentId}) async {
     try {
-      final data = await _post(
+      final data = await _apiPost(
         _taskApi,
         data: {
           'url': url,
@@ -1143,7 +1182,7 @@ class XunleiClient extends BaseDrive {
   /// 获取字幕信息
   Future<List<Map<String, dynamic>>> getSubtitles(String fileId, {String? lang}) async {
     try {
-      final data = await _get(
+      final data = await _apiGet(
         _subtitleApi,
         params: {
           'file_id': fileId,
