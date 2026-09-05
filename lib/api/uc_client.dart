@@ -596,9 +596,14 @@ class UcClient extends BaseDrive {
   }
 
   /// 删除文件
-  Future<void> deleteFiles(List<String> fids) async {
-    await _post('$_pcApi/file/delete',
-        params: _defaultParams, data: {'fids': fids, 'force': true});
+  Future<String?> deleteFiles(List<String> fids) async {
+    try {
+      await _post('$_pcApi/file/delete',
+          params: _defaultParams, data: {'fids': fids, 'force': true});
+      return null;
+    } catch (e) {
+      return '删除失败: ${e.toString().replaceFirst('Exception: ', '')}';
+    }
   }
 
   /// 获取文件下载链接（增强版，返回原始响应）
