@@ -43,10 +43,79 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
   final Set<String> _selected = {};
   bool _busy = false;
 
+  /// 居中进度框：用于百度分享「下载」（先转存到网盘再取直链）的长流程。
+  final ValueNotifier<String> _progressMessage = ValueNotifier<String>('');
+  bool _progressDialogOpen = false;
+
   @override
   void initState() {
     super.initState();
     _files = widget.initialFiles;
+  }
+
+  @override
+  void dispose() {
+    _progressMessage.dispose();
+    super.dispose();
+  }
+
+  // ---------------- 居中进度框（仿百度加速，丝带转圈 + 步骤文案） ----------------
+
+  void _openProgressDialog(String initial) {
+    if (_progressDialogOpen || !mounted) return;
+    _progressDialogOpen = true;
+    _progressMessage.value = initial;
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => PopScope(
+        canPop: false,
+        child: Dialog(
+          backgroundColor: AppColors.of(dialogContext).card,
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20)),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 3,
+                    color: AppColors.of(dialogContext).accent,
+                  ),
+                ),
+                const SizedBox(width: 20),
+                Flexible(
+                  child: ValueListenableBuilder<String>(
+                    valueListenable: _progressMessage,
+                    builder: (_, msg, __) => Text(
+                      msg,
+                      style: TextStyle(
+                          color: AppColors.of(dialogContext).textPrimary,
+                          fontSize: 15),
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ).then((_) => _progressDialogOpen = false);
+  }
+
+  void _closeProgressDialog() {
+    if (!_progressDialogOpen || !mounted) return;
+    Navigator.of(context, rootNavigator: true).pop();
+  }
+
+  void _setProgress(String msg) {
+    if (mounted) _progressMessage.value = msg;
   }
 
   Future<void> _openDir(DriveShareFile dir) async {
@@ -155,10 +224,13 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
 
   Future<void> _batchDownload() async {
     if (_selected.isEmpty || _busy) return;
+    _openProgressDialog('正在获取下载链接...');
     setState(() => _busy = true);
     try {
       final infos = await widget.drive
-          .downloadShare(widget.session, _selectedFiles());
+          .downloadShare(widget.session, _selectedFiles(),
+              onStep: _setProgress);
+      _closeProgressDialog();
       var added = 0;
       for (final info in infos) {
         if (info.url.isEmpty) continue;
@@ -176,6 +248,7 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
       DownloadManager.I.startPolling();
       _exitSelectMode();
     } catch (e) {
+      _closeProgressDialog();
       _toast('批量下载失败: $e');
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -439,11 +512,13 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
   }
 
   Future<void> _downloadFile(DriveShareFile file) async {
+    _openProgressDialog('正在获取下载链接...');
     try {
       // 走 downloadShare：普通盘取分享直链；百度则先转存到自己的网盘再取直链，
       // 避免分享 PCS 直链的 31023 参数错误。
-      final infos =
-          await widget.drive.downloadShare(widget.session, [file]);
+      final infos = await widget.drive
+          .downloadShare(widget.session, [file], onStep: _setProgress);
+      _closeProgressDialog();
       if (infos.isEmpty) {
         _toast('未获取到下载地址');
         return;
@@ -459,6 +534,7 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
       showDownloadAddedToast(context, '已加入下载队列');
       DownloadManager.I.startPolling();
     } catch (e) {
+      _closeProgressDialog();
       _toast('下载失败: $e');
     }
   }

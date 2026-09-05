@@ -790,13 +790,15 @@ class BaiduClient extends BaseDrive {
 
   @override
   Future<List<DriveDownloadInfo>> downloadShare(
-      DriveShareSession session, List<DriveShareFile> files) async {
+      DriveShareSession session, List<DriveShareFile> files,
+      {void Function(String message)? onStep}) async {
     // 百度分享「下载」走可靠路径：先转存到自己的网盘的临时目录，
     // 再从自己网盘 filemetas 取 dlink 直链。直接走分享 PCS 下载常报
     // errno=31023(param error,path)，故不用 getShareDownloadInfo。
     if (files.isEmpty) return [];
     final tempName = '分享下载${DateTime.now().millisecondsSinceEpoch}';
     final tempDir = '/$tempName';
+    onStep?.call('正在保存到网盘...');
     await createFolder(tempDir);
     try {
       await saveShare(session, files, tempDir);
@@ -805,6 +807,7 @@ class BaiduClient extends BaseDrive {
     }
 
     // 转存为异步（async=1），轮询等待临时目录出现文件
+    onStep?.call('正在获取下载链接...');
     List<DriveFile> saved = [];
     for (var i = 0; i < 15; i++) {
       try {
@@ -1076,23 +1079,24 @@ class BaiduClient extends BaseDrive {
 
   Future<String?> _runManager(String opera, List<Map<String, dynamic>> entries) async {
     try {
-      // 百度 api/filemanager 固定：opera/async/ondup/channel 等置于 query，
-      // 只有 filelist 放表单 body。误放 body 会返回 errno=2(参数错误)。
-      final body = await _postForm('$_baseUrl/api/filemanager', params: {
-        'bdstoken': _bdstoken,
-        'clienttype': 0,
-        'app_id': 250528,
-        'web': 1,
-        'channel': 'chunlei',
+      // 与 OpenList 的百度删除保持一致：走官方 union 接口 rest/2.0/xpan/file，
+      // method=filemanager & opera=xxx，表单 async=0 + ondup=fail。
+      // 注意不要用网页端 api/filemanager（async=2），否则易触发 errno=132
+      // 风控安全验证（verify_scene=1），导致删除/移动等管理操作被拦截。
+      final body = await _postForm('$_baseUrl/rest/2.0/xpan/file', params: {
+        'method': 'filemanager',
         'opera': opera,
-        'async': 2,
-        'ondup': 'newcopy',
+        'bdstoken': _bdstoken,
+        'app_id': 250528,
+        'clienttype': 0,
       }, fields: {
+        'async': '0',
+        'ondup': 'fail',
         'filelist': jsonEncode(entries),
       });
       final errno = toInt(body['errno'], fallback: 0);
       if (errno != 0) {
-        final msg = body['errmsg']?.toString() ?? body['show_msg']?.toString() ?? '';
+        final msg = body['errmsg']?.toString() ?? body['show_msg']?.toString() ?? body['err_msg']?.toString() ?? '';
         if (msg.isNotEmpty && errno != 132) return msg;
         // errno=132：百度风控安全验证，服务器要求完成验证后才能执行管理操作。
         switch (errno) {
@@ -1106,7 +1110,7 @@ class BaiduClient extends BaseDrive {
             return msg.isNotEmpty ? msg : '操作失败($errno)';
         }
       }
-      // async=2 时仅返回 taskid，任务异步执行成功与否见 errno
+      // async=0：管理操作同步返回，info 里逐项 errno 均已为 0，视为成功。
       return null;
     } catch (e) {
       return '操作失败: $e';

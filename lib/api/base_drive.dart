@@ -171,8 +171,13 @@ abstract class BaseDrive {
   /// 分享「下载」的可选实现，默认直接取分享直链。
   /// 部分盘（如百度）分享直链不稳定（实名 31023 参数错误），可覆写为
   /// 「转存到自己的网盘 → 从自己网盘取直链下载」的可靠路径。
+  /// [onStep] 用于在长流程（如转账到网盘）中回调进度文案，供 UI 居中进度框显示。
   Future<List<DriveDownloadInfo>> downloadShare(
-      DriveShareSession session, List<DriveShareFile> files) {
+    DriveShareSession session,
+    List<DriveShareFile> files, {
+    void Function(String message)? onStep,
+  }) {
+    onStep?.call('正在获取下载链接...');
     return getShareDownloadInfo(session, files.map((f) => f.fid).toList());
   }
 
