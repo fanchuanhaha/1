@@ -51,15 +51,14 @@ class _BaiduVerifyPageState extends State<BaiduVerifyPage> {
     final pairs = _cookieToMap(widget.cookie);
     if (pairs.isEmpty) return;
     for (final host in _domainHosts) {
-      final uri = Uri.parse('https://$host/');
       for (final e in pairs.entries) {
         try {
-          await WebViewCookieManager().setCookie(
-            uri,
-            e.key,
-            e.value,
+          await WebViewCookieManager().setCookie(WebViewCookie(
+            name: e.key,
+            value: e.value,
             domain: host,
-          );
+            path: '/',
+          ));
         } catch (err) {
           AppLogger.I.w('baidu_verify', '注入 cookie 失败 $host/${e.key}: $err');
         }
@@ -106,8 +105,8 @@ class _BaiduVerifyPageState extends State<BaiduVerifyPage> {
     try {
       final allParts = <String>{};
       for (final host in _domainHosts) {
-        final cookies =
-            await WebViewCookieManager().getCookies(domain: host);
+        final cookies = await WebViewCookieManager()
+            .getCookies(domain: Uri.parse('https://$host/'));
         for (final c in cookies) {
           if (c.name.isNotEmpty && c.value.isNotEmpty) {
             allParts.add('${c.name}=${c.value}');
