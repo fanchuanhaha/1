@@ -239,7 +239,7 @@ class _BaiduVerifyPageState extends State<BaiduVerifyPage> {
       } else if (errno == 132) {
         setState(() {
           _busy = false;
-          _status = '仍被安全验证拦截，请在下方网页完成验证后点「重试删除」';
+          _status = '仍被百度安全验证拦截。请在下方网页里手动勾选并删除目标文件（与网页操作一致、无验证），完成后点「已完成手动删除」';
         });
       } else {
         setState(() {
@@ -346,27 +346,47 @@ class _BaiduVerifyPageState extends State<BaiduVerifyPage> {
     return SafeArea(
       top: false,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-        child: Row(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 18),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: _busy || _done
-                    ? null
-                    : () => _controller.reload(),
-                child: const Text('刷新页面'),
-              ),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _busy || _done ? null : () => _controller.reload(),
+                    child: const Text('刷新页面'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: _busy || _done ? null : _runDelete,
+                    child: const Text('重试删除'),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: FilledButton(
-                onPressed: _busy || _done ? null : _runDelete,
-                child: Text(_done ? '已完成' : '重试删除'),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _busy || _done ? null : _onManualDone,
+                icon: const Icon(Icons.check_rounded, size: 18),
+                label: const Text('我已在网页手动删除（点此收尾）'),
               ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  void _onManualDone() {
+    if (_busy || _done) return;
+    if (mounted) {
+      Navigator.of(context)
+          .pop((ok: true, cookie: _currentCookie, msg: '我已在网页手动删除'));
+    }
   }
 }
