@@ -241,12 +241,11 @@ class _DrivePageState extends State<DrivePage>
   void _enterSelectMode(QuarkFile file) {
     setState(() {
       _selectMode = true;
-      if (!file.isDir) _selected.add(file.fid);
+      _selected.add(file.fid);
     });
   }
 
   void _toggleSelect(QuarkFile file) {
-    if (file.isDir) return;
     setState(() {
       if (!_selected.remove(file.fid)) {
         _selected.add(file.fid);
@@ -262,9 +261,9 @@ class _DrivePageState extends State<DrivePage>
   }
 
   void _selectAllFiles() {
-    final fileIds = _files.where((f) => !f.isDir).map((f) => f.fid).toSet();
+    final fileIds = _files.map((f) => f.fid).toSet();
     setState(() {
-      if (_selected.length == fileIds.length) {
+      if (_selected.length == fileIds.length && fileIds.isNotEmpty) {
         _selected.clear();
       } else {
         _selected
@@ -275,7 +274,12 @@ class _DrivePageState extends State<DrivePage>
   }
 
   Future<void> _batchDownload() async {
-    if (_selected.isEmpty || _downloading) return;
+    // 多选下载仅针对文件，文件夹不参与下载。
+    final fileTargets = _files
+        .where((f) => !f.isDir && _selected.contains(f.fid))
+        .map((f) => f.fid)
+        .toList();
+    if (fileTargets.isEmpty || _downloading) return;
     final app = AppState.I;
     final ok = await app.canWriteDownload();
     if (!ok) {
@@ -307,7 +311,7 @@ class _DrivePageState extends State<DrivePage>
     setState(() => _downloading = true);
     try {
       final (infos, cookie) =
-          await app.quark.getDownloadInfo(_selected.toList());
+          await app.quark.getDownloadInfo(fileTargets);
       var added = 0;
       for (final info in infos) {
         if (info.url.isEmpty) continue;
@@ -511,7 +515,21 @@ class _DrivePageState extends State<DrivePage>
       );
     }
     if (_loading && _files.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 28,
+              height: 28,
+              child: CircularProgressIndicator(strokeWidth: 3),
+            ),
+            SizedBox(height: 12),
+            Text('正在加载…',
+                style: TextStyle(color: Color(0xFF9AA3AF), fontSize: 13)),
+          ],
+        ),
+      );
     }
     if (_files.isEmpty) {
       return const EmptyView(
