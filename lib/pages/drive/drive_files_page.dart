@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../api/base_drive.dart';
 import '../../api/baidu_accel_service.dart';
 import '../../api/drive_type.dart';
+import '../../api/drive_manager.dart';
 import '../../state/app_state.dart';
 import '../../state/download_manager.dart';
 import '../../state/download_service.dart';
@@ -13,6 +14,7 @@ import '../../widgets/empty_view.dart';
 import '../../widgets/drive_folder_picker.dart';
 import '../../widgets/file_icon.dart';
 import '../../widgets/share_dialogs.dart';
+import '../parse/baidu_verify_page.dart';
 
 /// 通用网盘文件浏览页面，可适用于任何实现 [BaseDrive] 的网盘。
 class DriveFilesPage extends StatefulWidget {
@@ -767,7 +769,7 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
     final err = await widget.drive.deleteFiles(fids);
     if (!mounted) return;
     if (err != null) {
-      _showDeleteError(err);
+      _showDeleteError(err, fids);
     } else {
       _toast('已删除 ${fids.length} 项');
       _exitSelectMode();
@@ -776,8 +778,8 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
   }
 
   /// 删除失败提示：若为百度安全验证拦截（errno=132 风控），
-  /// 弹出可操作的图文指引；普通失败仍用轻提示。
-  void _showDeleteError(String err) {
+  /// 弹窗提供「在应用内完成验证」入口，完成并保存新 Cookie 后自动重试删除。
+  void _showDeleteError(String err, List<String> fids) {
     final isBaiduRisk = err.contains('安全验证');
     if (!isBaiduRisk) {
       _toast(err);
@@ -790,20 +792,47 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('删除被百度安全验证拦截'),
         content: const Text(
-          '这不是应用问题，而是百度网盘的账号安全策略（风控）要求先完成安全验证才能删除。请按以下步骤解除：\n\n'
-          '1. 用电脑或手机打开百度网盘官网/客户端，登录同一个账号；\n'
-          '2. 完成后台要求的安全验证（如滑块/短信等）；\n'
-          '3. 回到本应用重新登录（导入最新 Cookie）；\n'
-          '4. 以后避免短时间内频繁删除文件。',
+          '百度网盘的风控要求先完成一次安全验证（滑块/点选等）后才能删除。\n\n'
+          '点击下方按钮，在应用内直接完成验证；完成后保存会自动重试删除。\n'
+          '（若在应用内仍弹不出验证，也可先到百度网盘官方网页完成验证后重新登录本应用。）',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('知道了'),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => _completeVerifyThenRetry(ctx, fids),
+            child: const Text('在应用内完成验证'),
           ),
         ],
       ),
     );
+  }
+
+  /// 打开百度安全验证内嵌页 → 取回新 Cookie 写回网盘并持久化 → 自动重试删除。
+  Future<void> _completeVerifyThenRetry(
+      BuildContext dialogCtx, List<String> fids) async {
+    Navigator.of(dialogCtx).pop();
+    final cookie = widget.drive.loginCookie ?? '';
+    if (cookie.isEmpty) {
+      _toast('未检测到百度登录 Cookie，请先重新登录');
+      return;
+    }
+    if (!mounted) return;
+    final newCookie = await Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (_) => BaiduVerifyPage(cookie: cookie)),
+    );
+    if (newCookie == null || newCookie.isEmpty) {
+      _toast('未获取到新 Cookie，验证未完成');
+      return;
+    }
+    // 写回客户端并持久化，随后自动重试删除。
+    widget.drive.restoreSession(newCookie);
+    await DriveManager.I.saveDriveSession(DriveType.baidu);
+    if (!mounted) return;
+    _toast('已更新登录态，正在重试删除...');
+    _deleteFiles(fids);
   }
 
   void _deleteSelected() => _deleteFiles(_selected.toList());
