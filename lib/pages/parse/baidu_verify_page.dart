@@ -178,11 +178,17 @@ class _BaiduVerifyPageState extends State<BaiduVerifyPage> {
   // ---------------- 删除执行 ----------------
 
   String _buildDeleteJs() {
-    // 网页端真实删除走 pan.baidu.com/api/filemanager（不是 rest/2.0/xpan/file）。
-    // 关键点：与前端一致携带 opera=delete & async=0 & onnest=fail & channel=chunlei
-    // & web=1 & clienttype=0 & app_id & bdstoken & logid，且 filelist 为对象数组。
-    final list = widget.deletePaths!.map((p) => {'path': p}).toList();
-    final filelistJson = jsonEncode(list);
+    // 真实网页端删除走 pan.baidu.com/api/filemanager，参数必须与前台完全一致：
+    //   async=2（异步删除）& onnest=fail & opera=delete & channel=chunlei
+    //   & web=1 & clienttype=0 & app_id & bdstoken & logid & newVerify=1
+    // 且 body 的 filelist 是「路径字符串数组」如 ["/a","/b"]（不是对象数组）。
+    // 早期用 async=0 + 对象数组导致即便在 WebView 真实浏览器里也返回 132，
+    // 现按实测抓包修正。
+    final filelistJson = jsonEncode(widget.deletePaths!); // ["/a","/b"]
+    // 必须作为「字符串字面量」传入 URLSearchParams：若直接传数组会变成
+    // String(array)="a,b"，传对象数组更会变成 "[object Object]"，导致接口拿不到
+    // 真正的 filelist。用 jsonEncode 再包一层生成 JS 字符串字面量。
+    final filelistJsString = jsonEncode(filelistJson);
     return '''
 (async function(){
   var bt = "";
@@ -194,15 +200,18 @@ class _BaiduVerifyPageState extends State<BaiduVerifyPage> {
     logid = res.logid || "";
   } catch(e){}
   var fd = new URLSearchParams();
-  fd.set("async","0");
-  fd.set("onnest","fail");
-  fd.set("filelist", $filelistJson);
+  fd.set("filelist", $filelistJsString);
+  fd.set("async", "2");
+  fd.set("onnest", "fail");
   var q = new URLSearchParams();
-  q.set("opera","delete");
-  q.set("channel","chunlei");
-  q.set("web","1");
-  q.set("clienttype","0");
-  q.set("app_id","250528");
+  q.set("opera", "delete");
+  q.set("async", "2");
+  q.set("onnest", "fail");
+  q.set("channel", "chunlei");
+  q.set("web", "1");
+  q.set("clienttype", "0");
+  q.set("app_id", "250528");
+  q.set("newVerify", "1");
   if (bt) q.set("bdstoken", bt);
   if (logid) q.set("logid", logid);
   try {
