@@ -34,15 +34,18 @@ class _DownloadsPageState extends State<DownloadsPage>
         final failed = dm.countOf(GopeedStatus.error);
         final active = all.length - done - failed;
 
+        // 下载任务按创建时间从早到晚（升序）排列
+        final ordered = [...all]
+          ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
         final filtered = switch (_filter) {
-          1 => all
+          1 => ordered
               .where((t) =>
                   t.status != GopeedStatus.done &&
                   t.status != GopeedStatus.error)
               .toList(),
-          2 => dm.byStatus(GopeedStatus.done),
-          3 => dm.byStatus(GopeedStatus.error),
-          _ => all,
+          2 => ordered.where((t) => t.status == GopeedStatus.done).toList(),
+          3 => ordered.where((t) => t.status == GopeedStatus.error).toList(),
+          _ => ordered,
         };
 
         return SafeArea(
