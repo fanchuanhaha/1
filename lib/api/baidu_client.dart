@@ -1077,12 +1077,72 @@ class BaiduClient extends BaseDrive {
     return _checkAndReturn(body);
   }
 
+  /// 从 errno=132 的风控响应里尽量提取「人机验证」页面地址。
+  /// 百度可能用多种字段名返回，做兜底扫描并在日志里输出完整响应便于排查。
+  String? _extractVerifyUrl(Map<String, dynamic> body) {
+    try {
+      String? firstHttp(Object? v) {
+        if (v is String && v.contains('http')) return v;
+        if (v is Map) {
+          for (final e in v.entries) {
+            final x = firstHttp(e.value);
+            if (x != null) return x;
+          }
+        }
+        if (v is List) {
+          for (final e in v) {
+            final x = firstHttp(e);
+            if (x != null) return x;
+          }
+        }
+        return null;
+      }
+
+      const priorityKeys = [
+        'verify_url',
+        'verifyUrl',
+        'verfiy_url',
+        'verify_url_query',
+        'verifyInfo',
+        'verify_data',
+        'verifiy_url',
+      ];
+      for (final k in priorityKeys) {
+        final v = body[k];
+        if (v is String && v.contains('http')) return v;
+        if (v is Map && v.isNotEmpty) {
+          final u = firstHttp(v);
+          if (u != null) return u;
+        }
+      }
+      // 兜底：在整个响应 JSON 里找“人机验证”相关域名
+      final s = jsonEncode(body);
+      AppLogger.I.w('baidu_132', '132 完整响应 => $s');
+      final re = RegExp(r'https?://[^\s"\\]+');
+      for (final m in re.allMatches(s)) {
+        final u = m.group(0)!;
+        if (u.contains('verify') ||
+            u.contains('security') ||
+            u.contains('wmspwd') ||
+            u.contains('safe') ||
+            u.contains('passport.baidu')) {
+          return u;
+        }
+      }
+      // 再取第一个 http 地址（通常即验证/引导页）
+      final m0 = re.firstMatch(s);
+      if (m0 != null) return m0.group(0)!;
+      return null;
+    } catch (e) {
+      AppLogger.I.w('baidu_132', '提取验证地址失败: $e');
+      return null;
+    }
+  }
+
   Future<String?> _runManager(String opera, List<Map<String, dynamic>> entries) async {
     try {
       // 与 OpenList 的百度删除保持一致：走官方 union 接口 rest/2.0/xpan/file，
       // method=filemanager & opera=xxx，表单 async=0 + ondup=fail。
-      // 注意不要用网页端 api/filemanager（async=2），否则易触发 errno=132
-      // 风控安全验证（verify_scene=1），导致删除/移动等管理操作被拦截。
       final body = await _postForm('$_baseUrl/rest/2.0/xpan/file', params: {
         'method': 'filemanager',
         'opera': opera,
@@ -1099,9 +1159,16 @@ class BaiduClient extends BaseDrive {
         final msg = body['errmsg']?.toString() ?? body['show_msg']?.toString() ?? body['err_msg']?.toString() ?? '';
         if (msg.isNotEmpty && errno != 132) return msg;
         // errno=132：百度风控安全验证，服务器要求完成验证后才能执行管理操作。
+        // 此时把 132 响应里携带的「人机验证地址」一并拼到错误信息里，
+        // 上层据此在 WebView 中直接展示该验证界面让用户当场操作。
+        final verifyUrl = _extractVerifyUrl(body);
         switch (errno) {
           case 132:
-            return '百度安全验证拦截本次操作，请到百度网盘App/网页完成验证后再试';
+            final base = '百度安全验证拦截本次操作';
+            if (verifyUrl != null && verifyUrl.isNotEmpty) {
+              return '$base|$verifyUrl';
+            }
+            return base;
           case 12:
             return '文件不存在或已被移动，请刷新列表后重试';
           case 31003:

@@ -24,7 +24,16 @@ class BaiduVerifyPage extends StatefulWidget {
   /// 需要删除的文件路径列表（百度 fid 即云盘绝对路径）；为 null 时进入纯验证模式。
   final List<String>? deletePaths;
 
-  const BaiduVerifyPage({super.key, required this.cookie, this.deletePaths});
+  /// errno=132 时百度返回的人机验证地址。非空则先让用户在下面的 WebView 里
+  /// 完成安全验证，之后自动回到网盘页面重试删除。
+  final String? verifyUrl;
+
+  const BaiduVerifyPage({
+    super.key,
+    required this.cookie,
+    this.deletePaths,
+    this.verifyUrl,
+  });
 
   @override
   State<BaiduVerifyPage> createState() => _BaiduVerifyPageState();
@@ -38,6 +47,9 @@ class _BaiduVerifyPageState extends State<BaiduVerifyPage> {
   bool _done = false;
   String _currentCookie = '';
 
+  /// 当前是否处于「先完成人机验证」阶段；验证完成回到网盘后置为 false。
+  bool _verifyMode = false;
+
   static const _domainHosts = [
     'passport.baidu.com',
     'pan.baidu.com',
@@ -50,16 +62,26 @@ class _BaiduVerifyPageState extends State<BaiduVerifyPage> {
 
   bool get _deleteMode => (widget.deletePaths?.isNotEmpty ?? false);
 
+  /// 是否已进入「人机验证」：先在验证页完成验证，完成后再回网盘删除。
+  bool get _awaitingVerify =>
+      _deleteMode && (widget.verifyUrl?.isNotEmpty ?? false);
+
   @override
   void initState() {
     super.initState();
     _buildController();
-    // 先注入登录 Cookie，再加载页面，确保 WebView 里是已登录的百度网盘。
+    _verifyMode = _awaitingVerify;
     _injectCookies().then((_) {
-      _controller.loadRequest(Uri.parse('https://pan.baidu.com/disk/main'));
+      // 有验证地址则先加载验证页（真正的安全验证界面），让用户当场完成；
+      // 否则直接进网盘首页，自动执行删除。
+      final start =
+          _awaitingVerify ? widget.verifyUrl! : 'https://pan.baidu.com/disk/main';
+      _controller.loadRequest(Uri.parse(start));
     });
     if (_deleteMode) {
-      _status = '网页会话已就绪后自动删除';
+      _status = _awaitingVerify
+          ? '请先在下方的安全验证页面完成人机验证'
+          : '网页会话已就绪后自动删除';
     } else {
       _status = '请在下方完成的验证后点「保存」';
     }
@@ -95,6 +117,15 @@ class _BaiduVerifyPageState extends State<BaiduVerifyPage> {
         onPageFinished: (_) {
           if (mounted) setState(() => _loading = false);
           _refreshCookie();
+          // 正在等人机验证时，不在验证页自动删除；等用户完成验证后点了按钮再回网盘删。
+          if (_verifyMode && !_busy && !_done) {
+            if (mounted) {
+              setState(() {
+                _status = '请在下方的安全验证页面完成人机验证；完成后点「验证完成·回网盘删除」';
+              });
+            }
+            return;
+          }
           // 页面就绪且为删除模式时自动执行删除。
           if (_deleteMode && !_busy && !_done) {
             Future.delayed(const Duration(milliseconds: 800), () {
@@ -343,6 +374,26 @@ class _BaiduVerifyPageState extends State<BaiduVerifyPage> {
   }
 
   Widget _deleteActionBar() {
+    // 处于人机验证阶段：只显示「验证完成·回网盘删除」，不显示删除/手动按钮避免误操作。
+    if (_verifyMode && !_done) {
+      return SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 18),
+          child: SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: _busy || _done ? null : _onVerifyDone,
+              icon: const Icon(Icons.verified_user_rounded, size: 20),
+              label: const Text('验证完成 · 回到网盘并删除'),
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
     return SafeArea(
       top: false,
       child: Padding(
@@ -388,5 +439,20 @@ class _BaiduVerifyPageState extends State<BaiduVerifyPage> {
       Navigator.of(context)
           .pop((ok: true, cookie: _currentCookie, msg: '我已在网页手动删除'));
     }
+  }
+
+  // ---------------- 验证完成·回网盘删除 ----------------
+
+  /// 用户在验证页完成人机验证后，回到网盘首页并自动执行删除。
+  void _onVerifyDone() {
+    if (_busy || _done) return;
+    setState(() {
+      _verifyMode = false;
+      _busy = false;
+      _status = '验证完成，回到网盘并重试删除…';
+      _loading = true;
+    });
+    _controller
+        .loadRequest(Uri.parse('https://pan.baidu.com/disk/main'));
   }
 }

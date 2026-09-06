@@ -793,7 +793,11 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
       final isBaiduRisk =
           widget.drive.type == DriveType.baidu && err.contains('安全验证');
       if (isBaiduRisk) {
-        _openBaiduWebDelete(fids);
+        // err 形如「百度安全验证拦截本次操作|https://验证地址」
+        final idx = err.indexOf('|');
+        final verifyUrl =
+            idx >= 0 && idx + 1 < err.length ? err.substring(idx + 1) : null;
+        _openBaiduWebDelete(fids, verifyUrl: verifyUrl);
       } else {
         _toast(err);
       }
@@ -806,7 +810,10 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
 
   /// 在真实浏览器会话（内嵌 WebView，真实 Chromium 内核）内执行百度删除，
   /// 与网页前台同源、携带完整浏览器 Cookie，从而像网页一样删除成功。
-  Future<void> _openBaiduWebDelete(List<String> fids) async {
+  /// [verifyUrl]：errno=132 时百度返回的人机验证地址，若有则在 WebView 中
+  /// 先展示给用户完成验证，之后自动回网盘重试删除。
+  Future<void> _openBaiduWebDelete(List<String> fids,
+      {String? verifyUrl}) async {
     if (!mounted) return;
     // 百度删除以云盘绝对路径为 fid；若非路径则不适用网页会话删除。
     if (!fids.every((f) => f == '0' || f.startsWith('/'))) {
@@ -821,7 +828,8 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
     final result = await Navigator.of(context)
         .push<({bool ok, String cookie, String msg})?>(
       MaterialPageRoute(
-        builder: (_) => BaiduVerifyPage(cookie: cookie, deletePaths: fids),
+        builder: (_) =>
+            BaiduVerifyPage(cookie: cookie, deletePaths: fids, verifyUrl: verifyUrl),
       ),
     );
     if (!mounted) return;
