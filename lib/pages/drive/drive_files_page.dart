@@ -131,12 +131,11 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
   void _enterSelectMode(DriveFile file) {
     setState(() {
       _selectMode = true;
-      if (!file.isDir) _selected.add(file.fid);
+      _selected.add(file.fid);
     });
   }
 
   void _toggleSelect(DriveFile file) {
-    if (file.isDir) return;
     setState(() {
       if (!_selected.remove(file.fid)) {
         _selected.add(file.fid);
@@ -152,9 +151,9 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
   }
 
   void _selectAllFiles() {
-    final fileIds = _files.where((f) => !f.isDir).map((f) => f.fid).toSet();
+    final fileIds = _files.map((f) => f.fid).toSet();
     setState(() {
-      if (_selected.length == fileIds.length) {
+      if (_selected.length == fileIds.length && fileIds.isNotEmpty) {
         _selected.clear();
       } else {
         _selected
@@ -322,8 +321,14 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
   }
 
   Future<void> _batchDownload([List<String>? specific]) async {
-    final targets = specific ?? _selected.toList();
-    if ((specific == null && _selected.isEmpty) || _downloading) return;
+    // 多选下载仅针对文件，多选里的文件夹不参与下载。
+    final targets =
+        specific ??
+        _files
+            .where((f) => !f.isDir && _selected.contains(f.fid))
+            .map((f) => f.fid)
+            .toList();
+    if ((specific == null && targets.isEmpty) || _downloading) return;
     setState(() => _downloading = true);
     try {
       final infos = await _resolveDownloadInfo(targets);
@@ -483,7 +488,21 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
       );
     }
     if (_loading && _files.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 28,
+              height: 28,
+              child: CircularProgressIndicator(strokeWidth: 3),
+            ),
+            SizedBox(height: 12),
+            Text('正在加载…',
+                style: TextStyle(color: Color(0xFF9AA3AF), fontSize: 13)),
+          ],
+        ),
+      );
     }
     if (_files.isEmpty) {
       return const EmptyView(
@@ -769,7 +788,15 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
     final err = await widget.drive.deleteFiles(fids);
     if (!mounted) return;
     if (err != null) {
-      _showDeleteError(err, fids);
+      // 百度删除被风控拦截(errno=132)：百度对 Dio 的 Cookie 会话要求安全验证，
+      // 但同样的账号在真实网页里删除却无任何验证。因此改走真实浏览器会话删除。
+      final isBaiduRisk =
+          widget.drive.type == DriveType.baidu && err.contains('安全验证');
+      if (isBaiduRisk) {
+        _openBaiduWebDelete(fids);
+      } else {
+        _toast(err);
+      }
     } else {
       _toast('已删除 ${fids.length} 项');
       _exitSelectMode();
@@ -777,62 +804,41 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
     }
   }
 
-  /// 删除失败提示：若为百度安全验证拦截（errno=132 风控），
-  /// 弹窗提供「在应用内完成验证」入口，完成并保存新 Cookie 后自动重试删除。
-  void _showDeleteError(String err, List<String> fids) {
-    final isBaiduRisk = err.contains('安全验证');
-    if (!isBaiduRisk) {
-      _toast(err);
+  /// 在真实浏览器会话（内嵌 WebView，真实 Chromium 内核）内执行百度删除，
+  /// 与网页前台同源、携带完整浏览器 Cookie，从而像网页一样删除成功。
+  Future<void> _openBaiduWebDelete(List<String> fids) async {
+    if (!mounted) return;
+    // 百度删除以云盘绝对路径为 fid；若非路径则不适用网页会话删除。
+    if (!fids.every((f) => f == '0' || f.startsWith('/'))) {
+      _toast('暂不支持对该类型条目执行网页删除');
       return;
     }
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.of(context).card,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('删除被百度安全验证拦截'),
-        content: const Text(
-          '百度网盘的风控要求先完成一次安全验证（滑块/点选等）后才能删除。\n\n'
-          '点击下方按钮，在应用内直接完成验证；完成后保存会自动重试删除。\n'
-          '（若在应用内仍弹不出验证，也可先到百度网盘官方网页完成验证后重新登录本应用。）',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () => _completeVerifyThenRetry(ctx, fids),
-            child: const Text('在应用内完成验证'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// 打开百度安全验证内嵌页 → 取回新 Cookie 写回网盘并持久化 → 自动重试删除。
-  Future<void> _completeVerifyThenRetry(
-      BuildContext dialogCtx, List<String> fids) async {
-    Navigator.of(dialogCtx).pop();
     final cookie = widget.drive.loginCookie ?? '';
     if (cookie.isEmpty) {
       _toast('未检测到百度登录 Cookie，请先重新登录');
       return;
     }
-    if (!mounted) return;
-    final newCookie = await Navigator.of(context).push<String>(
-      MaterialPageRoute(builder: (_) => BaiduVerifyPage(cookie: cookie)),
+    final result = await Navigator.of(context)
+        .push<({bool ok, String cookie, String msg})?>(
+      MaterialPageRoute(
+        builder: (_) => BaiduVerifyPage(cookie: cookie, deletePaths: fids),
+      ),
     );
-    if (newCookie == null || newCookie.isEmpty) {
-      _toast('未获取到新 Cookie，验证未完成');
-      return;
-    }
-    // 写回客户端并持久化，随后自动重试删除。
-    widget.drive.restoreSession(newCookie);
-    await DriveManager.I.saveDriveSession(DriveType.baidu);
     if (!mounted) return;
-    _toast('已更新登录态，正在重试删除...');
-    _deleteFiles(fids);
+    if (result != null && result.ok) {
+      if (result.cookie.isNotEmpty) {
+        widget.drive.restoreSession(result.cookie);
+        await DriveManager.I.saveDriveSession(DriveType.baidu);
+      }
+      if (!mounted) return;
+      _toast('已删除 ${fids.length} 项');
+      _exitSelectMode();
+      _load();
+    } else if (result != null &&
+        result.msg.isNotEmpty &&
+        result.msg != '已保存') {
+      _toast(result.msg);
+    }
   }
 
   void _deleteSelected() => _deleteFiles(_selected.toList());

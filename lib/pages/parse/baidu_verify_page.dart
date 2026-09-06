@@ -1,21 +1,30 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import '../../theme/app_theme.dart';
 import '../../utils/app_logger.dart';
 
-/// 百度「安全验证」内嵌页。
+/// 百度「浏览器会话」操作页。
 ///
-/// 当百度 filemanager 等管理操作返回 errno=132（verify_scene 风控安全验证）时，
-/// 通过本页在应用内用 WebView 注入当前已登录的百度 Cookie 并载入百度网盘，
-/// 让用户直接在应用内完成百度要求的安全验证（滑块/点选等）。
-/// 完成后点击「保存」，本页会把刷新后的完整 Cookie 合并返回给调用方，
-/// 由外层保存回网盘客户端并自动重试原操作。
+/// 背景：百度 filemanager（删除/移动等）对 Dio 的 Cookie 会话会抛 errno=132
+/// （风控安全验证，verify_scene 拒绝下发验证），但同样的账号在真实浏览器网页里
+/// 删除却完全正常、无任何验证。差异在于请求环境是否“像真实浏览器”。
+///
+/// 本页用系统 WebView（真实 Chromium 内核，指纹/JS/Canvas 都真实）加载已登录的
+/// 百度网盘，并支持两种模式：
+///  1. verifyOnly（deletePaths 为空）：载入网盘首页，让用户完成任何安全验证后保存 Cookie。
+///  2. 删除模式（deletePaths 非空）：在浏览器会话内直接执行 filemanager 删除，
+///     与网页前台同源、携带完整浏览器 Cookie，因此能像网页一样删除成功。
 class BaiduVerifyPage extends StatefulWidget {
-  /// 当前已登录的百度 Cookie（BDUSS=xxx; STOKEN=xxx; ...）
+  /// 当前百度 Cookie（BDUSS=xxx; STOKEN=xxx; ...）
   final String cookie;
 
-  const BaiduVerifyPage({super.key, required this.cookie});
+  /// 需要删除的文件路径列表（百度 fid 即云盘绝对路径）；为 null 时进入纯验证模式。
+  final List<String>? deletePaths;
+
+  const BaiduVerifyPage({super.key, required this.cookie, this.deletePaths});
 
   @override
   State<BaiduVerifyPage> createState() => _BaiduVerifyPageState();
@@ -24,9 +33,11 @@ class BaiduVerifyPage extends StatefulWidget {
 class _BaiduVerifyPageState extends State<BaiduVerifyPage> {
   late final WebViewController _controller;
   bool _loading = true;
+  bool _busy = false;
+  String _status = '';
+  bool _done = false;
   String _currentCookie = '';
 
-  /// 可能存放百度关键会话 cookie 的子域都读一遍再合并，避免漏掉跳转子域。
   static const _domainHosts = [
     'passport.baidu.com',
     'pan.baidu.com',
@@ -37,6 +48,8 @@ class _BaiduVerifyPageState extends State<BaiduVerifyPage> {
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
       ' (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
+  bool get _deleteMode => (widget.deletePaths?.isNotEmpty ?? false);
+
   @override
   void initState() {
     super.initState();
@@ -45,6 +58,11 @@ class _BaiduVerifyPageState extends State<BaiduVerifyPage> {
     _injectCookies().then((_) {
       _controller.loadRequest(Uri.parse('https://pan.baidu.com/disk/main'));
     });
+    if (_deleteMode) {
+      _status = '网页会话已就绪后自动删除';
+    } else {
+      _status = '请在下方完成的验证后点「保存」';
+    }
   }
 
   Future<void> _injectCookies() async {
@@ -60,7 +78,7 @@ class _BaiduVerifyPageState extends State<BaiduVerifyPage> {
             path: '/',
           ));
         } catch (err) {
-          AppLogger.I.w('baidu_verify', '注入 cookie 失败 $host/${e.key}: $err');
+          AppLogger.I.w('baidu_session', '注入 cookie 失败 $host/${e.key}: $err');
         }
       }
     }
@@ -77,10 +95,12 @@ class _BaiduVerifyPageState extends State<BaiduVerifyPage> {
         onPageFinished: (_) {
           if (mounted) setState(() => _loading = false);
           _refreshCookie();
-          // 验证可能涉及跳转，页面就绪后延迟再合并一次最新 cookie。
-          Future.delayed(const Duration(milliseconds: 1800), () {
-            if (mounted) _refreshCookie();
-          });
+          // 页面就绪且为删除模式时自动执行删除。
+          if (_deleteMode && !_busy && !_done) {
+            Future.delayed(const Duration(milliseconds: 800), () {
+              if (mounted && !_busy && !_done) _runDelete();
+            });
+          }
         },
         onWebResourceError: (_) {
           if (mounted) setState(() => _loading = false);
@@ -100,7 +120,6 @@ class _BaiduVerifyPageState extends State<BaiduVerifyPage> {
     return map;
   }
 
-  /// 从 WebView 合并各百度子域上的 cookie（能读到 HttpOnly）。
   Future<void> _refreshCookie() async {
     try {
       final allParts = <String>{};
@@ -113,36 +132,135 @@ class _BaiduVerifyPageState extends State<BaiduVerifyPage> {
           }
         }
       }
-      if (allParts.isNotEmpty) {
-        final merged = allParts.join('; ');
-        if (merged != _currentCookie) {
-          AppLogger.I.i('baidu_verify',
-              '验证页合并 cookie 长度=${merged.length} 含BDUSS=${merged.contains("BDUSS")}');
-          _currentCookie = merged;
-        }
-        // 至少保证原 BDUSS 在场（若 WebView 途中自行登出会丢失，这里用注入值兜底）
-        if (!_currentCookie.contains('BDUSS') &&
-            widget.cookie.contains('BDUSS')) {
-          _currentCookie = widget.cookie;
-        }
-      } else if (_currentCookie.isEmpty) {
+      _currentCookie = allParts.isNotEmpty
+          ? allParts.join('; ')
+          : widget.cookie;
+      if (!_currentCookie.contains('BDUSS') && widget.cookie.contains('BDUSS')) {
         _currentCookie = widget.cookie;
       }
     } catch (e) {
-      AppLogger.I.w('baidu_verify', '读取验证页 cookie 失败: $e');
-      if (_currentCookie.isEmpty) _currentCookie = widget.cookie;
+      AppLogger.I.w('baidu_session', '读取 cookie 失败: $e');
+      _currentCookie = widget.cookie;
     }
   }
 
+  // ---------------- 删除执行 ----------------
+
+  String _buildDeleteJs() {
+    final list = widget.deletePaths!.map((p) => {'path': p}).toList();
+    final filelistJson = jsonEncode(list);
+    return '''
+(async function(){
+  var LIST = $filelistJson;
+  var params = new URLSearchParams();
+  params.set("method","filemanager");
+  params.set("async","0");
+  params.set("opera","delete");
+  params.set("ondup","fail");
+  params.set("filelist", JSON.stringify(LIST));
+  try {
+    var r = await (await fetch("/api/gettemplatevariable?fields=[\"bdstoken\",\"logid\"]&clienttype=0&web=1", {credentials:"same-origin"})).json();
+    var bt = (r && r.result && r.result.bdstoken) || "";
+    if (bt) params.set("bdstoken", bt);
+  } catch(e){}
+  try {
+    var resp = await fetch("/rest/2.0/xpan/file", {
+      method:"POST",
+      credentials:"same-origin",
+      headers:{"Content-Type":"application/x-www-form-urlencoded","X-Requested-With":"XMLHttpRequest"},
+      body: params.toString()
+    });
+    return await resp.text();
+  } catch(e){ return "__ERR__"+e; }
+})()
+''';
+  }
+
+  String _unwrapResult(String raw) {
+    var s = raw.trim();
+    if (s.startsWith('"') && s.endsWith('"') && s.length >= 2) {
+      try {
+        s = jsonDecode(s) as String;
+      } catch (_) {
+        s = s.substring(1, s.length - 1);
+      }
+    }
+    return s.trim();
+  }
+
+  Future<void> _runDelete() async {
+    if (_busy || _done || !_deleteMode) return;
+    setState(() {
+      _busy = true;
+      _status = '正在通过网页会话删除…';
+    });
+    try {
+      final raw = await _controller.runJavaScriptReturningResult(_buildDeleteJs());
+      final text = _unwrapResult(raw.toString());
+      AppLogger.I.i('baidu_session', '删除结果=$text');
+      int errno = -1;
+      String msg = '';
+      try {
+        final map = jsonDecode(text) as Map<String, dynamic>;
+        errno = (map['errno'] as num?)?.toInt() ?? -1;
+        msg = map['errno_msg']?.toString() ?? '';
+      } catch (_) {
+        if (text.startsWith('__ERR__')) {
+          msg = '页面脚本异常: ${text.replaceFirst('__ERR__', '')}';
+        } else {
+          msg = '无法解析删除结果';
+        }
+      }
+      await _refreshCookie();
+      if (!mounted) return;
+      if (errno == 0) {
+        setState(() {
+          _done = true;
+          _busy = false;
+          _status = '删除成功';
+        });
+        Future.delayed(const Duration(milliseconds: 400), () {
+          if (mounted) {
+            Navigator.of(context)
+                .pop((ok: true, cookie: _currentCookie, msg: '删除成功'));
+          }
+        });
+      } else if (errno == 132) {
+        setState(() {
+          _busy = false;
+          _status = '仍被安全验证拦截，请在下方网页完成验证后点「重试删除」';
+        });
+      } else {
+        setState(() {
+          _busy = false;
+          _status = '删除未成功(errno=$errno ${msg.isEmpty ? '' : '· $msg'})，可点「重试删除」';
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _status = '执行出错: $e';
+      });
+    }
+  }
+
+  // ---------------- 纯验证模式保存 ----------------
+
   void _onSave() {
-    if (mounted) Navigator.of(context).pop(_currentCookie);
+    if (widget.cookie.isEmpty && _currentCookie.isEmpty) {
+      return;
+    }
+    if (mounted) {
+      Navigator.of(context).pop((ok: false, cookie: _currentCookie, msg: '已保存'));
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('百度网盘 · 安全验证'),
+        title: Text(_deleteMode ? '百度网盘 · 网页删除' : '百度网盘 · 安全验证'),
         actions: [
           if (_loading)
             const Padding(
@@ -157,43 +275,86 @@ class _BaiduVerifyPageState extends State<BaiduVerifyPage> {
             icon: const Icon(Icons.refresh_rounded, size: 22),
             onPressed: () => _controller.reload(),
           ),
-          TextButton.icon(
-            onPressed: _onSave,
-            icon: const Icon(Icons.save_rounded, size: 18),
-            label: const Text('保存', style: TextStyle(fontWeight: FontWeight.w600)),
-            style: TextButton.styleFrom(
-              foregroundColor: AppColors.of(context).accent,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
+          if (!_deleteMode)
+            TextButton.icon(
+              onPressed: _onSave,
+              icon: const Icon(Icons.save_rounded, size: 18),
+              label: const Text('保存',
+                  style: TextStyle(fontWeight: FontWeight.w600)),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.of(context).accent,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+              ),
             ),
-          ),
         ],
       ),
       body: Column(
         children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            color: AppColors.of(context).accentDeep.withOpacity(0.3),
-            child: Row(
-              children: [
-                Icon(Icons.verified_user_outlined,
-                    size: 16, color: AppColors.of(context).accent),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    '已自动带入当前百度账号。请在下方完成弹出的安全验证后，点右上角「保存」',
-                    style: TextStyle(
-                        color: AppColors.of(context).textSecondary,
-                        fontSize: 12),
-                  ),
-                ),
-              ],
+          _statusBanner(),
+          const SizedBox(height: 6),
+          Expanded(child: WebViewWidget(controller: _controller)),
+          if (_deleteMode)
+            _deleteActionBar(),
+        ],
+      ),
+    );
+  }
+
+  Widget _statusBanner() {
+    final accent = AppColors.of(context).accent;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      color: accent.withOpacity(0.25),
+      child: Row(
+        children: [
+          if (_busy)
+            const SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          else if (_done)
+            Icon(Icons.check_circle_rounded, size: 16, color: accent)
+          else
+            Icon(Icons.verified_user_outlined, size: 16, color: accent),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              _status,
+              style: TextStyle(
+                  color: AppColors.of(context).textSecondary, fontSize: 12),
             ),
           ),
-          Expanded(
-            child: WebViewWidget(controller: _controller),
-          ),
         ],
+      ),
+    );
+  }
+
+  Widget _deleteActionBar() {
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+        child: Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: _busy || _done
+                    ? null
+                    : () => _controller.reload(),
+                child: const Text('刷新页面'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: FilledButton(
+                onPressed: _busy || _done ? null : _runDelete,
+                child: Text(_done ? '已完成' : '重试删除'),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
