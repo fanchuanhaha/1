@@ -147,28 +147,39 @@ class _BaiduVerifyPageState extends State<BaiduVerifyPage> {
   // ---------------- 删除执行 ----------------
 
   String _buildDeleteJs() {
+    // 网页端真实删除走 pan.baidu.com/api/filemanager（不是 rest/2.0/xpan/file）。
+    // 关键点：与前端一致携带 opera=delete & async=0 & onnest=fail & channel=chunlei
+    // & web=1 & clienttype=0 & app_id & bdstoken & logid，且 filelist 为对象数组。
     final list = widget.deletePaths!.map((p) => {'path': p}).toList();
     final filelistJson = jsonEncode(list);
     return '''
 (async function(){
-  var LIST = $filelistJson;
-  var params = new URLSearchParams();
-  params.set("method","filemanager");
-  params.set("async","0");
-  params.set("opera","delete");
-  params.set("ondup","fail");
-  params.set("filelist", JSON.stringify(LIST));
+  var bt = "";
+  var logid = "";
   try {
     var r = await (await fetch("/api/gettemplatevariable?fields=[\"bdstoken\",\"logid\"]&clienttype=0&web=1", {credentials:"same-origin"})).json();
-    var bt = (r && r.result && r.result.bdstoken) || "";
-    if (bt) params.set("bdstoken", bt);
+    var res = (r && r.result) || {};
+    bt = res.bdstoken || "";
+    logid = res.logid || "";
   } catch(e){}
+  var fd = new URLSearchParams();
+  fd.set("async","0");
+  fd.set("onnest","fail");
+  fd.set("filelist", $filelistJson);
+  var q = new URLSearchParams();
+  q.set("opera","delete");
+  q.set("channel","chunlei");
+  q.set("web","1");
+  q.set("clienttype","0");
+  q.set("app_id","250528");
+  if (bt) q.set("bdstoken", bt);
+  if (logid) q.set("logid", logid);
   try {
-    var resp = await fetch("/rest/2.0/xpan/file", {
+    var resp = await fetch("/api/filemanager?"+q.toString(), {
       method:"POST",
       credentials:"same-origin",
-      headers:{"Content-Type":"application/x-www-form-urlencoded","X-Requested-With":"XMLHttpRequest"},
-      body: params.toString()
+      headers:{"Content-Type":"application/x-www-form-urlencoded","X-Requested-With":"XMLHttpRequest","Referer": location.href},
+      body: fd.toString()
     });
     return await resp.text();
   } catch(e){ return "__ERR__"+e; }
