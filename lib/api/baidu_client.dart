@@ -1071,9 +1071,13 @@ class BaiduClient extends BaseDrive {
     String url, {
     Map<String, dynamic>? params,
     required Map<String, dynamic> fields,
+    Map<String, String>? extraHeaders,
   }) async {
     final body = await _request('POST', url,
-        params: params, data: _encodeForm(fields), isForm: true);
+        params: params,
+        data: _encodeForm(fields),
+        isForm: true,
+        extraHeaders: extraHeaders);
     return _checkAndReturn(body);
   }
 
@@ -1141,26 +1145,39 @@ class BaiduClient extends BaseDrive {
 
   Future<String?> _runManager(String opera, List<Map<String, dynamic>> entries) async {
     try {
-      // 与 OpenList 的百度删除保持一致：走官方 union 接口 rest/2.0/xpan/file，
-      // method=filemanager & opera=xxx，表单 async=0 + ondup=fail。
-      final body = await _postForm('$_baseUrl/rest/2.0/xpan/file', params: {
-        'method': 'filemanager',
+      // 关键修复：文件管理（删除/移动/重命名/复制）改走「网页端点」api/filemanager，
+      // 与网页前台一致（async=2、onnest=fail、channel=chunlei、web=1、clienttype=0）。
+      // 实测本账号 cookie 会话走开放端点 rest/2.0/xpan/file 执行 filemanager 被百度
+      // 风控恒拦 errno=132；而网页/原生客户端都走 api/filemanager，故能正常操作。
+      await _ensureBaseCookie();
+      // filelist：delete 用路径字符串数组 ["/a","/b"]；rename/move/copy 用对象数组
+      //（各自已含 path/newname/dest 字段）。
+      final Object filelist = (opera == 'delete')
+          ? entries.map((e) => e['path']?.toString() ?? '').toList()
+          : entries;
+      // 直接走 _request 而非 _postForm：后者经 _check 对任意 errno!=0（含 132）抛异常，
+      // 我们需拿到原始 body 自行处理 errno（尤其 132 时提取人机验证地址）。
+      final body = await _request('POST', '$_baseUrl/api/filemanager', params: {
         'opera': opera,
+        'async': '2',
+        'onnest': 'fail',
         'bdstoken': _bdstoken,
         'app_id': 250528,
         'clienttype': 0,
-      }, fields: {
-        'async': '0',
-        'ondup': 'fail',
-        'filelist': jsonEncode(entries),
+        'web': 1,
+        'channel': 'chunlei',
+      }, data: _encodeForm({
+        'filelist': jsonEncode(filelist),
+      }), isForm: true, extraHeaders: {
+        'Referer': '$_baseUrl/disk/main',
+        'X-Requested-With': 'XMLHttpRequest',
       });
       final errno = toInt(body['errno'], fallback: 0);
       if (errno != 0) {
         final msg = body['errmsg']?.toString() ?? body['show_msg']?.toString() ?? body['err_msg']?.toString() ?? '';
         if (msg.isNotEmpty && errno != 132) return msg;
-        // errno=132：百度风控安全验证，服务器要求完成验证后才能执行管理操作。
-        // 此时把 132 响应里携带的「人机验证地址」一并拼到错误信息里，
-        // 上层据此在 WebView 中直接展示该验证界面让用户当场操作。
+        // errno=132：百度风控安全验证。此时把响应里携带的「人机验证地址」一并拼到
+        // 错误信息里，上层据此在 WebView 中直接展示该验证界面让用户当场操作。
         final verifyUrl = _extractVerifyUrl(body);
         switch (errno) {
           case 132:
@@ -1177,7 +1194,7 @@ class BaiduClient extends BaseDrive {
             return msg.isNotEmpty ? msg : '操作失败($errno)';
         }
       }
-      // async=0：管理操作同步返回，info 里逐项 errno 均已为 0，视为成功。
+      // async=2：errno=0 即提交成功（删除/移动等异步执行）。
       return null;
     } catch (e) {
       return '操作失败: $e';

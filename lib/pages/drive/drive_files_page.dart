@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../api/base_drive.dart';
 import '../../api/baidu_accel_service.dart';
 import '../../api/drive_type.dart';
-import '../../api/drive_manager.dart';
 import '../../state/app_state.dart';
 import '../../state/download_manager.dart';
 import '../../state/download_service.dart';
@@ -785,13 +784,9 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
       ),
     );
     if (ok != true) return;
-    // 百度删除：Dio 会话经实测对该账号的 rest/2.0/xpan/file 恒被 132 拦截
-    //（Cookie 里 BAIDUID=1 占位、非真实浏览器会话）。只有真实浏览器会话删得掉，
-    // 因此百度直接改走内嵌 WebView（真实 Chromium）删除，与网页一致。
-    if (widget.drive.type == DriveType.baidu) {
-      _openBaiduWebDelete(fids);
-      return;
-    }
+    // 百度删除现在由 baudu_client 改走网页端点 api/filemanager（async=2），
+    // 与网页一致，避免开放端点 rest/2.0/xpan/file 的 errno=132。若仍被 132 拦截，
+    // 会在下方 isBaiduRisk 处转入内嵌 WebView 会话完成。
     final err = await widget.drive.deleteFiles(fids);
     if (!mounted) return;
     if (err != null) {
@@ -841,11 +836,9 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
     );
     if (!mounted) return;
     if (result != null && result.ok) {
-      if (result.cookie.isNotEmpty) {
-        widget.drive.restoreSession(result.cookie);
-        await DriveManager.I.saveDriveSession(DriveType.baidu);
-      }
-      if (!mounted) return;
+      // 注意：不把网页会话 Cookie 覆盖回 Dio（实测用 WebView Cookie 覆盖会造成
+      // 之后 api/list 返回 errno=-6 会话失效）。百度文件管理已由 Dio 走网页端点
+      // api/filemanager，无需依赖 WebView 会话也能正常删除。
       _toast('已删除 ${fids.length} 项');
       _exitSelectMode();
       _load();

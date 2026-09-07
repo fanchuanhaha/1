@@ -34,9 +34,9 @@ class _DownloadsPageState extends State<DownloadsPage>
         final failed = dm.countOf(GopeedStatus.error);
         final active = all.length - done - failed;
 
-        // 下载任务按创建时间从早到晚（升序）排列
+        // 下载任务按创建时间从新到旧（降序）排列
         final ordered = [...all]
-          ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+          ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
         final filtered = switch (_filter) {
           1 => ordered
               .where((t) =>
