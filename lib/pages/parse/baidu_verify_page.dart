@@ -254,10 +254,16 @@ class _BaiduVerifyPageState extends State<BaiduVerifyPage> {
       AppLogger.I.i('baidu_session', '删除结果=$text');
       int errno = -1;
       String msg = '';
+      String verifyScene = '';
+      String authwidgetText = '';
       try {
         final map = jsonDecode(text) as Map<String, dynamic>;
         errno = (map['errno'] as num?)?.toInt() ?? -1;
         msg = map['errno_msg']?.toString() ?? '';
+        // 日志里 132 响应是 {verify_scene, authwidget:{safetpl/…}}，没有可直开的验证 URL。
+        verifyScene = map['verify_scene']?.toString() ?? '';
+        final aw = map['authwidget'];
+        if (aw is Map) authwidgetText = 'safetpl=${aw['safetpl'] ?? '?'}';
       } catch (_) {
         if (text.startsWith('__ERR__')) {
           msg = '页面脚本异常: ${text.replaceFirst('__ERR__', '')}';
@@ -280,19 +286,14 @@ class _BaiduVerifyPageState extends State<BaiduVerifyPage> {
           }
         });
       } else if (errno == 132) {
-        // 日志里 132 响应是 {verify_scene, authwidget:{safetpl/…}}，没有可直接打开的
-        // 验证 URL。因此这里保留真实网盘网页，让百度自己的“安全验证”窗口有机会由
-        // SPA 触发弹出，用户可当场完成或直接在页面里勾选删除。
-        final scene = map['verify_scene']?.toString() ?? '';
-        final aw = map['authwidget'];
-        String hint = '';
-        if (aw is Map) hint = 'safetpl=${aw['safetpl'] ?? '?'}';
+        // 没有可直接打开的验证 URL，因此保留真实网盘网页，让百度自己的“安全验证”
+        // 窗口有机会由 SPA 触发弹出，用户可当场完成或直接在页面里勾选删除。
         AppLogger.I.w('baidu_session',
-            '网页删除仍被132拦截 verify_scene=$scene authwidget=$aw');
+            '网页删除仍被132拦截 verify_scene=$verifyScene authwidget=$authwidgetText');
         setState(() {
           _busy = false;
           _blocked132 = true;
-          _status = '百度仍要求安全验证（$hint）。下方为真实网盘网页：请完成弹出的安全验证，'
+          _status = '百度仍要求安全验证（$authwidgetText）。下方为真实网盘网页：请完成弹出的安全验证，'
               '或直接在页面里勾选目标文件删除；点「重新加载网页完成验证」看是否弹出验证窗口';
         });
       } else {
@@ -410,7 +411,7 @@ class _BaiduVerifyPageState extends State<BaiduVerifyPage> {
                 width: double.infinity,
                 child: FilledButton.icon(
                   onPressed: _busy || _done ? null : _reloadForVerify,
-                  icon: const Icon(Icons.sync_rounded, size: 20),
+                  icon: const Icon(Icons.refresh_rounded, size: 20),
                   label: const Text('重新加载网页完成验证'),
                   style: FilledButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 14),
