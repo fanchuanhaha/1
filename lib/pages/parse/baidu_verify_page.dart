@@ -95,6 +95,14 @@ class _BaiduVerifyPageState extends State<BaiduVerifyPage> {
     if (pairs.isEmpty) return;
     for (final host in _domainHosts) {
       for (final e in pairs.entries) {
+        // BAIDUID/BAIDUID_BFESS 是设备指纹 Cookie。App 登录 Cookie 里它们常是
+        // 占位值(=1)，注入后百度风控会将 filemanager 判为可疑而回 132。
+        // 这里跳过占位 BAIDUID，让 pan 网页加载时自己生成真实值再用于删除。
+        final name = e.key.toLowerCase();
+        if ((name == 'baiduid' || name == 'baiduid_bfess') &&
+            e.value.trim().length <= 3) {
+          continue;
+        }
         try {
           await WebViewCookieManager().setCookie(WebViewCookie(
             name: e.key,

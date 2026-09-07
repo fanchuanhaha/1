@@ -785,6 +785,13 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
       ),
     );
     if (ok != true) return;
+    // 百度删除：Dio 会话经实测对该账号的 rest/2.0/xpan/file 恒被 132 拦截
+    //（Cookie 里 BAIDUID=1 占位、非真实浏览器会话）。只有真实浏览器会话删得掉，
+    // 因此百度直接改走内嵌 WebView（真实 Chromium）删除，与网页一致。
+    if (widget.drive.type == DriveType.baidu) {
+      _openBaiduWebDelete(fids);
+      return;
+    }
     final err = await widget.drive.deleteFiles(fids);
     if (!mounted) return;
     if (err != null) {
