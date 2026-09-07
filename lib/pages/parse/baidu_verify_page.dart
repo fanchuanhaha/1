@@ -50,6 +50,9 @@ class _BaiduVerifyPageState extends State<BaiduVerifyPage> {
   /// 当前是否处于「先完成人机验证」阶段；验证完成回到网盘后置为 false。
   bool _verifyMode = false;
 
+  /// 网页自动删除是否被百度 errno=132 拦截（此时把真实网盘网页留给用户操作/完成验证）。
+  bool _blocked132 = false;
+
   static const _domainHosts = [
     'passport.baidu.com',
     'pan.baidu.com',
@@ -277,9 +280,20 @@ class _BaiduVerifyPageState extends State<BaiduVerifyPage> {
           }
         });
       } else if (errno == 132) {
+        // 日志里 132 响应是 {verify_scene, authwidget:{safetpl/…}}，没有可直接打开的
+        // 验证 URL。因此这里保留真实网盘网页，让百度自己的“安全验证”窗口有机会由
+        // SPA 触发弹出，用户可当场完成或直接在页面里勾选删除。
+        final scene = map['verify_scene']?.toString() ?? '';
+        final aw = map['authwidget'];
+        String hint = '';
+        if (aw is Map) hint = 'safetpl=${aw['safetpl'] ?? '?'}';
+        AppLogger.I.w('baidu_session',
+            '网页删除仍被132拦截 verify_scene=$scene authwidget=$aw');
         setState(() {
           _busy = false;
-          _status = '仍被百度安全验证拦截。请在下方网页里手动勾选并删除目标文件（与网页操作一致、无验证），完成后点「已完成手动删除」';
+          _blocked132 = true;
+          _status = '百度仍要求安全验证（$hint）。下方为真实网盘网页：请完成弹出的安全验证，'
+              '或直接在页面里勾选目标文件删除；点「重新加载网页完成验证」看是否弹出验证窗口';
         });
       } else {
         setState(() {
@@ -383,6 +397,40 @@ class _BaiduVerifyPageState extends State<BaiduVerifyPage> {
   }
 
   Widget _deleteActionBar() {
+    // 被 132 拦截：优先引导重新加载网页完成验证。
+    if (_blocked132) {
+      return SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: _busy || _done ? null : _reloadForVerify,
+                  icon: const Icon(Icons.sync_rounded, size: 20),
+                  label: const Text('重新加载网页完成验证'),
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _busy || _done ? null : _onManualDone,
+                  icon: const Icon(Icons.check_rounded, size: 18),
+                  label: const Text('我已在网页手动删除（点此收尾）'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
     // 处于人机验证阶段：只显示「验证完成·回网盘删除」，不显示删除/手动按钮避免误操作。
     if (_verifyMode && !_done) {
       return SafeArea(
@@ -448,6 +496,16 @@ class _BaiduVerifyPageState extends State<BaiduVerifyPage> {
       Navigator.of(context)
           .pop((ok: true, cookie: _currentCookie, msg: '我已在网页手动删除'));
     }
+  }
+
+  /// 被 132 拦截后，重新加载真实网盘网页，让百度 SPA 有机会弹出安全验证窗口。
+  void _reloadForVerify() {
+    if (_busy || _done) return;
+    setState(() {
+      _blocked132 = false;
+      _status = '正在重新加载网页…如有安全验证窗口请完成，完成后可重试删除';
+    });
+    _controller.reload();
   }
 
   // ---------------- 验证完成·回网盘删除 ----------------
