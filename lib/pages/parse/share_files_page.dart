@@ -124,6 +124,7 @@ class _ShareFilesPageState extends State<ShareFilesPage> {
     setState(() {
       _loading = true;
       _error = null;
+      _files = <DriveShareFile>[]; // 立即清空，让下方 spinner 显示，避免旧目录残留
       _stack.add(_dirFid);
       _dirFid = target;
     });
