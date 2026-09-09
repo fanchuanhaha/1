@@ -34,9 +34,9 @@ class _DownloadsPageState extends State<DownloadsPage>
         final failed = dm.countOf(GopeedStatus.error);
         final active = all.length - done - failed;
 
-        // 下载任务按创建时间从新到旧（降序）排列
-        final ordered = [...all]
-          ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        // DownloadManager 已按加入序号把任务排成「最新下载在最前」，
+        // 这里不再用 createdAt 排序（Gopeed 该字段对部分任务为 0，会导致排序失效）。
+        final ordered = all;
         final filtered = switch (_filter) {
           1 => ordered
               .where((t) =>

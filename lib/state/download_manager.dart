@@ -21,6 +21,11 @@ class DownloadManager extends ChangeNotifier {
   final Set<String> _reportedDone = {};
   final Set<String> _reportedRunning = {};
 
+  /// 任务加入序号：首次见到某任务 id 时分配自增序号，用于「最新下载在最前」排序。
+  /// 不依赖 Gopeed 的 createdAt（该字段对部分任务可能为 0/缺失，导致降序排序失效）。
+  final Map<String, int> _seqById = {};
+  int _seq = 0;
+
   DownloadManager._();
 
   void startPolling() {
@@ -86,9 +91,15 @@ class DownloadManager extends ChangeNotifier {
             break;
         }
       }
+      // 为每个首次出现的任务分配自增序号（最新任务的序号最大），用于“最新在前”排序。
+      for (final t in list) {
+        _seqById.putIfAbsent(t.id, () => _seq++);
+      }
       tasks
         ..clear()
-        ..addAll(list);
+        ..addAll(list)
+        // 按加入序号降序：最新下载的任务排最前。
+        ..sort((a, b) => (_seqById[b.id] ?? 0).compareTo(_seqById[a.id] ?? 0));
       _failed = false;
       notifyListeners();
     } catch (e) {

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../api/baidu_accel_service.dart';
 import '../../api/drive_type.dart';
@@ -986,42 +987,47 @@ class _InterfaceTileState extends State<_InterfaceTile> {
               _expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
           firstChild: const SizedBox(width: double.infinity),
           secondChild: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (widget.needsPassword) ...[
-                  Text('说明：下载百度网盘文件前，会先对该文件创建私密分享链接，再由该接口解析出加速直链下载；过程中会弹出步骤提示。该接口需要填写解析密码才能使用。',
-                      style: TextStyle(fontSize: 12, color: textSecondary, height: 1.5)),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          widget.password.isEmpty ? '解析密码：未设置' : '解析密码：${widget.password}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(fontSize: 12, color: textSecondary),
-                        ),
-                      ),
-                      TextButton.icon(
-                        onPressed: () => _editPassword(),
-                        icon: const Icon(Icons.edit_rounded, size: 16),
-                        label: const Text('修改密码'),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  _buildQuotaRow(),
-                ] else
-                  Text(widget.desc,
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+            child: InkWell(
+              onTap: _openAccelSite,
+              borderRadius: BorderRadius.circular(8),
+              child: Row(
+                children: [
+                  Text('密码获取：',
                       style: TextStyle(fontSize: 12, color: textSecondary)),
-              ],
+                  Expanded(
+                    child: Text(
+                      'https://mm.figo88.top/?id=11',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: accent,
+                        decoration: TextDecoration.underline,
+                        decorationColor: accent,
+                      ),
+                    ),
+                  ),
+                  Icon(Icons.open_in_new_rounded,
+                      size: 15, color: textSecondary),
+                  const SizedBox(width: 4),
+                ],
+              ),
             ),
           ),
         ),
-        const Divider(height: 1),
       ],
     );
+  }
+
+  /// 打开「野鸡百度加速」站点，获取接口解析密码。
+  Future<void> _openAccelSite() async {
+    final uri = Uri.parse('https://mm.figo88.top/?id=11');
+    final ok = await launchUrl(uri,
+        mode: LaunchMode.externalApplication);
+    if (!ok && mounted) {
+      AppMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('无法打开链接')));
+    }
   }
 }
