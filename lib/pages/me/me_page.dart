@@ -988,31 +988,61 @@ class _InterfaceTileState extends State<_InterfaceTile> {
           firstChild: const SizedBox(width: double.infinity),
           secondChild: Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-            child: InkWell(
-              onTap: _openAccelSite,
-              borderRadius: BorderRadius.circular(8),
-              child: Row(
-                children: [
-                  Text('密码获取：',
-                      style: TextStyle(fontSize: 12, color: textSecondary)),
-                  Expanded(
-                    child: Text(
-                      'https://mm.figo88.top/?id=11',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: accent,
-                        decoration: TextDecoration.underline,
-                        decorationColor: accent,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (widget.needsPassword)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          widget.password.isEmpty
+                              ? '解析密码：未设置'
+                              : '解析密码：${widget.password}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              fontSize: 12, color: textSecondary),
+                        ),
                       ),
-                    ),
+                      TextButton.icon(
+                        onPressed: () => _editPassword(),
+                        icon: const Icon(Icons.edit_rounded, size: 16),
+                        label: const Text('修改密码'),
+                      ),
+                    ],
                   ),
-                  Icon(Icons.open_in_new_rounded,
-                      size: 15, color: textSecondary),
-                  const SizedBox(width: 4),
-                ],
-              ),
+                const SizedBox(height: 6),
+                InkWell(
+                  onTap: _openAccelSite,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Row(
+                    children: [
+                      Text('密码获取：',
+                          style:
+                              TextStyle(fontSize: 12, color: textSecondary)),
+                      Expanded(
+                        child: Text(
+                          'https://mm.figo88.top/?id=11',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: accent,
+                            decoration: TextDecoration.underline,
+                            decorationColor: accent,
+                          ),
+                        ),
+                      ),
+                      Icon(Icons.open_in_new_rounded,
+                          size: 15, color: textSecondary),
+                      const SizedBox(width: 4),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 10),
+                _buildQuotaRow(),
+              ],
             ),
           ),
         ),

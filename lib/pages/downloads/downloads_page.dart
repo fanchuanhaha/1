@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../../core/gopeed/gopeed_models.dart';
+import '../../state/app_state.dart';
 import '../../state/download_manager.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/app_logger.dart';
 import '../../utils/format.dart';
 import '../../widgets/empty_view.dart';
 import '../../widgets/file_icon.dart';
@@ -324,7 +326,34 @@ class _DownloadsPageState extends State<DownloadsPage>
         ),
       );
     }
-    if (!paused && !active) return const SizedBox.shrink();
+    if (!paused && !active) {
+      if (task.status == GopeedStatus.done) {
+        // 已下载完成：提供「查看/打开」按钮，交由系统选择应用打开文件。
+        return InkWell(
+          onTap: () => _openDownloaded(task),
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: AppColors.of(context).accent.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.visibility_outlined,
+                    color: AppColors.of(context).accent, size: 16),
+                const SizedBox(width: 2),
+                Text('查看',
+                    style: TextStyle(
+                        color: AppColors.of(context).accent, fontSize: 11)),
+              ],
+            ),
+          ),
+        );
+      }
+      return const SizedBox.shrink();
+    }
     final icon = paused ? Icons.play_arrow_rounded : Icons.pause_rounded;
     final label = paused ? '继续' : '暂停';
     return InkWell(
@@ -354,6 +383,27 @@ class _DownloadsPageState extends State<DownloadsPage>
         ),
       ),
     );
+  }
+
+  /// 打开已下载的文件：交由系统选择应用打开
+  Future<void> _openDownloaded(GopeedTask task) async {
+    // 优先用 gopeed 引擎返回的真实保存路径（含文件名），它能反映实际落盘位置
+    //（部分网盘会用响应头文件名覆盖 name，downloadDir/name 拼接会找不到文件）。
+    var p = task.raw?['path']?.toString() ?? '';
+    if (p.isEmpty) {
+      final dir = AppState.I.downloadDir;
+      p = dir.endsWith('/') || dir.endsWith('\\')
+          ? '$dir${task.name}'
+          : '$dir/${task.name}';
+    } else if (p.endsWith('/') || p.endsWith('\\')) {
+      p = '$p${task.name}';
+    }
+    AppLogger.I.i(
+        'open_file', 'openDownloaded task=${task.name} path=$p status=${task.status}');
+    final ok = await AppState.I.openDownloadedFile(p);
+    if (!ok && mounted) {
+      _toast('无法打开「${task.name}」，文件可能已移动或路径不可访问');
+    }
   }
 
   Future<void> _confirmDelete(GopeedTask task,
