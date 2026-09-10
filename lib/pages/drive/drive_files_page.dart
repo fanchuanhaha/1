@@ -806,8 +806,22 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
     } else {
       _toast('已删除 ${fids.length} 项');
       _exitSelectMode();
-      _load();
+      _refreshAfterDelete();
     }
+  }
+
+  /// 删除成功后的刷新：立即进入加载态（显示「正在加载…」转圈），
+  /// 停 0.5s 后再真正拉取列表，避免瞬间刷新、给用户明确的刷新反馈。
+  Future<void> _refreshAfterDelete() async {
+    if (!mounted) return;
+    setState(() {
+      _loading = true;
+      _error = null;
+      _files = <DriveFile>[];
+    });
+    await Future.delayed(const Duration(milliseconds: 500));
+    if (!mounted) return;
+    await _load();
   }
 
   /// 在真实浏览器会话（内嵌 WebView，真实 Chromium 内核）内执行百度删除，
@@ -841,7 +855,7 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
       // api/filemanager，无需依赖 WebView 会话也能正常删除。
       _toast('已删除 ${fids.length} 项');
       _exitSelectMode();
-      _load();
+      _refreshAfterDelete();
     } else if (result != null &&
         result.msg.isNotEmpty &&
         result.msg != '已保存') {
