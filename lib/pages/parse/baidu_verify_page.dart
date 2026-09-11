@@ -52,6 +52,8 @@ class _BaiduVerifyPageState extends State<BaiduVerifyPage> {
 
   /// 网页自动删除是否被百度 errno=132 拦截（此时把真实网盘网页留给用户操作/完成验证）。
   bool _blocked132 = false;
+  /// 132（频率风控）是否已自动重试过：避免无限重试。
+  bool _retried132 = false;
 
   static const _domainHosts = [
     'passport.baidu.com',
@@ -294,15 +296,31 @@ class _BaiduVerifyPageState extends State<BaiduVerifyPage> {
           }
         });
       } else if (errno == 132) {
+        if (!_retried132) {
+          // 132 也常见于「频率/IP 临时风控」——真浏览器因为会话可信不会触发，
+          // 但被标记的会话偶发一次后常能自动恢复。稍作停顿后自动重试一次。
+          AppLogger.I.w('baidu_session',
+              '网页删除132首次命中, 2.2s后自动重试 verify_scene=$verifyScene authwidget=$authwidgetText');
+          _retried132 = true;
+          if (mounted) {
+            setState(() {
+              _busy = true;
+              _status = '百度提示安全验证，正在稍等后自动重试…';
+            });
+          }
+          await Future.delayed(const Duration(milliseconds: 2200));
+          if (!mounted) return;
+          return _runDelete();
+        }
         // 没有可直接打开的验证 URL，因此保留真实网盘网页，让百度自己的“安全验证”
         // 窗口有机会由 SPA 触发弹出，用户可当场完成或直接在页面里勾选删除。
         AppLogger.I.w('baidu_session',
-            '网页删除仍被132拦截 verify_scene=$verifyScene authwidget=$authwidgetText');
+            '网页删除重试仍132 verify_scene=$verifyScene authwidget=$authwidgetText');
         setState(() {
           _busy = false;
           _blocked132 = true;
-          _status = '百度仍要求安全验证（$authwidgetText）。下方为真实网盘网页：请完成弹出的安全验证，'
-              '或直接在页面里勾选目标文件删除；点「重新加载网页完成验证」看是否弹出验证窗口';
+          _status = '百度仍要求安全验证（$authwidgetText）。下方为真实网盘网页：请直接在其中勾选目标文件删除（网页能删且无验证），'
+              '或点「重新加载网页」；删除后点下方的「我已在网页手动删除」收尾返回';
         });
       } else {
         setState(() {

@@ -784,9 +784,14 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
       ),
     );
     if (ok != true) return;
-    // 百度删除现在由 baudu_client 改走网页端点 api/filemanager（async=2），
-    // 与网页一致，避免开放端点 rest/2.0/xpan/file 的 errno=132。若仍被 132 拦截，
-    // 会在下方 isBaiduRisk 处转入内嵌 WebView 会话完成。
+    // 百度删除：App 会话（登录 Cookie 里的 BAIDUID 是占位假指纹）经 Dio/filemanager 删
+    // 会被百度临时风控拦成 errno=132 并跳转网页页，而真实浏览器会话（网页能删且无验证）
+    // 则完全正常。因此百度删除直接走内嵌 WebView（可信 Chromium 会话）作为主路径，
+    // 不再先用 Dio 触发 132。
+    if (widget.drive.type == DriveType.baidu) {
+      _openBaiduWebDelete(fids);
+      return;
+    }
     final err = await widget.drive.deleteFiles(fids);
     if (!mounted) return;
     if (err != null) {
