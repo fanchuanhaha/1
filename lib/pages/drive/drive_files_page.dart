@@ -13,7 +13,6 @@ import '../../widgets/empty_view.dart';
 import '../../widgets/drive_folder_picker.dart';
 import '../../widgets/file_icon.dart';
 import '../../widgets/share_dialogs.dart';
-import '../parse/baidu_verify_page.dart';
 
 /// 通用网盘文件浏览页面，可适用于任何实现 [BaseDrive] 的网盘。
 class DriveFilesPage extends StatefulWidget {
@@ -784,30 +783,11 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
       ),
     );
     if (ok != true) return;
-    // 百度删除：App 会话（登录 Cookie 里的 BAIDUID 是占位假指纹）经 Dio/filemanager 删
-    // 会被百度临时风控拦成 errno=132 并跳转网页页，而真实浏览器会话（网页能删且无验证）
-    // 则完全正常。因此百度删除直接走内嵌 WebView（可信 Chromium 会话）作为主路径，
-    // 不再先用 Dio 触发 132。
-    if (widget.drive.type == DriveType.baidu) {
-      _openBaiduWebDelete(fids);
-      return;
-    }
     final err = await widget.drive.deleteFiles(fids);
     if (!mounted) return;
     if (err != null) {
-      // 百度删除被风控拦截(errno=132)：百度对 Dio 的 Cookie 会话要求安全验证，
-      // 但同样的账号在真实网页里删除却无任何验证。因此改走真实浏览器会话删除。
-      final isBaiduRisk =
-          widget.drive.type == DriveType.baidu && err.contains('安全验证');
-      if (isBaiduRisk) {
-        // err 形如「百度安全验证拦截本次操作|https://验证地址」
-        final idx = err.indexOf('|');
-        final verifyUrl =
-            idx >= 0 && idx + 1 < err.length ? err.substring(idx + 1) : null;
-        _openBaiduWebDelete(fids, verifyUrl: verifyUrl);
-      } else {
-        _toast(err);
-      }
+      // 简短、明确地提示失败原因即可，不再跳转繁琐的网页验证页。
+      _toast(err);
     } else {
       _toast('已删除 ${fids.length} 项');
       _exitSelectMode();
@@ -827,45 +807,6 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
     await Future.delayed(const Duration(milliseconds: 500));
     if (!mounted) return;
     await _load();
-  }
-
-  /// 在真实浏览器会话（内嵌 WebView，真实 Chromium 内核）内执行百度删除，
-  /// 与网页前台同源、携带完整浏览器 Cookie，从而像网页一样删除成功。
-  /// [verifyUrl]：errno=132 时百度返回的人机验证地址，若有则在 WebView 中
-  /// 先展示给用户完成验证，之后自动回网盘重试删除。
-  Future<void> _openBaiduWebDelete(List<String> fids,
-      {String? verifyUrl}) async {
-    if (!mounted) return;
-    // 百度删除以云盘绝对路径为 fid；若非路径则不适用网页会话删除。
-    if (!fids.every((f) => f == '0' || f.startsWith('/'))) {
-      _toast('暂不支持对该类型条目执行网页删除');
-      return;
-    }
-    final cookie = widget.drive.loginCookie ?? '';
-    if (cookie.isEmpty) {
-      _toast('未检测到百度登录 Cookie，请先重新登录');
-      return;
-    }
-    final result = await Navigator.of(context)
-        .push<({bool ok, String cookie, String msg})?>(
-      MaterialPageRoute(
-        builder: (_) =>
-            BaiduVerifyPage(cookie: cookie, deletePaths: fids, verifyUrl: verifyUrl),
-      ),
-    );
-    if (!mounted) return;
-    if (result != null && result.ok) {
-      // 注意：不把网页会话 Cookie 覆盖回 Dio（实测用 WebView Cookie 覆盖会造成
-      // 之后 api/list 返回 errno=-6 会话失效）。百度文件管理已由 Dio 走网页端点
-      // api/filemanager，无需依赖 WebView 会话也能正常删除。
-      _toast('已删除 ${fids.length} 项');
-      _exitSelectMode();
-      _refreshAfterDelete();
-    } else if (result != null &&
-        result.msg.isNotEmpty &&
-        result.msg != '已保存') {
-      _toast(result.msg);
-    }
   }
 
   void _deleteSelected() => _deleteFiles(_selected.toList());
