@@ -796,10 +796,20 @@ class BaiduClient extends BaseDrive {
     // 再从自己网盘 filemetas 取 dlink 直链。直接走分享 PCS 下载常报
     // errno=31023(param error,path)，故不用 getShareDownloadInfo。
     if (files.isEmpty) return [];
-    final tempName = '分享下载${DateTime.now().millisecondsSinceEpoch}';
+    final tempName = '分享下载';
     final tempDir = '/$tempName';
     onStep?.call('正在保存到网盘...');
-    await createFolder(tempDir);
+    // 固定统一保存到「分享下载」文件夹：若已存在则复用，避免重复创建报错。
+    if (!await _rootDirExists(tempName)) {
+      try {
+        await createFolder(tempDir);
+      } on BaiduException catch (e) {
+        // 创建失败但文件夹其实已存在（并发/同步）时也继续。
+        if (!await _rootDirExists(tempName)) {
+          throw BaiduException(e.code, '创建保存目录失败：${e.message}');
+        }
+      }
+    }
     try {
       await saveShare(session, files, tempDir);
     } on BaiduException catch (e) {
@@ -914,6 +924,16 @@ class BaiduClient extends BaseDrive {
   }
 
   /// 创建文件夹
+  /// 判断根目录下是否存在名为 [name] 的文件夹（用于复用统一的保存目录）。
+  Future<bool> _rootDirExists(String name) async {
+    try {
+      final roots = await listFiles('0');
+      return roots.any((f) => f.fileName == name && f.isDir);
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<Map<String, dynamic>> createFolder(String path) async {
     final body = await _post('$_baseUrl/api/create', params: {
       'a': 'commit',
