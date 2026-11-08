@@ -47,45 +47,49 @@ void toast(BuildContext context, String msg) {
       .showSnackBar(SnackBar(content: Text(msg)));
 }
 
-/// 下载成功提示：SnackBar 附带「查看」按钮，点击跳转到下载管理页（底部第 3 个 tab）。
-/// 优先弹回根导航再切 tab，确保从分享/文件浏览等二级页面跳转后下载页可见。
-void showDownloadAddedToast(BuildContext context, String msg) {
-  if (!context.mounted) return;
-  AppMessenger.of(context)
-    ..hideCurrentSnackBar()
-    ..showSnackBar(
-      SnackBar(
-        content: Text(msg),
-        duration: const Duration(seconds: 3),
-        action: SnackBarAction(
-          label: '查看',
-          textColor: AppColors.of(context).accent,
-          onPressed: () {
-            try {
-              Navigator.of(context, rootNavigator: true)
-                  .popUntil((route) => route.isFirst);
-            } catch (_) {}
-            AppState.I.tabIndex.value = 2;
-          },
-        ),
-      ),
-    );
-}
-
-/// 上传入队提示：把「上传」页做成可点击的超链接，点击后跳转到任务页的上传列表。
-void showUploadAddedToast(BuildContext context, int count) {
+/// 任务提示：把文案中的「上传」「下载」渲染成可点击超链接，
+/// 点击后回到根页面并切到任务页对应分段（下载=0，上传=1）。
+void showTaskAddedToast(BuildContext context, String msg, {int? segment}) {
   if (!context.mounted) return;
   final colors = AppColors.of(context);
   final normalStyle = TextStyle(color: colors.textPrimary, fontSize: 14);
+  final linkStyle = TextStyle(
+    color: colors.accent,
+    fontSize: 14,
+    fontWeight: FontWeight.w600,
+    decoration: TextDecoration.underline,
+    decorationColor: colors.accent,
+  );
 
-  void go() {
+  void go(int seg) {
     try {
       Navigator.of(context, rootNavigator: true)
           .popUntil((route) => route.isFirst);
     } catch (_) {}
-    // 先切到任务页的上传分段，再切换到「任务」tab。
-    AppState.I.tasksSegment.value = 1;
+    AppState.I.tasksSegment.value = seg;
     AppState.I.tabIndex.value = 2;
+  }
+
+  final children = <Widget>[];
+  final re = RegExp('(上传|下载)');
+  var last = 0;
+  for (final m in re.allMatches(msg)) {
+    if (m.start > last) {
+      children.add(Text(msg.substring(last, m.start), style: normalStyle));
+    }
+    final word = m.group(1)!;
+    final seg = segment ?? (word == '上传' ? 1 : 0);
+    children.add(GestureDetector(
+      onTap: () => go(seg),
+      child: Text(word, style: linkStyle),
+    ));
+    last = m.end;
+  }
+  if (last < msg.length) {
+    children.add(Text(msg.substring(last), style: normalStyle));
+  }
+  if (children.isEmpty) {
+    children.add(Text(msg, style: normalStyle));
   }
 
   AppMessenger.of(context)
@@ -95,24 +99,20 @@ void showUploadAddedToast(BuildContext context, int count) {
         duration: const Duration(seconds: 4),
         content: Wrap(
           crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            Text('已加入 $count 个上传任务，可在', style: normalStyle),
-            GestureDetector(
-              onTap: go,
-              child: Text(
-                '「上传」页',
-                style: TextStyle(
-                  color: colors.accent,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  decoration: TextDecoration.underline,
-                  decorationColor: colors.accent,
-                ),
-              ),
-            ),
-            Text('查看进度', style: normalStyle),
-          ],
+          children: children,
         ),
       ),
     );
 }
+
+/// 下载入队提示：文案中的「下载」为可点击超链接，点击跳转任务页下载列表。
+void showDownloadAddedToast(BuildContext context, String msg) {
+  showTaskAddedToast(context, msg, segment: 0);
+}
+
+/// 上传入队提示：文案中的「上传」为可点击超链接，点击跳转任务页上传列表。
+void showUploadAddedToast(BuildContext context, int count) {
+  showTaskAddedToast(context, '已加入 $count 个上传任务，可在上传页查看进度',
+      segment: 1);
+}
+

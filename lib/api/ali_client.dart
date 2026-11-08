@@ -26,12 +26,9 @@ class AliClient extends BaseDrive {
   static const String _baseUrl = 'https://api.aliyundrive.com';
   static const String _authUrl = 'https://openapi.alipan.com/oauth/access_token';
 
-  static const String _webviewLoginUrl =
-      'https://auth.aliyundrive.com/v2/oauth/authorize'
-      '?login_type=custom&response_type=code'
-      '&redirect_uri=https%3A%2F%2Fwww.aliyundrive.com%2Fsign%2Fcallback'
-      '&client_id=25dzX3vbYqktVxyX'
-      '&state=%7B%22origin%22%3A%22*%22%7D#/login';
+  // 直接打开网页版登录页（扫码/验证码），登录完成后从 localStorage
+  // 读取 refresh_token。旧 OAuth 授权页回跳后兑换 code 会 400。
+  static const String _webviewLoginUrl = 'https://www.aliyundrive.com/sign/in';
 
   final Dio _dio;
 

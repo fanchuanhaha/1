@@ -7,6 +7,7 @@ import '../../state/upload_manager.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/format.dart';
 import '../../utils/app_logger.dart';
+import '../../utils/permission.dart';
 import '../../widgets/empty_view.dart';
 import '../../widgets/file_icon.dart';
 import '../downloads/import_download_sheet.dart';
@@ -158,7 +159,7 @@ class _TasksPageState extends State<TasksPage>
             setState(() => _dlSelectMode = true);
           case 'import':
             final msg = await ImportDownloadSheet.show(context);
-            if (msg != null && mounted) _toast(msg);
+            if (msg != null && mounted) showDownloadAddedToast(context, msg);
           case 'pauseAll':
             await _dm.pauseAllActive();
             _toast('已全部暂停');

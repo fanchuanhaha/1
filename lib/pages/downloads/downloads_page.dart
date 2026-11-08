@@ -6,6 +6,7 @@ import '../../state/download_manager.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/app_logger.dart';
 import '../../utils/format.dart';
+import '../../utils/permission.dart';
 import '../../widgets/empty_view.dart';
 import '../../widgets/file_icon.dart';
 import 'import_download_sheet.dart';
@@ -72,7 +73,9 @@ class _DownloadsPageState extends State<DownloadsPage>
                         switch (v) {
                           case 'import':
                             final msg = await ImportDownloadSheet.show(context);
-                            if (msg != null && mounted) _toast(msg);
+                            if (msg != null && mounted) {
+                              showDownloadAddedToast(context, msg);
+                            }
                           case 'pauseAll':
                             await dm.pauseAllActive();
                             _toast('已全部暂停');

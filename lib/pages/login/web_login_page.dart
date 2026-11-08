@@ -247,10 +247,20 @@ class _WebLoginPageState extends State<WebLoginPage> {
       return;
     }
 
-    // 阿里云盘：优先使用捕获到的 OAuth code（返回 Map，由 drive.login 兑换 refresh_token）。
-    // cookie/localStorage 拿不到阿里云盘的 refresh_token。
-    if (widget.driveType == DriveType.ali && _aliOauthCode.isNotEmpty) {
-      if (mounted) Navigator.of(context).pop({'code': _aliOauthCode});
+    // 阿里云盘：网页登录成功后 token（含 refresh_token）保存在
+    // localStorage['token'] 中，直接读取 refresh_token 登录，
+    // 避免授权码兑换因缺少 client_secret 返回 400 invalid parameter。
+    if (widget.driveType == DriveType.ali) {
+      final refreshToken = await _readAliRefreshToken();
+      if (refreshToken.isNotEmpty) {
+        if (mounted) Navigator.of(context).pop(refreshToken);
+        return;
+      }
+      if (_aliOauthCode.isNotEmpty) {
+        if (mounted) Navigator.of(context).pop({'code': _aliOauthCode});
+        return;
+      }
+      _toast('未检测到登录凭证，请先完成扫码登录再点击保存');
       return;
     }
 
@@ -355,6 +365,48 @@ class _WebLoginPageState extends State<WebLoginPage> {
     AppLogger.I.i('web_login',
         '保存登录凭证成功 drive=${widget.driveType.name} 凭证长度=${result.length}');
     if (mounted) Navigator.of(context).pop(result);
+  }
+
+  /// 从阿里云盘网页 localStorage 读取 refresh_token。
+  Future<String> _readAliRefreshToken() async {
+    try {
+      final raw = await _controller.runJavaScriptReturningResult('''
+(function() {
+  try {
+    var keys = ['token', 'alipan_token', 'aliyundrive_token',
+                'accountToken', 'account_token'];
+    function pick(v) {
+      if (!v) return '';
+      try {
+        var o = JSON.parse(v);
+        if (o && o.refresh_token) return String(o.refresh_token);
+      } catch(e) {}
+      return '';
+    }
+    for (var i = 0; i < keys.length; i++) {
+      var r = pick(localStorage.getItem(keys[i]));
+      if (r) return r;
+    }
+    for (var k = 0; k < localStorage.length; k++) {
+      var key = localStorage.key(k);
+      if (!key) continue;
+      var v = localStorage.getItem(key);
+      if (!v || v.indexOf('refresh_token') < 0) continue;
+      var r = pick(v);
+      if (r) return r;
+    }
+  } catch(e) {}
+  return '';
+})();
+''');
+      var value = raw.toString().trim();
+      if (value.startsWith('"') && value.endsWith('"') && value.length > 1) {
+        value = value.substring(1, value.length - 1);
+      }
+      return value == 'null' ? '' : value;
+    } catch (_) {
+      return '';
+    }
   }
 
     /// 判断字符串是否像 token（用于迅雷等网盘：避免把 Cookie 误当 token 保存）

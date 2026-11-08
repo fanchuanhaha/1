@@ -9,10 +9,12 @@ import '../../state/download_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/app_logger.dart';
 import '../../utils/format.dart';
+import '../../utils/permission.dart';
 import '../../widgets/empty_view.dart';
 import '../../widgets/drive_folder_picker.dart';
 import '../../widgets/file_icon.dart';
 import '../../widgets/share_dialogs.dart';
+import 'media_preview_page.dart';
 
 /// 通用网盘文件浏览页面，可适用于任何实现 [BaseDrive] 的网盘。
 class DriveFilesPage extends StatefulWidget {
@@ -166,6 +168,34 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
   }
 
   void _singleDownload(DriveFile file) => _batchDownload([file.fid]);
+
+  Future<void> _previewFile(DriveFile file) async {
+    final isVideo = isVideoFileName(file.fileName);
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => MediaPreviewPage(
+          title: file.fileName,
+          isVideo: isVideo,
+          resolve: () async {
+            final infos = await widget.drive.getDownloadInfo([file.fid]);
+            for (final info in infos) {
+              if (info.url.isEmpty) continue;
+              final headers = <String, String>{};
+              final cookie = widget.drive.loginCookie ?? '';
+              if (!info.skipCookie && cookie.isNotEmpty) {
+                headers['Cookie'] = cookie;
+              }
+              if (info.userAgent.isNotEmpty) {
+                headers['User-Agent'] = info.userAgent;
+              }
+              return MediaPreviewSource(url: info.url, headers: headers);
+            }
+            return null;
+          },
+        ),
+      ),
+    );
+  }
 
   /// 当前驱动是否为百度网盘且已开启「野鸡百度加速」接口
   bool get _useAccel =>
@@ -383,7 +413,11 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
         );
         if (err == null) added++;
       }
-      _toast(resolved.isEmpty ? '未获取到下载地址' : '已添加 $added 个下载任务');
+      if (added > 0) {
+        showDownloadAddedToast(context, '已添加 $added 个下载任务');
+      } else {
+        _toast('未获取到下载地址');
+      }
       if (added > 0) DownloadManager.I.startPolling();
       if (specific != null) return;
       _exitSelectMode();
@@ -688,6 +722,21 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
                 style: TextStyle(
                     color: AppColors.of(context).textSecondary, fontSize: 12)),
             const SizedBox(height: 16),
+            if (isImageFileName(file.fileName) ||
+                isVideoFileName(file.fileName)) ...[
+              ListTile(
+                leading: Icon(Icons.visibility_rounded,
+                    color: AppColors.of(context).accent),
+                title: const Text('查看'),
+                subtitle: Text(
+                    isVideoFileName(file.fileName) ? '在线播放视频' : '在线预览图片'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _previewFile(file);
+                },
+              ),
+              const Divider(height: 1),
+            ],
             ListTile(
               leading: Icon(Icons.download_rounded,
                   color: AppColors.of(context).accent),

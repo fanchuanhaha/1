@@ -18,6 +18,7 @@ import '../../utils/upload_picker.dart';
 import '../../widgets/empty_view.dart';
 import '../../widgets/file_icon.dart';
 import '../../widgets/share_dialogs.dart';
+import 'media_preview_page.dart';
 import 'album_page.dart';
 import 'search_page.dart';
 
@@ -353,7 +354,11 @@ class _DrivePageState extends State<DrivePage>
           if (err == null) added++;
         }
       }
-      _toast(added > 0 ? '已添加 $added 个下载任务' : '未获取到下载地址');
+      if (added > 0) {
+        showDownloadAddedToast(context, '已添加 $added 个下载任务');
+      } else {
+        _toast('未获取到下载地址');
+      }
       if (added > 0) DownloadManager.I.startPolling();
       _exitSelectMode();
     } catch (e) {
@@ -709,8 +714,24 @@ class _DrivePageState extends State<DrivePage>
                 style: TextStyle(
                     color: AppColors.of(context).textSecondary, fontSize: 12)),
             const SizedBox(height: 16),
+            if (isImageFileName(file.fileName) ||
+                isVideoFileName(file.fileName)) ...[
+              ListTile(
+                leading: Icon(Icons.visibility_rounded,
+                    color: AppColors.of(context).accent),
+                title: const Text('查看'),
+                subtitle: Text(
+                    isVideoFileName(file.fileName) ? '在线播放视频' : '在线预览图片'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _previewFile(file);
+                },
+              ),
+              const Divider(height: 1),
+            ],
             ListTile(
-              leading: Icon(Icons.download_rounded, color: AppColors.of(context).accent),
+              leading: Icon(Icons.download_rounded,
+                  color: AppColors.of(context).accent),
               title: const Text('立即下载'),
               subtitle: const Text('提取直链，多线程不限速下载'),
               onTap: () {
@@ -875,6 +896,31 @@ class _DrivePageState extends State<DrivePage>
     if (!mounted) return;
     AppMessenger.of(context)
         .showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  Future<void> _previewFile(QuarkFile file) async {
+    final isVideo = isVideoFileName(file.fileName);
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => MediaPreviewPage(
+          title: file.fileName,
+          isVideo: isVideo,
+          resolve: () async {
+            final (infos, _) =
+                await AppState.I.quark.getDownloadInfo([file.fid]);
+            for (final info in infos) {
+              if (info.url.isNotEmpty) {
+                return MediaPreviewSource(
+                  url: info.url,
+                  headers: quarkImageHeaders(),
+                );
+              }
+            }
+            return null;
+          },
+        ),
+      ),
+    );
   }
 
   Future<void> _downloadFile(QuarkFile file) async {
