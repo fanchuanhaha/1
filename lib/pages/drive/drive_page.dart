@@ -25,10 +25,14 @@ class DrivePage extends StatefulWidget {
   final String initialDirFid;
   final String initialName;
 
+  /// 是否内嵌在平板双栏布局右侧（此时不显示返回按钮）
+  final bool embedded;
+
   const DrivePage({
     super.key,
     this.initialDirFid = '0',
     this.initialName = '全部文件',
+    this.embedded = false,
   });
 
   @override
@@ -110,7 +114,7 @@ class _DrivePageState extends State<DrivePage>
       await _uploadDraggedFolders(folders);
     } else {
       UploadManager.I.addFiles(files, _pdirFid);
-      _toast('已加入 ${files.length} 个上传任务，可在「上传」页查看进度');
+      if (mounted) showUploadAddedToast(context, files.length);
     }
     return null;
   }
@@ -146,7 +150,7 @@ class _DrivePageState extends State<DrivePage>
       );
     }
     if (total > 0) {
-      _toast('已加入 $total 个上传任务，可在「上传」页查看进度');
+      if (mounted) showUploadAddedToast(context, total);
     }
   }
 
@@ -274,12 +278,16 @@ class _DrivePageState extends State<DrivePage>
   }
 
   Future<void> _batchDownload() async {
-    // 多选下载仅针对文件，文件夹不参与下载。
-    final fileTargets = _files
-        .where((f) => !f.isDir && _selected.contains(f.fid))
-        .map((f) => f.fid)
-        .toList();
-    if (fileTargets.isEmpty || _downloading) return;
+    if (_downloading) return;
+    final ids = _selected.toList();
+    if (ids.isEmpty) return;
+    // 长按选中的可能是文件夹：先把文件夹递归展开成其中的文件再统一下载。
+    final dirs = <QuarkFile>[];
+    final files = <QuarkFile>[];
+    for (final f in _files) {
+      if (!ids.contains(f.fid)) continue;
+      (f.isDir ? dirs : files).add(f);
+    }
     final app = AppState.I;
     final ok = await app.canWriteDownload();
     if (!ok) {
@@ -310,26 +318,78 @@ class _DrivePageState extends State<DrivePage>
     }
     setState(() => _downloading = true);
     try {
-      final (infos, cookie) =
-          await app.quark.getDownloadInfo(fileTargets);
-      var added = 0;
-      for (final info in infos) {
-        if (info.url.isEmpty) continue;
-        final err = await DownloadService.addDirectUrl(
-          url: info.url,
-          fileName: info.fileName,
-          cookie: cookie,
-          connections: app.connectionsFor(DriveType.quark),
-        );
-        if (err == null) added++;
+      final targets = <({QuarkFile file, String relDir})>[
+        for (final f in files) (file: f, relDir: ''),
+      ];
+      if (dirs.isNotEmpty) {
+        _toast('正在解析 ${dirs.length} 个文件夹…');
+        for (final d in dirs) {
+          await _collectFolder(d, targets, relDir: d.fileName);
+        }
       }
-      _toast('已添加 $added 个下载任务');
-      DownloadManager.I.startPolling();
+      if (targets.isEmpty) {
+        _toast('所选文件夹为空，没有可下载的文件');
+        return;
+      }
+      final root = await app.effectiveDownloadDir();
+      var added = 0;
+      // 单次接口携带过多 fid 容易失败，分批（每批 50 个）解析直链。
+      for (var i = 0; i < targets.length; i += 50) {
+        final end = (i + 50) < targets.length ? i + 50 : targets.length;
+        final chunk = targets.sublist(i, end);
+        final (infos, cookie) = await app.quark.getDownloadInfo(
+            chunk.map((t) => t.file.fid).toList());
+        final relOf = {for (final t in chunk) t.file.fid: t.relDir};
+        for (final info in infos) {
+          if (info.url.isEmpty) continue;
+          final rel = relOf[info.fid] ?? '';
+          final err = await DownloadService.addDirectUrl(
+            url: info.url,
+            fileName: info.fileName,
+            cookie: cookie,
+            path: rel.isEmpty ? null : '$root/$rel',
+            connections: app.connectionsFor(DriveType.quark),
+          );
+          if (err == null) added++;
+        }
+      }
+      _toast(added > 0 ? '已添加 $added 个下载任务' : '未获取到下载地址');
+      if (added > 0) DownloadManager.I.startPolling();
       _exitSelectMode();
     } catch (e) {
       _toast('批量下载失败: $e');
     } finally {
       if (mounted) setState(() => _downloading = false);
+    }
+  }
+
+  /// 递归展开文件夹：把内部所有文件（含子目录）收集为下载目标，
+  /// [relDir] 为相对保存目录（保留原文件夹层级）。
+  Future<void> _collectFolder(
+    QuarkFile dir,
+    List<({QuarkFile file, String relDir})> out, {
+    required String relDir,
+    int depth = 0,
+  }) async {
+    if (depth > 20 || out.length >= 5000) return;
+    final seen = <String>{};
+    var page = 1;
+    while (page <= 50 && out.length < 5000) {
+      final children = await AppState.I.quark.listFiles(dir.fid,
+          page: page, size: 100);
+      final before = seen.length;
+      for (final c in children) {
+        if (!seen.add(c.fid)) continue;
+        if (c.isDir) {
+          await _collectFolder(c, out,
+              relDir: '$relDir/${c.fileName}', depth: depth + 1);
+        } else {
+          out.add((file: c, relDir: relDir));
+        }
+      }
+      // 部分网盘一次返回全部文件（自动翻页），无新增即结束，避免重复请求。
+      if (children.length < 100 || seen.length == before) break;
+      page++;
     }
   }
 
@@ -339,6 +399,13 @@ class _DrivePageState extends State<DrivePage>
     return Scaffold(
       appBar: AppBar(
         title: Text(DriveType.quark.label),
+        automaticallyImplyLeading: false,
+        leading: widget.embedded
+            ? null
+            : IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+                onPressed: () => Navigator.pop(context),
+              ),
         actions: _selectMode
             ? [
                 TextButton(
@@ -875,7 +942,7 @@ class _DrivePageState extends State<DrivePage>
     final sources = await UploadPicker.pickFiles();
     if (sources.isEmpty) return;
     UploadManager.I.addFiles(sources, _pdirFid);
-    _toast('已加入 ${sources.length} 个上传任务，可在「上传」页查看进度');
+    showUploadAddedToast(context, sources.length);
   }
 
   Future<void> _pickUploadFolder() async {
@@ -910,7 +977,7 @@ class _DrivePageState extends State<DrivePage>
       targetDirFid: _pdirFid,
       rootFolderName: result.rootName,
     );
-    _toast('已加入 ${result.files.length} 个上传任务，可在「上传」页查看进度');
+    showUploadAddedToast(context, result.files.length);
   }
 }
 

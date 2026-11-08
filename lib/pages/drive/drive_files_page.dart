@@ -20,11 +20,15 @@ class DriveFilesPage extends StatefulWidget {
   final String driveName;
   final String initialDirFid;
 
+  /// 是否内嵌在平板双栏布局右侧（此时不显示返回按钮）
+  final bool embedded;
+
   const DriveFilesPage({
     super.key,
     required this.drive,
     required this.driveName,
     this.initialDirFid = '0',
+    this.embedded = false,
   });
 
   @override
@@ -170,19 +174,33 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
   /// 解析下载信息：开启百度加速接口时，先对文件创建分享链接，再由
   /// 第三方接口解析出加速直链；任一环节失败则回退用网盘原生方式获取直链。
   /// 各步骤会通过 toast + 日志提示用户当前进度。
-  Future<List<DriveDownloadInfo>> _resolveDownloadInfo(
-      List<String> fids) async {
-    if (!_useAccel) return widget.drive.getDownloadInfo(fids);
+  /// 结果同时带回相对保存目录（文件夹下载时保留目录层级）。
+  Future<List<({DriveDownloadInfo info, String relDir})>> _resolveDownloadInfo(
+      List<({DriveFile file, String relDir})> targets) async {
+    final results = <({DriveDownloadInfo info, String relDir})>[];
+    if (!_useAccel) {
+      // 单次接口携带过多 fid 容易失败，分批（每批 50 个）解析直链。
+      for (var i = 0; i < targets.length; i += 50) {
+        final end = (i + 50) < targets.length ? i + 50 : targets.length;
+        final chunk = targets.sublist(i, end);
+        final relOf = {for (final t in chunk) t.file.fid: t.relDir};
+        final infos = await widget.drive
+            .getDownloadInfo(chunk.map((t) => t.file.fid).toList());
+        for (final info in infos) {
+          results.add((info: info, relDir: relOf[info.fid] ?? ''));
+        }
+      }
+      return results;
+    }
 
     final accel = BaiduAccelService.I;
     final password = AppState.I.baiduAccelPassword;
-    final results = <DriveDownloadInfo>[];
     _openAccelDialog('正在创建分享…');
     try {
-      for (final fid in fids) {
-        final matched = _files.where((f) => f.fid == fid).toList();
-        final fileName =
-            matched.isNotEmpty ? matched.first.fileName : '$fid';
+      for (final t in targets) {
+        final fid = t.file.fid;
+        final fileName = t.file.fileName;
+        final size = t.file.size;
         try {
           _accelStep('正在创建分享…');
           final share = await widget.drive.shareFiles([fid]);
@@ -200,7 +218,9 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
               '';
           if (fsId.isEmpty) {
             _accelWarn('fid=$fid 分享列表中未匹配到该文件，回退普通下载');
-            results.addAll(await widget.drive.getDownloadInfo([fid]));
+            for (final info in await widget.drive.getDownloadInfo([fid])) {
+              results.add((info: info, relDir: t.relDir));
+            }
             continue;
           }
 
@@ -215,27 +235,32 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
           final link = linkMap[fsId];
           if (link == null || link.urls.isEmpty) {
             _accelWarn('fid=$fid 未解析到加速直链，回退普通下载');
-            results.addAll(await widget.drive.getDownloadInfo([fid]));
+            for (final info in await widget.drive.getDownloadInfo([fid])) {
+              results.add((info: info, relDir: t.relDir));
+            }
             continue;
           }
-          final size =
-              matched.isNotEmpty ? matched.first.size : 0;
           _accelStep('加速直链获取成功，准备下载');
           AppLogger.I.i('drive_files', '百度加速直链获取成功 fid=$fid 加速域名=${_hostOf(link.urls.first)}');
-          results.add(DriveDownloadInfo(
-            url: link.urls.first,
-            fileName: fileName,
-            size: size,
-            fid: fid,
-            // 直链绑定专用 UA（如 netdisk;8.42.0.5;PC），原样使用；
-            // 且加速链接为分享/匿名上下文，禁止附带个人 cookie。
-            userAgent: link.ua,
-            skipCookie: true,
+          results.add((
+            info: DriveDownloadInfo(
+              url: link.urls.first,
+              fileName: fileName,
+              size: size,
+              fid: fid,
+              // 直链绑定专用 UA（如 netdisk;8.42.0.5;PC），原样使用；
+              // 且加速链接为分享/匿名上下文，禁止附带个人 cookie。
+              userAgent: link.ua,
+              skipCookie: true,
+            ),
+            relDir: t.relDir,
           ));
         } catch (e) {
           AppLogger.I.w('drive_files', '百度加速解析失败，回退普通下载 $fid: $e');
           _accelWarn('百度加速解析失败，已回退普通下载：$e');
-          results.addAll(await widget.drive.getDownloadInfo([fid]));
+          for (final info in await widget.drive.getDownloadInfo([fid])) {
+            results.add((info: info, relDir: t.relDir));
+          }
         }
       }
       return results;
@@ -319,29 +344,46 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
   }
 
   Future<void> _batchDownload([List<String>? specific]) async {
-    // 多选下载仅针对文件，多选里的文件夹不参与下载。
-    final targets =
-        specific ??
-        _files
-            .where((f) => !f.isDir && _selected.contains(f.fid))
-            .map((f) => f.fid)
-            .toList();
-    if ((specific == null && targets.isEmpty) || _downloading) return;
+    if (_downloading) return;
+    final ids = specific ?? _selected.toList();
+    if (ids.isEmpty) return;
+    // 长按选中的可能是文件夹：先把文件夹递归展开成其中的文件再统一下载。
+    final dirs = <DriveFile>[];
+    final files = <DriveFile>[];
+    for (final f in _files) {
+      if (!ids.contains(f.fid)) continue;
+      (f.isDir ? dirs : files).add(f);
+    }
+    if (dirs.isEmpty && files.isEmpty) return;
     setState(() => _downloading = true);
     try {
-      final infos = await _resolveDownloadInfo(targets);
+      final targets = <({DriveFile file, String relDir})>[
+        for (final f in files) (file: f, relDir: ''),
+      ];
+      if (dirs.isNotEmpty) {
+        _toast('正在解析 ${dirs.length} 个文件夹…');
+        for (final d in dirs) {
+          await _collectFolder(d, targets, relDir: d.fileName);
+        }
+      }
+      if (targets.isEmpty) {
+        _toast('所选文件夹为空，没有可下载的文件');
+        return;
+      }
+      final resolved = await _resolveDownloadInfo(targets);
       if (!mounted) return;
       var added = 0;
-      for (final info in infos) {
-        if (info.url.isEmpty) continue;
+      for (final r in resolved) {
+        if (r.info.url.isEmpty) continue;
         final err = await DownloadService.addDriveUrl(
           widget.drive,
-          info,
+          r.info,
           connections: AppState.I.connectionsFor(widget.drive.type),
+          subDir: r.relDir,
         );
         if (err == null) added++;
       }
-      _toast(infos.isEmpty ? '未获取到下载地址' : '已添加 $added 个下载任务');
+      _toast(resolved.isEmpty ? '未获取到下载地址' : '已添加 $added 个下载任务');
       if (added > 0) DownloadManager.I.startPolling();
       if (specific != null) return;
       _exitSelectMode();
@@ -353,21 +395,54 @@ class _DriveFilesPageState extends State<DriveFilesPage> {
     }
   }
 
+  /// 递归展开文件夹：把内部所有文件（含子目录）收集为下载目标，
+  /// [relDir] 为相对保存目录（保留原文件夹层级）。
+  Future<void> _collectFolder(
+    DriveFile dir,
+    List<({DriveFile file, String relDir})> out, {
+    required String relDir,
+    int depth = 0,
+  }) async {
+    if (depth > 20 || out.length >= 5000) return;
+    final seen = <String>{};
+    var page = 1;
+    while (page <= 50 && out.length < 5000) {
+      final children =
+          await widget.drive.listFiles(dir.fid, page: page, size: 100);
+      final before = seen.length;
+      for (final c in children) {
+        if (!seen.add(c.fid)) continue;
+        if (c.isDir) {
+          await _collectFolder(c, out,
+              relDir: '$relDir/${c.fileName}', depth: depth + 1);
+        } else {
+          out.add((file: c, relDir: relDir));
+        }
+      }
+      // 部分网盘一次返回全部文件（自动翻页），无新增即结束，避免重复请求。
+      if (children.length < 100 || seen.length == before) break;
+      page++;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(_selectMode ? '已选 ${_selected.length} 项' : widget.driveName),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
-          onPressed: () {
-            if (_selectMode) {
-              _exitSelectMode();
-            } else {
-              Navigator.pop(context);
-            }
-          },
-        ),
+        leading: widget.embedded
+            ? null
+            : IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+                onPressed: () {
+                  if (_selectMode) {
+                    _exitSelectMode();
+                  } else {
+                    Navigator.pop(context);
+                  }
+                },
+              ),
+        automaticallyImplyLeading: false,
         actions: [
           if (_selectMode)
             TextButton(

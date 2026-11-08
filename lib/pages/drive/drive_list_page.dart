@@ -7,6 +7,7 @@ import '../../api/base_drive.dart';
 import '../../state/app_state.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/format.dart';
+import '../../widgets/empty_view.dart';
 import '../login/login_page.dart';
 import 'drive_files_page.dart';
 import 'drive_page.dart' as old_drive;
@@ -21,6 +22,21 @@ class DriveListPage extends StatefulWidget {
 }
 
 class _DriveListPageState extends State<DriveListPage> {
+  /// 平板双栏模式下当前在右侧浏览的网盘；为空时默认第一个已登录网盘。
+  DriveType? _selected;
+
+  /// 是否为平板/大屏（按最短边判断，手机横屏仍走手机布局）
+  bool _isTablet(BuildContext context) =>
+      MediaQuery.sizeOf(context).shortestSide >= 600;
+
+  /// 第一个已登录的网盘（没有则回退到列表第一个）
+  DriveType _firstLoggedIn() {
+    for (final t in DriveType.values) {
+      if (_hasLogin(t)) return t;
+    }
+    return DriveType.values.first;
+  }
+
   /// 获取指定网盘类型的登录状态
   bool _hasLogin(DriveType type) {
     if (type == DriveType.quark) {
@@ -74,15 +90,26 @@ class _DriveListPageState extends State<DriveListPage> {
     );
   }
 
-  void _onTapDrive(DriveType type) {
+  Future<void> _onTapDrive(DriveType type) async {
     final loggedIn = _hasLogin(type);
     if (!loggedIn) {
       // 点击未登录网盘 → 直接跳转到该网盘的登录页面
-      Navigator.of(context).push(
+      await Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => LoginPage(initialDrive: type),
         ),
       );
+      if (!mounted) return;
+      // 平板：登录成功后直接在右侧打开该网盘
+      if (_isTablet(context) && _hasLogin(type)) {
+        setState(() => _selected = type);
+      }
+      return;
+    }
+
+    // 平板双栏：左侧选中，右侧展示该网盘的文件浏览
+    if (_isTablet(context)) {
+      setState(() => _selected = type);
       return;
     }
 
@@ -206,34 +233,105 @@ class _DriveListPageState extends State<DriveListPage> {
     return ListenableBuilder(
       listenable: Listenable.merge([AppState.I, DriveManager.I]),
       builder: (context, _) {
+        final tablet = _isTablet(context);
+        // 平板默认打开第一个已登录的网盘；当前选中的网盘退出登录后自动回退。
+        final selected = (_selected != null && _hasLogin(_selected!))
+            ? _selected!
+            : _firstLoggedIn();
         return Scaffold(
           backgroundColor: AppColors.of(context).bg,
           appBar: AppBar(
             title: const Text('我的网盘'),
           ),
-          body: ListView.separated(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+          body: tablet
+              ? _buildTabletBody(context, selected)
+              : ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                  itemCount: DriveType.values.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 10),
+                  itemBuilder: (context, index) {
+                    final type = DriveType.values[index];
+                    final loggedIn = _hasLogin(type);
+                    final nickname = _nickname(type);
+                    return _buildDriveRow(type, loggedIn, nickname);
+                  },
+                ),
+        );
+      },
+    );
+  }
+
+  /// 平板双栏：左侧网盘列表，右侧当前网盘的文件浏览。
+  /// 底部导航（解析/网盘/任务/我的）由 RootPage 统一展示，不会被隐藏。
+  Widget _buildTabletBody(BuildContext context, DriveType selected) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(
+          width: 300,
+          child: ListView.separated(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
             itemCount: DriveType.values.length,
             separatorBuilder: (_, __) => const SizedBox(height: 10),
             itemBuilder: (context, index) {
               final type = DriveType.values[index];
               final loggedIn = _hasLogin(type);
               final nickname = _nickname(type);
-              return _buildDriveRow(type, loggedIn, nickname);
+              return _buildDriveRow(type, loggedIn, nickname,
+                  selected: type == selected);
             },
           ),
-        );
-      },
+        ),
+        VerticalDivider(
+          width: 1,
+          thickness: 0.5,
+          color: AppColors.of(context).divider,
+        ),
+        Expanded(child: _buildDrivePane(selected)),
+      ],
     );
   }
 
-  Widget _buildDriveRow(DriveType type, bool loggedIn, String? nickname) {
+  /// 平板右侧内容：已登录则直接显示文件列表，未登录则提示登录。
+  Widget _buildDrivePane(DriveType type) {
+    if (!_hasLogin(type)) {
+      return EmptyView(
+        icon: Icons.lock_outline_rounded,
+        text: '登录后查看网盘文件',
+        subText: '在左侧选择网盘并完成登录',
+        action: FilledButton(
+          onPressed: () => _onTapDrive(type),
+          child: const Text('去登录'),
+        ),
+      );
+    }
+    if (type == DriveType.quark) {
+      return const old_drive.DrivePage(
+        key: ValueKey('tablet-quark'),
+        embedded: true,
+      );
+    }
+    final drive = _getDrive(type);
+    if (drive == null) return const SizedBox.shrink();
+    return DriveFilesPage(
+      key: ValueKey('tablet-${type.name}'),
+      drive: drive,
+      driveName: type.label,
+      embedded: true,
+    );
+  }
+
+  Widget _buildDriveRow(DriveType type, bool loggedIn, String? nickname,
+      {bool selected = false}) {
     final capInfo = _capacityInfo(type);
     final capacity = capInfo?.text ?? '';
     return Container(
       decoration: BoxDecoration(
         color: AppColors.of(context).card,
         borderRadius: BorderRadius.circular(16),
+        border: selected
+            ? Border.all(color: AppColors.of(context).accent, width: 1.2)
+            : null,
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(

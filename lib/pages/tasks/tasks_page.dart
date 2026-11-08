@@ -23,7 +23,9 @@ class TasksPage extends StatefulWidget {
 class _TasksPageState extends State<TasksPage>
     with AutomaticKeepAliveClientMixin {
   /// 0 = 下载，1 = 上传（分段切换，不单独拆「全部」以减少切换成本）
-  int _segment = 0;
+  /// 由 [AppState.tasksSegment] 统一持有，便于上传提示超链接直接切到「上传」。
+  int get _segment => AppState.I.tasksSegment.value;
+  set _segment(int v) => AppState.I.tasksSegment.value = v;
 
   // ---- 下载页筛选/多选 ----
   int _dlFilter = 0;
@@ -48,7 +50,8 @@ class _TasksPageState extends State<TasksPage>
     super.build(context);
     // 同时监听下载与上传管理器，任务状态变化时刷新计数/列表
     return ListenableBuilder(
-      listenable: Listenable.merge([_dm, _um]),
+      listenable:
+          Listenable.merge([_dm, _um, AppState.I.tasksSegment]),
       builder: (context, _) => SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

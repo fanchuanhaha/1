@@ -77,6 +77,9 @@ class AppState extends ChangeNotifier {
   /// 底部导航当前 tab（0解析 / 1网盘 / 2下载 / 3我的），供全局跳转（如下载提示的「查看」）
   final ValueNotifier<int> tabIndex = ValueNotifier<int>(0);
 
+  /// 任务页当前分段（0 下载 / 1 上传），供上传提示的「上传」页超链接跳转。
+  final ValueNotifier<int> tasksSegment = ValueNotifier<int>(0);
+
   final _secure = const FlutterSecureStorage(
     aOptions: AndroidOptions(encryptedSharedPreferences: true),
   );

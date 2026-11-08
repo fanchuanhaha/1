@@ -71,3 +71,48 @@ void showDownloadAddedToast(BuildContext context, String msg) {
       ),
     );
 }
+
+/// 上传入队提示：把「上传」页做成可点击的超链接，点击后跳转到任务页的上传列表。
+void showUploadAddedToast(BuildContext context, int count) {
+  if (!context.mounted) return;
+  final colors = AppColors.of(context);
+  final normalStyle = TextStyle(color: colors.textPrimary, fontSize: 14);
+
+  void go() {
+    try {
+      Navigator.of(context, rootNavigator: true)
+          .popUntil((route) => route.isFirst);
+    } catch (_) {}
+    // 先切到任务页的上传分段，再切换到「任务」tab。
+    AppState.I.tasksSegment.value = 1;
+    AppState.I.tabIndex.value = 2;
+  }
+
+  AppMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(
+      SnackBar(
+        duration: const Duration(seconds: 4),
+        content: Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Text('已加入 $count 个上传任务，可在', style: normalStyle),
+            GestureDetector(
+              onTap: go,
+              child: Text(
+                '「上传」页',
+                style: TextStyle(
+                  color: colors.accent,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  decoration: TextDecoration.underline,
+                  decorationColor: colors.accent,
+                ),
+              ),
+            ),
+            Text('查看进度', style: normalStyle),
+          ],
+        ),
+      ),
+    );
+}

@@ -92,6 +92,7 @@ class DownloadService {
     DriveDownloadInfo info, {
     int connections = 16,
     String? cookie,
+    String? subDir,
   }) async {
     if (info.url.isEmpty) {
       AppLogger.I.w('download', 'addDriveUrl: 下载地址为空，跳过 type=${drive.type} fid=${info.fid}');
@@ -106,6 +107,12 @@ class DownloadService {
     final effCookie = (cookie != null && cookie.isNotEmpty)
         ? cookie
         : (drive.loginCookie ?? '');
+    // 文件夹下载时保留相对目录结构：下载根目录 + 相对子目录。
+    String? path;
+    if (subDir != null && subDir.isNotEmpty) {
+      final root = await AppState.I.effectiveDownloadDir();
+      path = '$root/$subDir';
+    }
     final err = await addDirectUrl(
       url: info.url,
       fileName: info.fileName,
@@ -114,6 +121,7 @@ class DownloadService {
       referer: http.referer,
       // 直链若指定了专用 UA（如百度加速返回的 netdisk;8.42.0.5;PC）则优先使用。
       userAgent: info.userAgent.isNotEmpty ? info.userAgent : http.ua,
+      path: path,
       connections: connections,
     );
     if (err == null) {
