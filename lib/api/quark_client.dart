@@ -495,11 +495,16 @@ class QuarkClient {
   }
 
   /// 删除文件/文件夹（到回收站），返回 null 表示成功，否则返回错误信息。
+  /// drive-pc 接口要求 filelist + action_type(2=移入回收站)；
+  /// 传 fids 会返回「current_dir_fid,filelist 不能同时为空」。
   Future<String?> deleteFiles(List<String> fids) async {
     if (fids.isEmpty) return null;
     try {
-      await _post('$drivePcApi/file/delete',
-          params: _pcParams, data: {'fids': fids});
+      await _post('$drivePcApi/file/delete', params: _pcParams, data: {
+        'action_type': 2,
+        'exclude_fids': <String>[],
+        'filelist': fids,
+      });
       return null;
     } on QuarkException catch (e) {
       return '删除失败: ${e.message}';

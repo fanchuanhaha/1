@@ -240,9 +240,9 @@ class _DriveListPageState extends State<DriveListPage> {
             : _firstLoggedIn();
         return Scaffold(
           backgroundColor: AppColors.of(context).bg,
-          appBar: AppBar(
-            title: const Text('我的网盘'),
-          ),
+          // 平板不再显示「我的网盘」标题栏，由右侧文件页自己的标题栏
+          // （显示当前打开的网盘名称）充当页面顶部栏。
+          appBar: tablet ? null : AppBar(title: const Text('我的网盘')),
           body: tablet
               ? _buildTabletBody(context, selected)
               : ListView.separated(
@@ -267,19 +267,22 @@ class _DriveListPageState extends State<DriveListPage> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SizedBox(
-          width: 300,
-          child: ListView.separated(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
-            itemCount: DriveType.values.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 10),
-            itemBuilder: (context, index) {
-              final type = DriveType.values[index];
-              final loggedIn = _hasLogin(type);
-              final nickname = _nickname(type);
-              return _buildDriveRow(type, loggedIn, nickname,
-                  selected: type == selected);
-            },
+        SafeArea(
+          bottom: false,
+          child: SizedBox(
+            width: 300,
+            child: ListView.separated(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
+              itemCount: DriveType.values.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 10),
+              itemBuilder: (context, index) {
+                final type = DriveType.values[index];
+                final loggedIn = _hasLogin(type);
+                final nickname = _nickname(type);
+                return _buildDriveRow(type, loggedIn, nickname,
+                    selected: type == selected);
+              },
+            ),
           ),
         ),
         VerticalDivider(
